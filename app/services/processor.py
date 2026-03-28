@@ -15,7 +15,7 @@ import threading
 
 from app.services import bookstack as bs
 from app.services import audit, storage
-from app.services.bedrock import fix_extraction_artifacts, generate_faq
+from app.services.bedrock import generate_faq, structure_markdown
 from app.services.pdf import pdf_to_markdown
 
 class _JobCancelled(Exception):
@@ -30,7 +30,7 @@ def _raise_if_cancelled(job_id: str) -> None:
 
 STEPS = [
     (1, "Extraindo texto do PDF"),
-    (2, "Corrigindo artefatos de extração"),
+    (2, "Estruturando texto com IA"),
     (3, "Gerando FAQ com IA"),
     (4, "Publicando rascunho no Bookstack"),
     (5, "Concluído"),
@@ -113,18 +113,18 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         # ── Conferência de qualidade da extração ─────────────────────────
         extraction_check = _verify_extraction(markdown_text)
 
-        # ── Etapa 2: Correção de artefatos ───────────────────────────────
+        # ── Etapa 2: Estruturação com IA ─────────────────────────────────
         _raise_if_cancelled(job_id)
         _set_step(job_id, 2, _private)
 
-        def on_correction_progress(current, total):
+        def on_structure_progress(current, total):
             pct = int(20 + current / total * 20)  # 20–40 %
             storage.save_status(job_id, base_status | {
-                "current_step_label": f"Corrigindo artefatos — parte {current}/{total}",
+                "current_step_label": f"Estruturando texto — parte {current}/{total}",
                 "progress_pct": pct,
             })
 
-        markdown_text = fix_extraction_artifacts(markdown_text, on_progress=on_correction_progress)
+        markdown_text = structure_markdown(markdown_text, on_progress=on_structure_progress)
 
         # ── Etapa 3: FAQ com IA ──────────────────────────────────────────
         _raise_if_cancelled(job_id)

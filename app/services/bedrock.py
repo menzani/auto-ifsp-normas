@@ -101,40 +101,60 @@ def generate_revocation_summary(markdown_text: str, title: str) -> str:
     return raw
 
 
-def fix_extraction_artifacts(text: str, on_progress=None) -> str:
+def structure_markdown(text: str, on_progress=None) -> str:
     """
-    Corrige artefatos de extração de PDF: acentos quebrados, hifenizações incorretas,
-    espaços onde deveriam haver letras acentuadas (ex: "Poli ca" → "Política").
-    Processa em chunks de 5.000 chars. Retorna o texto original em caso de falha.
+    Corrige artefatos de extração de PDF e estrutura o texto em Markdown semântico
+    em uma única etapa de IA.
+
+    Artefatos corrigidos: acentos quebrados, hifenizações incorretas, espaços indevidos.
+    Estrutura adicionada: headings (#, ##) apenas onde fazem sentido semântico
+    (capítulos, artigos, seções) — linhas de atribuição como "O REITOR" e timbres
+    institucionais não recebem heading.
+
+    Processa em chunks de 8.000 chars. Retorna o texto original em caso de falha.
     on_progress(current, total) é chamado após cada chunk processado.
     """
-    _CHUNK = 5_000
+    _CHUNK = 8_000
     source = text[:_MAX_INPUT_CHARS]
     chunks = [source[i:i+_CHUNK] for i in range(0, len(source), _CHUNK)]
-    corrected = []
+    structured = []
     total = len(chunks)
     for i, chunk in enumerate(chunks, start=1):
-        corrected.append(_fix_artifacts_chunk(chunk))
+        is_continuation = i > 1
+        structured.append(_structure_chunk(chunk, is_continuation))
         if on_progress:
             on_progress(i, total)
     if len(text) > _MAX_INPUT_CHARS:
-        corrected.append(text[_MAX_INPUT_CHARS:])
-    return "".join(corrected)
+        structured.append(text[_MAX_INPUT_CHARS:])
+    return "".join(structured)
 
 
-def _fix_artifacts_chunk(chunk: str) -> str:
+def _structure_chunk(chunk: str, is_continuation: bool) -> str:
     client = _get_bedrock_client()
+    continuation_note = (
+        "Este é um trecho de continuação do documento — não adicione heading de título geral.\n\n"
+        if is_continuation else ""
+    )
+    prompt = (
+        f"{continuation_note}"
+        "Você recebe texto bruto extraído de um normativo institucional brasileiro (PDF governamental). "
+        "Faça duas coisas simultaneamente:\n\n"
+        "1. CORRIJA artefatos de extração: acentos quebrados, palavras partidas por hifenização, "
+        "espaços onde deveriam haver letras acentuadas (ex: 'Poli ca' → 'Política').\n\n"
+        "2. ESTRUTURE em Markdown semântico:\n"
+        "   - Use ## para capítulos (ex: 'CAPÍTULO I', 'CAPÍTULO II')\n"
+        "   - Use ### para artigos e seções numeradas (ex: 'Art. 1º', 'Seção I', '§ 1º')\n"
+        "   - Use **negrito** para termos definidos ou destaques já presentes no original\n"
+        "   - NÃO adicione heading em: timbres institucionais repetidos, linhas de atribuição "
+        "('O REITOR', 'O DIRETOR'), ementa/preâmbulo, assinaturas\n"
+        "   - Preserve separadores de página (linhas com '---') como estão\n\n"
+        "Retorne APENAS o texto corrigido e estruturado, sem explicações, sem comentários.\n\n"
+        + chunk
+    )
     body = {
         "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 5_500,
-        "messages": [{"role": "user", "content": (
-            "Corrija apenas os artefatos de extração de PDF no texto abaixo: "
-            "caracteres com acentuação incorreta, palavras partidas por hifenização "
-            "e espaços onde deveriam haver letras acentuadas. "
-            "Não altere conteúdo, formatação ou estrutura. "
-            "Retorne apenas o texto corrigido, sem nenhuma explicação.\n\n"
-            + chunk
-        )}],
+        "max_tokens": 9_000,
+        "messages": [{"role": "user", "content": prompt}],
     }
     try:
         response = client.invoke_model(
@@ -146,7 +166,7 @@ def _fix_artifacts_chunk(chunk: str) -> str:
         result = json.loads(response["body"].read())
         return result["content"][0]["text"]
     except Exception:
-        logging.getLogger(__name__).exception("Erro ao corrigir artefatos de extração no chunk")
+        logging.getLogger(__name__).exception("Erro ao estruturar chunk via Bedrock")
         return chunk
 
 

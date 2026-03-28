@@ -9,6 +9,15 @@
   button.htmx-request .btn-loading { display: inline; }
   button.htmx-request { opacity: .7; cursor: wait; pointer-events: none; }
   tr.htmx-swapping { opacity: 0; transition: opacity .3s ease-out; }
+  .review-search {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: .25rem .6rem;
+    font-size: .875rem;
+    width: 200px;
+    max-width: 100%;
+  }
+  .review-search:focus { outline: none; border-color: #1351B4; box-shadow: 0 0 0 2px #d4e0f7; }
 </style>
 {% endblock %}
 
@@ -70,9 +79,16 @@
             <i class="fas fa-tasks fa-lg mr-3" style="color:#1351B4;" aria-hidden="true"></i>
             <span class="text-up-01 text-medium-weight">Rascunhos aguardando revisão</span>
           </div>
-          <span class="br-tag {% if drafts %}warning{% else %}success{% endif %} text">
-            {{ drafts|length }} pendente{{ 's' if drafts|length != 1 else '' }}
-          </span>
+          <div class="d-flex align-items-center" style="gap:.75rem; flex-wrap:wrap;">
+            {% if drafts %}
+            <input type="search" id="drafts-search" class="review-search"
+                   placeholder="Buscar rascunho..."
+                   aria-label="Buscar nos rascunhos">
+            {% endif %}
+            <span class="br-tag {% if drafts %}warning{% else %}success{% endif %} text">
+              {{ drafts|length }} pendente{{ 's' if drafts|length != 1 else '' }}
+            </span>
+          </div>
         </div>
       </div>
       <div class="card-content">
@@ -96,7 +112,7 @@
                 </tr>
               </thead>
               {% for draft in drafts %}
-              <tbody class="draft-item" id="draft-rows-{{ draft.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
+              <tbody class="draft-item" data-title="{{ draft.title | lower }}" id="draft-rows-{{ draft.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
                 <tr>
                   <td>
                     <div class="d-flex align-items-center">
@@ -235,17 +251,9 @@
             <span class="text-up-01 text-medium-weight">Normativos publicados</span>
           </div>
           <div class="d-flex align-items-center" style="gap:.75rem; flex-wrap:wrap;">
-            {% set pub_shelf_groups = published_books | groupby('shelf_name') | list %}
-            {% if pub_shelf_groups | length > 1 %}
-            <select id="pub-shelf-filter"
-                    onchange="sections.pub.setFilter(this.value)"
-                    style="border:1px solid #ccc; border-radius:4px; padding:.25rem .5rem; font-size:.875rem;">
-              <option value="">Todas as prateleiras</option>
-              {% for shelf_name, _ in pub_shelf_groups %}
-              <option value="{{ shelf_name }}">{{ shelf_name }}</option>
-              {% endfor %}
-            </select>
-            {% endif %}
+            <input type="search" id="pub-search" class="review-search"
+                   placeholder="Buscar normativo..."
+                   aria-label="Buscar nos normativos publicados">
             <span class="br-tag success text">{{ published_books|length }} publicado{{ 's' if published_books|length != 1 else '' }}</span>
           </div>
         </div>
@@ -263,7 +271,7 @@
               </tr>
             </thead>
             {% for book in published_books %}
-            <tbody class="pub-item" data-filter="{{ book.shelf_name }}" id="pub-rows-{{ book.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
+            <tbody class="pub-item" data-title="{{ book.title | lower }}" id="pub-rows-{{ book.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
               <tr id="pub-row-{{ book.book_id }}">
                 <td>
                   <div class="d-flex align-items-center">
@@ -413,11 +421,9 @@
             <span class="text-up-01 text-medium-weight" style="color:#888;">Normativos revogados</span>
           </div>
           <div class="d-flex align-items-center" style="gap:.75rem; flex-wrap:wrap;">
-            <select id="rev-cat-filter"
-                    onchange="sections.rev.setFilter(this.value)"
-                    style="border:1px solid #ccc; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; display:none;">
-              <option value="">Todos os tipos</option>
-            </select>
+            <input type="search" id="rev-search" class="review-search"
+                   placeholder="Buscar revogado..."
+                   aria-label="Buscar nos normativos revogados">
             <span class="br-tag text" style="background:#e0e0e0; color:#555;">
               {{ revoked_books|length }} revogado{{ 's' if revoked_books|length != 1 else '' }}
             </span>
@@ -439,9 +445,7 @@
               </tr>
             </thead>
             {% for entry in revoked_books %}
-            {% set _parts = entry.title.split(' - ', 1) %}
-            {% set _tipo = _parts[1].split(' ')[0] if _parts|length > 1 and _parts[1] else '' %}
-            <tbody class="rev-item" data-filter="{{ _tipo }}" id="rev-rows-{{ entry.id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
+            <tbody class="rev-item" data-title="{{ entry.title | lower }}" id="rev-rows-{{ entry.id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
               <tr style="background:repeating-linear-gradient(45deg,#fafafa,#fafafa 10px,#f0f0f0 10px,#f0f0f0 20px); opacity:.75;">
                 <td>
                   <div class="d-flex align-items-center">
@@ -542,9 +546,9 @@
   function hideShelfPicker(bookId) {
     document.getElementById('picker-row-' + bookId).style.display = 'none';
     document.getElementById('publish-btn-' + bookId).style.display = '';
-    const sel = document.getElementById('shelf-select-' + bookId);
+    var sel = document.getElementById('shelf-select-' + bookId);
     if (sel) sel.selectedIndex = 0;
-    const btn = document.getElementById('confirm-btn-' + bookId);
+    var btn = document.getElementById('confirm-btn-' + bookId);
     if (btn) btn.disabled = true;
   }
   function updateConfirmBtn(bookId, val) {
@@ -559,9 +563,9 @@
   function hideMovePicker(bookId) {
     document.getElementById('move-row-' + bookId).style.display = 'none';
     document.getElementById('move-btn-' + bookId).style.display = '';
-    const sel = document.getElementById('move-select-' + bookId);
+    var sel = document.getElementById('move-select-' + bookId);
     if (sel) sel.selectedIndex = 0;
-    const btn = document.getElementById('move-confirm-btn-' + bookId);
+    var btn = document.getElementById('move-confirm-btn-' + bookId);
     if (btn) btn.disabled = true;
   }
   function updateMoveConfirmBtn(bookId, val) {
@@ -577,9 +581,9 @@
   function hideRemovePicker(bookId) {
     document.getElementById('remove-row-' + bookId).style.display = 'none';
     document.getElementById('remove-btn-' + bookId).style.display = '';
-    const inp = document.getElementById('remove-input-' + bookId);
+    var inp = document.getElementById('remove-input-' + bookId);
     if (inp) inp.value = '';
-    const btn = document.getElementById('remove-confirm-btn-' + bookId);
+    var btn = document.getElementById('remove-confirm-btn-' + bookId);
     if (btn) btn.disabled = true;
   }
   function updateRemoveBtn(bookId, val) {
@@ -602,83 +606,73 @@
     });
   }
 
-  // ── Paginação e filtro ───────────────────────────────────────────────────
-  const PAGE_SIZE = 5;
-  const sections = {};
+  // ── Paginação e busca ────────────────────────────────────────────────────
+  var PAGE_SIZE = 5;
+  var sections = {};
 
   function renderPagination(pagId, name, total, page, totalPages) {
-    const pag = document.getElementById(pagId);
+    var pag = document.getElementById(pagId);
     if (!pag) return;
     if (total <= PAGE_SIZE) { pag.innerHTML = ''; return; }
 
-    const from = (page - 1) * PAGE_SIZE + 1;
-    const to   = Math.min(page * PAGE_SIZE, total);
+    var from = (page - 1) * PAGE_SIZE + 1;
+    var to   = Math.min(page * PAGE_SIZE, total);
 
-    let html = '<div class="d-flex align-items-center justify-content-center flex-wrap" style="gap:.4rem; margin-top:1rem; padding-bottom:.25rem;">';
-    html += `<button class="br-button secondary small" onclick="sections['${name}'].goTo(${page-1})" ${page===1?'disabled':''}><i class="fas fa-chevron-left" aria-hidden="true"></i></button>`;
+    var html = '<div class="d-flex align-items-center justify-content-center flex-wrap" style="gap:.4rem; margin-top:1rem; padding-bottom:.25rem;">';
+    html += '<button class="br-button secondary small" onclick="sections[\'' + name + '\'].goTo(' + (page-1) + ')"' + (page===1?' disabled':'') + '><i class="fas fa-chevron-left" aria-hidden="true"></i></button>';
 
-    for (let p = 1; p <= totalPages; p++) {
-      const near = Math.abs(p - page) <= 1;
-      const edge = p === 1 || p === totalPages;
+    for (var p = 1; p <= totalPages; p++) {
+      var near = Math.abs(p - page) <= 1;
+      var edge = p === 1 || p === totalPages;
       if (near || edge) {
-        html += `<button class="br-button ${p===page?'primary':'secondary'} small" onclick="sections['${name}'].goTo(${p})">${p}</button>`;
+        html += '<button class="br-button ' + (p===page?'primary':'secondary') + ' small" onclick="sections[\'' + name + '\'].goTo(' + p + ')">' + p + '</button>';
       } else if ((p === 2 && page > 4) || (p === totalPages - 1 && page < totalPages - 3)) {
-        html += `<span style="color:#aaa; line-height:2; padding:0 .1rem;">…</span>`;
+        html += '<span style="color:#aaa; line-height:2; padding:0 .1rem;">…</span>';
       }
     }
 
-    html += `<button class="br-button secondary small" onclick="sections['${name}'].goTo(${page+1})" ${page===totalPages?'disabled':''}><i class="fas fa-chevron-right" aria-hidden="true"></i></button>`;
-    html += `<span class="text-down-01" style="color:#888; margin-left:.4rem; white-space:nowrap;">${from}–${to} de ${total}</span>`;
+    html += '<button class="br-button secondary small" onclick="sections[\'' + name + '\'].goTo(' + (page+1) + ')"' + (page===totalPages?' disabled':'') + '><i class="fas fa-chevron-right" aria-hidden="true"></i></button>';
+    html += '<span class="text-down-01" style="color:#888; margin-left:.4rem; white-space:nowrap;">' + from + '–' + to + ' de ' + total + '</span>';
     html += '</div>';
     pag.innerHTML = html;
   }
 
-  function initSection(name, tbodyClass, pagId) {
-    let page = 1;
-    let filterVal = '';
+  function initSection(name, tbodyClass, pagId, searchInputId) {
+    var page = 1;
+    var searchVal = '';
 
-    function items()    { return Array.from(document.querySelectorAll('tbody.' + tbodyClass)); }
-    function filtered() { return filterVal ? items().filter(el => el.dataset.filter === filterVal) : items(); }
+    function items() { return Array.from(document.querySelectorAll('tbody.' + tbodyClass)); }
+    function filtered() {
+      if (!searchVal) return items();
+      return items().filter(function(el) { return (el.dataset.title || '').indexOf(searchVal) !== -1; });
+    }
 
     function render() {
-      const vis = filtered();
-      const total = vis.length;
-      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      var vis = filtered();
+      var total = vis.length;
+      var totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
       if (page > totalPages) page = totalPages;
-
-      items().forEach(el => el.style.display = 'none');
-      vis.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).forEach(el => el.style.display = '');
-
+      items().forEach(function(el) { el.style.display = 'none'; });
+      vis.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).forEach(function(el) { el.style.display = ''; });
       renderPagination(pagId, name, total, page, totalPages);
     }
 
-    function setFilter(val) { filterVal = val; page = 1; render(); }
-    function goTo(p)        { page = p; render(); }
+    function setSearch(val) { searchVal = val.toLowerCase().trim(); page = 1; render(); }
+    function goTo(p) { page = p; render(); }
 
-    sections[name] = { render, setFilter, goTo };
+    sections[name] = { render: render, setSearch: setSearch, goTo: goTo };
     render();
+
+    if (searchInputId) {
+      var inp = document.getElementById(searchInputId);
+      if (inp) inp.addEventListener('input', function() { setSearch(this.value); });
+    }
   }
 
   document.addEventListener('DOMContentLoaded', function() {
-    initSection('drafts', 'draft-item', 'drafts-pagination');
-    initSection('pub',    'pub-item',   'pub-pagination');
-    initSection('rev',    'rev-item',   'rev-pagination');
-
-    // Constrói o filtro de tipo dos revogados a partir dos atributos data-filter
-    (function buildRevFilter() {
-      const cats = new Set();
-      document.querySelectorAll('tbody.rev-item').forEach(function(el) {
-        if (el.dataset.filter) cats.add(el.dataset.filter);
-      });
-      const sel = document.getElementById('rev-cat-filter');
-      if (!sel || cats.size <= 1) return;
-      Array.from(cats).sort().forEach(function(c) {
-        const opt = document.createElement('option');
-        opt.value = c; opt.textContent = c;
-        sel.appendChild(opt);
-      });
-      sel.style.display = '';
-    })();
+    initSection('drafts', 'draft-item', 'drafts-pagination', 'drafts-search');
+    initSection('pub',    'pub-item',   'pub-pagination',    'pub-search');
+    initSection('rev',    'rev-item',   'rev-pagination',    'rev-search');
 
     // Re-renderiza após HTMX remover ou substituir um item
     document.body.addEventListener('htmx:afterSwap', function() {

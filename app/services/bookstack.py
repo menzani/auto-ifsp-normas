@@ -44,6 +44,7 @@ _SHELF_MAP_TTL = 300    # segundos — mapa de prateleiras (muda raramente)
 
 _drafts_cache: dict = {}    # {"data": [...], "ts": float}
 _shelf_map_cache: dict = {} # {"data": {...}, "ts": float}
+_overview_cache: dict = {}  # {"data": {...}, "ts": float}
 
 _UNSET = object()
 _public_role_id = _UNSET   # cache: _UNSET = não buscado, None = não encontrado, int = ID
@@ -54,11 +55,13 @@ _cache_lock = threading.Lock()
 def _invalidate_drafts_cache() -> None:
     with _cache_lock:
         _drafts_cache.clear()
+        _overview_cache.clear()
 
 
 def _invalidate_shelf_map_cache() -> None:
     with _cache_lock:
         _shelf_map_cache.clear()
+        _overview_cache.clear()
 
 
 def _get_public_role_id() -> int | None:
@@ -241,6 +244,10 @@ def get_all_books_overview() -> dict:
     if settings.mock_bookstack:
         return {"drafts": MOCK_DRAFTS, "published": [], "invalid": [], "shelves": MOCK_SHELVES}
 
+    with _cache_lock:
+        if _overview_cache and (time.monotonic() - _overview_cache.get("ts", 0) < _CACHE_TTL):
+            return _overview_cache["data"]
+
     from concurrent.futures import ThreadPoolExecutor
 
     def _fetch_all_books() -> list:
@@ -310,7 +317,11 @@ def get_all_books_overview() -> dict:
                 "bookstack_url": bookstack_url,
             })
 
-    return {"drafts": drafts, "published": published, "invalid": [], "shelves": all_shelves}
+    result = {"drafts": drafts, "published": published, "invalid": [], "shelves": all_shelves}
+    with _cache_lock:
+        _overview_cache["data"] = result
+        _overview_cache["ts"] = time.monotonic()
+    return result
 
 
 def get_book_for_revocation(book_id: int) -> dict:

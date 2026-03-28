@@ -3,7 +3,6 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from mangum import Mangum
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
@@ -60,5 +59,3 @@ app.include_router(review.router)
 app.include_router(log.router)
 app.include_router(admin.router)
 
-# Entry point Lambda
-handler = Mangum(app, lifespan="off")

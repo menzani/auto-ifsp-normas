@@ -256,9 +256,14 @@ def get_all_books_overview() -> dict:
 
     all_books = {b["id"]: b for b in all_books_list}
 
-    # Busca uploaded_by dos livros em staging em paralelo (a listagem não inclui tags).
-    # Filtra apenas os IDs que realmente existem em all_books para evitar 404 em caso
-    # de livros deletados diretamente no Bookstack sem remoção da prateleira (referência órfã).
+    # A listagem /books não inclui tags — busca uploaded_by individualmente para
+    # rascunhos (staging) e publicados em paralelo. Filtra apenas IDs que existem em
+    # all_books para evitar 404 em referências órfãs na prateleira.
+    published_ids = {
+        bid for bid in all_books
+        if bid not in revoked_shelf_book_ids and bid not in staging_book_ids
+    }
+
     def _fetch_uploaded_by(bid: int) -> tuple[int, str]:
         try:
             detail = _api_get(f"/books/{bid}")
@@ -267,21 +272,19 @@ def get_all_books_overview() -> dict:
         except Exception:
             return bid, "—"
 
-    staging_to_fetch = staging_book_ids & all_books.keys()
-    staging_uploaded_by: dict[int, str] = {}
-    if staging_to_fetch:
-        with ThreadPoolExecutor(max_workers=min(10, len(staging_to_fetch))) as executor:
-            staging_uploaded_by = dict(executor.map(_fetch_uploaded_by, staging_to_fetch))
+    ids_to_fetch = (staging_book_ids & all_books.keys()) | published_ids
+    uploaded_by_map: dict[int, str] = {}
+    if ids_to_fetch:
+        with ThreadPoolExecutor(max_workers=min(10, len(ids_to_fetch))) as executor:
+            uploaded_by_map = dict(executor.map(_fetch_uploaded_by, ids_to_fetch))
 
     drafts = []
     published = []
-    invalid = []
 
     for bid, book in all_books.items():
         if bid in revoked_shelf_book_ids:
             continue  # gerenciado pela prateleira Revogadas, não aparece em publicados
 
-        tags = {t["name"]: t["value"] for t in book.get("tags", [])}
         bookstack_url = f"{settings.bookstack_base_url}/books/{book['slug']}"
         raw = book.get("created_at", "")
         try:
@@ -294,16 +297,8 @@ def get_all_books_overview() -> dict:
                 "book_id": bid,
                 "title": book["name"],
                 "shelf_name": "—",  # escolhida pelo revisor na hora da publicação
-                "uploaded_by": staging_uploaded_by.get(bid, "—"),
+                "uploaded_by": uploaded_by_map.get(bid, "—"),
                 "created_at": created_at,
-                "bookstack_url": bookstack_url,
-            })
-        elif tags.get("status") in ("invalido", "revogado"):
-            invalid.append({
-                "book_id": bid,
-                "title": book["name"],
-                "shelf_name": shelf_map.get(bid, "—"),
-                "uploaded_by": tags.get("uploaded_by", "—"),
                 "bookstack_url": bookstack_url,
             })
         else:
@@ -311,11 +306,11 @@ def get_all_books_overview() -> dict:
                 "book_id": bid,
                 "title": book["name"],
                 "shelf_name": shelf_map.get(bid, "—"),
-                "uploaded_by": tags.get("uploaded_by", "—"),
+                "uploaded_by": uploaded_by_map.get(bid, "—"),
                 "bookstack_url": bookstack_url,
             })
 
-    return {"drafts": drafts, "published": published, "invalid": invalid, "shelves": all_shelves}
+    return {"drafts": drafts, "published": published, "invalid": [], "shelves": all_shelves}
 
 
 def get_book_for_revocation(book_id: int) -> dict:

@@ -87,6 +87,7 @@
             <p class="text-down-01">Todos os normativos enviados já foram revisados.</p>
           </div>
         {% else %}
+          <div style="overflow-x: auto;">
           <div class="br-table">
             <table>
               <thead>
@@ -114,13 +115,14 @@
                   </td>
                   <td class="text-down-01">{{ draft.created_at }}</td>
                   <td class="text-center">
-                    <div class="d-flex align-items-center justify-content-center" style="gap:.5rem;">
+                    <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
 
                       <a href="{{ draft.bookstack_url }}"
                          target="_blank" rel="noopener noreferrer"
                          class="br-button secondary small"
                          title="Abrir no Bookstack para revisar">
-                        <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i> Revisar
+                        <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline">Revisar</span>
                       </a>
 
                       {% if is_reviewer %}
@@ -129,7 +131,8 @@
                               type="button"
                               onclick="showShelfPicker({{ draft.book_id }})"
                               title="Aprovar e publicar este normativo">
-                        <i class="fas fa-check mr-1" aria-hidden="true"></i> Publicar
+                        <i class="fas fa-check mr-1" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline">Publicar</span>
                       </button>
                       {% endif %}
 
@@ -140,7 +143,8 @@
                               onclick="showRemovePicker({{ draft.book_id }})"
                               title="Remover rascunho permanentemente (somente admin)"
                               style="color:#E52207; border-color:#E52207;">
-                        <i class="fas fa-trash mr-1" aria-hidden="true"></i> Remover
+                        <i class="fas fa-trash mr-1" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline">Remover</span>
                       </button>
                       {% endif %}
 
@@ -227,6 +231,7 @@
               {% endfor %}
             </table>
           </div>
+          </div>
         {% endif %}
 
       </div>
@@ -271,12 +276,13 @@
                     {{ book.uploaded_by }}
                   </td>
                   <td class="text-center">
-                    <div class="d-flex align-items-center justify-content-center" style="gap:.5rem;">
+                    <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
 
                       <a href="{{ book.bookstack_url }}"
                          target="_blank" rel="noopener noreferrer"
                          class="br-button secondary small">
-                        <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i> Consultar
+                        <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline">Consultar</span>
                       </a>
 
                       {% if is_reviewer %}
@@ -285,7 +291,8 @@
                               type="button"
                               onclick="showMovePicker({{ book.book_id }})"
                               title="Mover para outra prateleira">
-                        <i class="fas fa-exchange-alt mr-1" aria-hidden="true"></i> Mover
+                        <i class="fas fa-exchange-alt mr-1" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline">Mover</span>
                       </button>
                       <button class="br-button secondary small"
                               hx-post="/review/{{ book.book_id }}/invalidate"
@@ -295,19 +302,25 @@
                               title="Revogar normativo: IA gera resumo e publica em Revogadas"
                               style="color:#8a5200; border-color:#8a5200;">
                         <span class="btn-idle">
-                          <i class="fas fa-ban mr-1" aria-hidden="true"></i> Revogar
+                          <i class="fas fa-ban mr-1" aria-hidden="true"></i>
+                          <span class="d-none d-sm-inline">Revogar</span>
                         </span>
                         <span class="btn-loading">
-                          <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Revogando...
+                          <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>
+                          <span class="d-none d-sm-inline">Revogando...</span>
                         </span>
                       </button>
+                      {% endif %}
+
+                      {% if is_admin %}
                       <button class="br-button secondary small"
                               id="remove-btn-{{ book.book_id }}"
                               type="button"
                               onclick="showRemovePicker({{ book.book_id }})"
                               title="Remover normativo permanentemente (somente admin)"
                               style="color:#E52207; border-color:#E52207;">
-                        <i class="fas fa-trash mr-1" aria-hidden="true"></i> Remover
+                        <i class="fas fa-trash mr-1" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline">Remover</span>
                       </button>
                       {% endif %}
 
@@ -447,7 +460,8 @@
                   <button class="br-button secondary small" type="button"
                           data-url="{{ entry.pdf_url }}" onclick="copyUrl(this)"
                           title="Copiar URL permanente do PDF">
-                    <i class="fas fa-copy mr-1" aria-hidden="true"></i> Copiar URL
+                    <i class="fas fa-copy mr-1" aria-hidden="true"></i>
+                    <span class="d-none d-sm-inline">Copiar URL</span>
                   </button>
                   {% else %}
                   <span style="color:#aaa;">—</span>
@@ -461,7 +475,8 @@
                           onclick="showRemovePicker('{{ entry.id }}')"
                           title="Remover permanentemente (somente admin)"
                           style="color:#E52207; border-color:#E52207;">
-                    <i class="fas fa-trash mr-1" aria-hidden="true"></i> Remover
+                    <i class="fas fa-trash mr-1" aria-hidden="true"></i>
+                    <span class="d-none d-sm-inline">Remover</span>
                   </button>
                 </td>
                 {% endif %}

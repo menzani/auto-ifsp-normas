@@ -17,7 +17,7 @@ from app.config import get_settings
 
 settings = get_settings()
 
-_MAX_PAGE_CHARS = 4_000  # temporário: diagnosticar limite WAF
+_MAX_PAGE_CHARS = 6_000  # temporário: diagnosticar limite WAF
 
 _RE_URL = re.compile(r"https?://\S+", re.IGNORECASE)
 _RE_EMAIL = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")

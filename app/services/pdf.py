@@ -24,6 +24,9 @@ _SIGNATURE_LINE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Rodapés de paginação variáveis (ex: "Página 48 de 65") — removidos antes da etapa de IA
+_PAGE_FOOTER_RE = re.compile(r"^\s*página\s+\d+\s+de\s+\d+\s*$", re.IGNORECASE)
+
 # Marcadores de início de bloco de assinatura eletrônica SUAP/Gov.br
 # Tudo a partir dessa linha até o fim do documento é removido.
 _SIGNATURE_BLOCK_RE = re.compile(
@@ -91,6 +94,7 @@ def _remove_running_headers(pages: list[str]) -> list[str]:
         return pages
 
     _HEAD_LINES = 5
+    _TAIL_LINES = 3
     threshold = max(3, int(len(pages) * 0.4))
 
     import unicodedata
@@ -102,12 +106,14 @@ def _remove_running_headers(pages: list[str]) -> list[str]:
         s = re.sub(r"[^\w\s]", " ", s)  # remove pontuação
         return re.sub(r"\s+", " ", s.strip()).upper()
 
-    # Conta ocorrências de cada linha normalizada nas primeiras linhas de cada página
+    # Conta ocorrências de cada linha normalizada nas primeiras e últimas linhas de cada página
     from collections import Counter
     counts: Counter = Counter()
     for page in pages:
         seen_in_page: set[str] = set()
-        for line in page.splitlines()[:_HEAD_LINES]:
+        all_lines = page.splitlines()
+        candidate_lines = all_lines[:_HEAD_LINES] + all_lines[-_TAIL_LINES:]
+        for line in candidate_lines:
             norm = _norm(line)
             if len(norm) > 5 and norm not in seen_in_page:
                 counts[norm] += 1
@@ -120,13 +126,16 @@ def _remove_running_headers(pages: list[str]) -> list[str]:
     result = []
     for page in pages:
         lines = page.splitlines()
-        # Remove apenas nas primeiras linhas de cada página para não apagar
-        # conteúdo legítimo que coincida com o cabeçalho mais adiante no texto.
-        filtered_head = []
-        for line in lines[:_HEAD_LINES]:
-            if _norm(line) not in running:
-                filtered_head.append(line)
-        result.append("\n".join(filtered_head + lines[_HEAD_LINES:]))
+        # Remove apenas nas primeiras e últimas linhas de cada página para não apagar
+        # conteúdo legítimo que coincida com o cabeçalho/rodapé mais adiante no texto.
+        filtered_head = [line for line in lines[:_HEAD_LINES] if _norm(line) not in running]
+        middle = lines[_HEAD_LINES:max(_HEAD_LINES, len(lines) - _TAIL_LINES)]
+        filtered_tail = [line for line in lines[-_TAIL_LINES:] if _norm(line) not in running]
+        # Evita duplicação quando a página é curta demais para ter head e tail distintos
+        if len(lines) <= _HEAD_LINES + _TAIL_LINES:
+            result.append("\n".join(filtered_head))
+        else:
+            result.append("\n".join(filtered_head + middle + filtered_tail))
     return result
 
 
@@ -136,7 +145,7 @@ def _page_to_text(page_num: int, raw_text: str) -> str:
     if not text:
         return f"*[Página {page_num} sem conteúdo de texto]*"
 
-    lines = [line.strip() for line in text.splitlines()]
+    lines = [line.strip() for line in text.splitlines() if not _PAGE_FOOTER_RE.match(line.strip())]
     cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
     return cleaned
 

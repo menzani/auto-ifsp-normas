@@ -95,7 +95,16 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 
         # ── Etapa 2: Correção de artefatos ───────────────────────────────
         _set_step(job_id, 2)
-        markdown_text = fix_extraction_artifacts(markdown_text)
+
+        def on_correction_progress(current, total):
+            pct = int(20 + current / total * 20)  # 20–40 %
+            current_status = storage.load_status(job_id) or {}
+            storage.save_status(job_id, current_status | {
+                "current_step_label": f"Corrigindo artefatos — parte {current}/{total}",
+                "progress_pct": pct,
+            })
+
+        markdown_text = fix_extraction_artifacts(markdown_text, on_progress=on_correction_progress)
 
         # ── Etapa 3: FAQ com IA ──────────────────────────────────────────
         _set_step(job_id, 3)

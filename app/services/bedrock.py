@@ -88,16 +88,22 @@ def generate_revocation_summary(markdown_text: str, title: str) -> str:
     return raw
 
 
-def fix_extraction_artifacts(text: str) -> str:
+def fix_extraction_artifacts(text: str, on_progress=None) -> str:
     """
     Corrige artefatos de extração de PDF: acentos quebrados, hifenizações incorretas,
     espaços onde deveriam haver letras acentuadas (ex: "Poli ca" → "Política").
     Processa em chunks de 5.000 chars. Retorna o texto original em caso de falha.
+    on_progress(current, total) é chamado após cada chunk processado.
     """
     _CHUNK = 5_000
     source = text[:_MAX_INPUT_CHARS]
     chunks = [source[i:i+_CHUNK] for i in range(0, len(source), _CHUNK)]
-    corrected = [_fix_artifacts_chunk(c) for c in chunks]
+    corrected = []
+    total = len(chunks)
+    for i, chunk in enumerate(chunks, start=1):
+        corrected.append(_fix_artifacts_chunk(chunk))
+        if on_progress:
+            on_progress(i, total)
     if len(text) > _MAX_INPUT_CHARS:
         corrected.append(text[_MAX_INPUT_CHARS:])
     return "".join(corrected)

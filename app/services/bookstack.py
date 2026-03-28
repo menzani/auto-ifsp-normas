@@ -7,7 +7,6 @@ MOCK_BOOKSTACK=false → conecta ao normas.ifsp.edu.br via API token.
 Referência: https://demo.bookstackapp.com/api/docs
 """
 import logging
-import re
 import time
 from datetime import datetime
 
@@ -16,41 +15,6 @@ import httpx
 from app.config import get_settings
 
 settings = get_settings()
-
-_CHUNK_SIZE = 5_500  # limite seguro abaixo do teto do WAF em normas.ifsp.edu.br (~6K)
-
-_RE_URL = re.compile(r"https?://\S+", re.IGNORECASE)
-_RE_EMAIL = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
-
-
-def _sanitize_for_waf(text: str) -> str:
-    """Remove URLs e e-mails que podem disparar regras de WAF."""
-    text = _RE_URL.sub("[URL]", text)
-    text = _RE_EMAIL.sub("[e-mail]", text)
-    return text
-
-
-def _split_text(text: str) -> list[str]:
-    """Divide texto em chunks de _CHUNK_SIZE, quebrando em parágrafos quando possível."""
-    if len(text) <= _CHUNK_SIZE:
-        return [text]
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = start + _CHUNK_SIZE
-        if end >= len(text):
-            chunks.append(text[start:])
-            break
-        for sep in ("\n\n---\n\n", "\n\n", "\n"):
-            pos = text.rfind(sep, start, end)
-            if pos > start:
-                chunks.append(text[start:pos])
-                start = pos + len(sep)
-                break
-        else:
-            chunks.append(text[start:end])
-            start = end
-    return [c for c in chunks if c.strip()]
 
 # ── Dados de mock ─────────────────────────────────────────────────────────────
 
@@ -204,22 +168,18 @@ def create_normativo(
         "draft": True,
     })
 
-    # 4. Capítulo "2. Texto Completo" — uma página por chunk (limite do WAF: ~6K chars)
+    # 4. Capítulo "2. Texto Completo"
     text_chapter = _api_post("/chapters", {
         "book_id": book_id,
         "name": "2. Texto Completo",
         "description": "Reprodução do texto completo para simplificação de busca e consultas específicas.",
     })
-    chunks = _split_text(_sanitize_for_waf(full_text_markdown))
-    total_chunks = len(chunks)
-    for i, chunk in enumerate(chunks, start=1):
-        name = "Texto Integral" if total_chunks == 1 else f"Texto Integral ({i}/{total_chunks})"
-        _api_post("/pages", {
-            "chapter_id": text_chapter["id"],
-            "name": name,
-            "markdown": chunk,
-            "draft": True,
-        })
+    _api_post("/pages", {
+        "chapter_id": text_chapter["id"],
+        "name": "Texto Integral",
+        "markdown": full_text_markdown,
+        "draft": True,
+    })
 
     # 5. Capítulo "3. Download" — link permanente para o PDF original
     if download_url:

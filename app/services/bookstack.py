@@ -509,26 +509,31 @@ def delete_book(book_id: int) -> None:
 
 import re as _re
 
-_CHAPTER_HEADING_RE = _re.compile(r"^#{1,2}\s+(.+)$", _re.MULTILINE)
+# Divide apenas em Títulos (H1) e Capítulos (H2) — Seções (H3) ficam dentro da página do capítulo.
+# Detecta explicitamente palavras-chave estruturais para não depender do nível de heading que a IA usou.
+_CHAPTER_SPLIT_RE = _re.compile(
+    r"^#{1,3}\s+((?:TÍTULO|CAPÍTULO|CHAPTER)\b.*)$",
+    _re.IGNORECASE | _re.MULTILINE,
+)
 
 
 def _split_into_chapter_pages(markdown: str) -> list[tuple[str, str]]:
     """
-    Divide o markdown estruturado em páginas por capítulo/título.
+    Divide o markdown em páginas por Título/Capítulo do normativo.
 
+    Seções (Seção I, Seção II…) ficam dentro da página do capítulo ao qual pertencem.
     Retorna lista de (nome_da_página, conteúdo_markdown).
-    Se o documento não tiver headings H1/H2, retorna uma única página "Texto Integral".
-
-    Conteúdo antes do primeiro heading (ex: ementa, preâmbulo) é agrupado numa
-    página de "Preâmbulo" se for substancial (> 100 chars), ou descartado se trivial.
+    Fallback: uma única página "Texto Integral" se não houver capítulos detectados.
+    Conteúdo anterior ao primeiro capítulo (ementa/preâmbulo) vira página "Preâmbulo"
+    se for substancial (> 100 chars).
     """
     lines = markdown.splitlines()
-    sections: list[tuple[str, list[str]]] = []  # (heading_text, lines)
+    sections: list[tuple[str | None, list[str]]] = []
     current_heading: str | None = None
     current_lines: list[str] = []
 
     for line in lines:
-        m = _re.match(r"^#{1,2}\s+(.+)$", line)
+        m = _CHAPTER_SPLIT_RE.match(line)
         if m:
             if current_lines or current_heading is not None:
                 sections.append((current_heading, current_lines))
@@ -547,7 +552,6 @@ def _split_into_chapter_pages(markdown: str) -> list[tuple[str, str]]:
     for heading, body_lines in sections:
         body = "\n".join(body_lines).strip()
         if heading is None:
-            # Conteúdo antes do primeiro heading (ementa/preâmbulo)
             if len(body) > 100:
                 pages.append(("Preâmbulo", body))
         else:

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <title>{% block title %}IFSP Normas{% endblock %}</title>
+
+  <!-- Fontes GOV.BR -->
+  <link rel="stylesheet" href="https://cdngovbr-ds.estaleiro.serpro.gov.br/design-system/fonts/rawline/css/rawline.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway:300,400,500,600,700,800,900&display=swap" />
+
+  <!-- Design System GOV.BR (local) -->
+  <link rel="stylesheet" href="/static/css/dsgov.min.css" />
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/all.min.css" />
+
+  <!-- HTMX -->
+  <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js"></script>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+<div class="template-base">
+
+  <!-- Acessibilidade: pular para o conteúdo -->
+  <nav class="br-skiplink" role="menubar">
+    <a class="br-item" href="#main-content" role="menuitem" accesskey="1">
+      Ir para o conteúdo <span aria-hidden="true">(1/2)</span>
+    </a>
+    <a class="br-item" href="#footer" role="menuitem" accesskey="2">
+      Ir para o rodapé <span aria-hidden="true">(2/2)</span>
+    </a>
+  </nav>
+
+  <!-- Cabeçalho -->
+  <header class="br-header mb-4" id="header" data-sticky="data-sticky">
+    <div class="container-lg">
+      <div class="header-top">
+
+        <div class="header-logo">
+          <a href="/">
+            <img src="https://www.gov.br/++theme++padrao_govbr/img/govbr-logo-large.png"
+                 alt="Governo Federal" style="height:36px;" />
+          </a>
+          <span class="br-divider vertical mx-half mx-sm-1"></span>
+          <div class="header-sign">IFSP Normas</div>
+        </div>
+
+        <div class="header-actions">
+          {% if request.session.get("user") %}
+          <div class="header-functions">
+            <span class="text-down-01 text-medium d-none d-sm-inline mr-2">
+              {{ request.session.user.name }}
+            </span>
+          </div>
+          <span class="br-divider vertical mx-half"></span>
+          <div class="header-login">
+            <a href="/auth/logout"
+               class="br-button secondary small"
+               data-tooltip="Sair do sistema"
+               data-tooltip-place="bottom"
+               title="Sair">
+              <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+              <span class="d-none d-sm-inline ml-1">Sair</span>
+            </a>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
+
+      {% if request.session.get("user") %}
+      <div class="header-bottom">
+        <div class="header-menu">
+          <div class="header-info">
+            <div class="header-title">Sistema de Publicação de Normativos</div>
+          </div>
+        </div>
+        <nav aria-label="Menu principal" id="header-navigation">
+          <ul class="d-flex list-unstyled mb-0" style="gap:0.5rem;">
+            <li>
+              <a href="/"
+                 class="br-button {% if request.url.path == '/' %}primary{% else %}secondary{% endif %} small">
+                <i class="fas fa-upload mr-1" aria-hidden="true"></i> Enviar Normativo
+              </a>
+            </li>
+            {% if request.session.user.role in ('revisor', 'admin') %}
+            <li>
+              <a href="/review"
+                 class="br-button {% if '/review' in request.url.path %}primary{% else %}secondary{% endif %} small">
+                <i class="fas fa-tasks mr-1" aria-hidden="true"></i> Revisão
+              </a>
+            </li>
+            {% endif %}
+            {% if request.session.user.role == 'admin' %}
+            <li>
+              <a href="/log"
+                 class="br-button {% if request.url.path == '/log' %}primary{% else %}secondary{% endif %} small">
+                <i class="fas fa-history mr-1" aria-hidden="true"></i> Log
+              </a>
+            </li>
+            <li>
+              <a href="/admin/users"
+                 class="br-button {% if '/admin' in request.url.path %}primary{% else %}secondary{% endif %} small">
+                <i class="fas fa-users-cog mr-1" aria-hidden="true"></i> Usuários
+              </a>
+            </li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+
+    </div>
+  </header>
+
+  <!-- Conteúdo principal -->
+  <main id="main-content" class="container-lg" style="padding-top:2rem; padding-bottom:4rem; min-height:65vh;">
+
+    {% with messages = get_flashes(request) %}
+      {% for category, message in messages %}
+        <div class="br-message {{ category }} mb-3" role="alert">
+          <div class="icon">
+            <i class="fas
+              {% if category == 'success' %}fa-check-circle
+              {% elif category == 'danger' %}fa-times-circle
+              {% else %}fa-info-circle{% endif %}"
+              aria-hidden="true"></i>
+          </div>
+          <div class="content">{{ message }}</div>
+          <div class="close">
+            <button class="br-button circle small" type="button"
+                    onclick="this.closest('.br-message').remove()"
+                    aria-label="Fechar mensagem">
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+
+  </main>
+
+  <!-- Rodapé -->
+  <footer class="br-footer pt-3" id="footer">
+    <div class="container-lg">
+      <div class="info">
+        <div class="text-down-01 text-medium pb-3">
+          Instituto Federal de Educação, Ciência e Tecnologia de São Paulo —
+          <a href="https://www.ifsp.edu.br" target="_blank" rel="noopener noreferrer">
+            www.ifsp.edu.br
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+</div><!-- /.template-base -->
+
+<!-- DSGOV JS (inicializa componentes: header sticky, tooltips, etc.) -->
+<script src="/static/js/dsgov-init.min.js"></script>
+
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

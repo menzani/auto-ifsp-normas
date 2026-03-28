@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Entrar — IFSP Normas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height:60vh;">
+  <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+
+    <div class="br-card">
+      <div class="card-content p-5">
+
+        <div class="text-center mb-5">
+          <img src="https://www.gov.br/++theme++padrao_govbr/img/govbr-logo-large.png"
+               alt="Governo Federal" style="height:52px; margin-bottom:1.5rem;" /><br/>
+          <img src="https://www.ifsp.edu.br/images/logo_ifsp.png"
+               alt="IFSP"
+               style="height:52px;"
+               onerror="this.style.display='none'" />
+          <h1 class="text-up-01 mt-3 mb-1" style="color:#071D41;">IFSP Normas</h1>
+          <p class="text-down-01" style="color:#555;">Publicação de normativos institucionais</p>
+        </div>
+
+        <div class="br-divider mb-4"></div>
+
+        {% if request.query_params.get("erro") == "acesso_negado" %}
+        <div class="br-message danger mb-4" role="alert">
+          <div class="icon"><i class="fas fa-times-circle" aria-hidden="true"></i></div>
+          <div class="content">
+            Acesso negado. Use sua conta <strong>@ifsp.edu.br</strong>.
+          </div>
+        </div>
+        {% endif %}
+
+        {% if mock_auth %}
+        <div class="br-message warning mb-4" role="alert">
+          <div class="icon"><i class="fas fa-flask" aria-hidden="true"></i></div>
+          <div class="content">Modo de desenvolvimento — selecione um usuário de teste.</div>
+        </div>
+
+        <form method="post" action="/auth/mock" id="mock-form">
+          <div class="br-input mb-3">
+            <label for="mock-email">E-mail</label>
+            <input type="email" id="mock-email" name="email"
+                   value="servidor@ifsp.edu.br" required />
+          </div>
+          <div class="br-input mb-3">
+            <label for="mock-name">Nome</label>
+            <input type="text" id="mock-name" name="name"
+                   value="Servidor de Teste" required />
+          </div>
+
+          <p class="text-down-01 mb-2" style="color:#555;">Atalhos de teste:</p>
+          <div class="d-flex" style="gap:.5rem; flex-wrap:wrap; margin-bottom:1rem;">
+            <button type="button" class="br-button secondary small"
+                    onclick="setMock('servidor@ifsp.edu.br','Servidor de Teste')">
+              Servidor
+            </button>
+            <button type="button" class="br-button secondary small"
+                    onclick="setMock('revisor@ifsp.edu.br','Revisor de Teste')">
+              Revisor
+            </button>
+            <button type="button" class="br-button secondary small"
+                    onclick="setMock('admin@ifsp.edu.br','Admin de Teste')">
+              Admin
+            </button>
+          </div>
+
+          <button type="submit" class="br-button primary large block">
+            <i class="fas fa-sign-in-alt mr-2" aria-hidden="true"></i>
+            Entrar como usuário de teste
+          </button>
+        </form>
+
+        <script>
+          function setMock(email, name) {
+            document.getElementById('mock-email').value = email;
+            document.getElementById('mock-name').value = name;
+          }
+        </script>
+
+        {% else %}
+        <a href="/auth/google" class="br-button primary large block text-center">
+          <i class="fab fa-google mr-2" aria-hidden="true"></i>
+          Entrar com Google Workspace
+        </a>
+
+        <p class="text-center text-down-01 mt-3" style="color:#888;">
+          <i class="fas fa-lock mr-1" aria-hidden="true"></i>
+          Acesso restrito a servidores do IFSP
+        </p>
+        {% endif %}
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

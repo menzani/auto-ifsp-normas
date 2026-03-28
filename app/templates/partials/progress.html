@@ -1,0 +1,103 @@
+{% set is_done = job.status == "done" %}
+
+{% if is_done or job.status == "processing" %}
+
+  {% set steps = [
+    ("fa-file-pdf",    "Extração"),
+    ("fa-robot",       "FAQ / IA"),
+    ("fa-sitemap",     "Estrutura"),
+    ("fa-book",        "Bookstack"),
+    ("fa-check",       "Concluído"),
+  ] %}
+
+  <div {% if not is_done %}
+       hx-get="/status/{{ job.id }}"
+       hx-trigger="every 2s"
+       hx-target="#progress-area"
+       hx-swap="innerHTML"
+       {% endif %}>
+
+    <div class="br-card">
+      <div class="card-content">
+
+        {% if not is_done %}
+        <div class="d-flex align-items-center mb-3">
+          <div class="br-loading medium mr-3" role="status">
+            <div class="br-loading-icon">
+              <svg viewBox="25 25 50 50" class="br-loading-icon-path">
+                <circle cx="50" cy="50" r="20" fill="none"></circle>
+              </svg>
+            </div>
+          </div>
+          <div>
+            <p class="text-medium-weight mb-0">Processando normativo...</p>
+            <p class="text-down-01 mb-0" style="color:#555;">{{ job.current_step_label }}</p>
+          </div>
+        </div>
+
+        <!-- Barra de progresso -->
+        <div style="background:#DAE3F0; border-radius:4px; height:10px; overflow:hidden;">
+          <div style="background:#1351B4; height:100%; width:{{ job.progress_pct }}%;
+                      transition: width 0.5s ease; border-radius:4px;"></div>
+        </div>
+        <div class="d-flex justify-content-between mt-1">
+          <span class="text-down-01" style="color:#555;">Etapa {{ job.current_step }} de {{ job.total_steps }}</span>
+          <span class="text-down-01 text-medium-weight" style="color:#1351B4;">{{ job.progress_pct }}%</span>
+        </div>
+        {% endif %}
+
+        <!-- Etapas visuais -->
+        <div class="d-flex justify-content-between {% if not is_done %}mt-3{% endif %}" style="gap:0.5rem;">
+          {% for icon, label in steps %}
+            {% set step_n = loop.index %}
+            {% set complete = is_done or job.current_step > step_n %}
+            {% set active = not is_done and job.current_step == step_n %}
+            <div class="text-center flex-fill">
+              <div style="
+                width:36px; height:36px; border-radius:50%; margin:0 auto 4px;
+                display:flex; align-items:center; justify-content:center;
+                background: {% if complete %}#168821{% elif active %}#1351B4{% else %}#DAE3F0{% endif %};
+                color: {% if complete or active %}white{% else %}#888{% endif %};
+                font-size:.85rem;">
+                <i class="fas {{ icon }}" aria-hidden="true"></i>
+              </div>
+              <div class="text-down-02" style="
+                font-size:.7rem;
+                color:{% if complete %}#168821{% elif active %}#1351B4{% else %}#888{% endif %};">
+                {{ label }}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  {% if is_done %}
+  <div class="br-message success mt-3" role="alert">
+    <div class="icon"><i class="fas fa-check-circle" aria-hidden="true"></i></div>
+    <div class="content">
+      <p class="text-medium-weight mb-1">Normativo enviado com sucesso!</p>
+      <p class="mb-0">
+        O rascunho foi criado no Bookstack e aguarda revisão.
+        <a href="{{ job.result.book_url }}" target="_blank" rel="noopener noreferrer">
+          Visualizar no Bookstack →
+        </a>
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+{% elif job.status == "error" %}
+
+  <div class="br-message danger" role="alert">
+    <div class="icon"><i class="fas fa-times-circle" aria-hidden="true"></i></div>
+    <div class="content">
+      <p class="text-medium-weight mb-1">Erro no processamento</p>
+      <p class="mb-0">{{ job.error }}</p>
+    </div>
+  </div>
+
+{% endif %}

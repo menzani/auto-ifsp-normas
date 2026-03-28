@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}Enviar Normativo — IFSP Normas{% endblock %}
+
+{% block content %}
+<div class="row">
+
+  <!-- Formulário principal -->
+  <div class="col-12 col-lg-7">
+    <div class="br-card">
+      <div class="card-header">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-file-upload fa-lg mr-3" style="color:#1351B4;" aria-hidden="true"></i>
+          <span class="text-up-01 text-medium-weight">Enviar Normativo</span>
+        </div>
+      </div>
+      <div class="card-content">
+
+        <form id="upload-form"
+              hx-post="/upload"
+              hx-target="#progress-area"
+              hx-swap="innerHTML"
+              hx-encoding="multipart/form-data"
+              novalidate>
+
+          <!-- Título -->
+          <div class="br-input mb-1 mt-3">
+            <label for="title">Título do normativo <span style="color:#E52207;">*</span></label>
+            <input type="text"
+                   id="title"
+                   name="title"
+                   placeholder="Ex: Resolução IFSP nº 001, de 01 de janeiro de 2025"
+                   maxlength="255" />
+          </div>
+          <span id="error-title" class="text-down-01 mb-3" style="display:none; color:#E52207;">
+            <i class="fas fa-exclamation-circle mr-1"></i>Informe o título do normativo.
+          </span>
+
+          <!-- Upload -->
+          <div class="mb-1 mt-3">
+            <label class="d-block mb-1 text-medium-weight" for="pdf_file">
+              Arquivo PDF <span style="color:#E52207;">*</span>
+            </label>
+            <label for="pdf_file"
+                   id="drop-zone"
+                   style="
+                     display:flex; flex-direction:column; align-items:center; justify-content:center;
+                     border:2px dashed #1351B4; border-radius:8px; padding:2rem 1rem;
+                     cursor:pointer; text-align:center; transition:background .2s;
+                     background:#F8FAFF;">
+              <i class="fas fa-file-pdf fa-3x mb-3" style="color:#1351B4;" aria-hidden="true"></i>
+              <span class="text-medium-weight" style="color:#1351B4;">
+                Clique para selecionar ou arraste o arquivo PDF aqui
+              </span>
+              <span class="text-down-01 mt-1" style="color:#888;">
+                Somente PDF — máximo {{ max_size_mb }} MB
+              </span>
+            </label>
+            <input type="file"
+                   id="pdf_file"
+                   name="pdf_file"
+                   accept=".pdf,application/pdf"
+                   required
+                   style="display:none;" />
+            <div id="file-name-display" class="text-down-01 mt-2 d-flex align-items-center" style="color:#555; gap:.5rem;"></div>
+            <span id="error-pdf_file" class="text-down-01" style="display:none; color:#E52207;">
+              <i class="fas fa-exclamation-circle mr-1"></i>Selecione o arquivo PDF antes de enviar.
+            </span>
+          </div>
+
+          <button type="submit"
+                  id="submit-btn"
+                  class="br-button primary">
+            <i class="fas fa-paper-plane mr-2" aria-hidden="true"></i>
+            Enviar para processamento
+          </button>
+
+        </form>
+
+        <!-- Área de progresso -->
+        <div id="progress-area" class="mt-4"></div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Painel lateral informativo -->
+  <div class="col-12 col-lg-5 mt-3 mt-lg-0">
+
+    <div class="br-card mb-3">
+      <div class="card-header">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-info-circle mr-2" style="color:#1351B4;" aria-hidden="true"></i>
+          <span class="text-medium-weight">Como funciona</span>
+        </div>
+      </div>
+      <div class="card-content">
+        <ol class="pl-3" style="line-height:1.9;">
+          <li>Informe o título do normativo e faça o upload do arquivo PDF.</li>
+          <li>O sistema extrai o texto automaticamente.</li>
+          <li>Uma IA gera um FAQ sobre o normativo.</li>
+          <li>Um livro é criado em
+            <a href="{{ bookstack_url }}" target="_blank" rel="noopener noreferrer">normas.ifsp.edu.br</a>
+            com 3 seções: FAQ, texto integral e link de download.
+          </li>
+          <li>O livro fica <strong>oculto ao público</strong> até ser aprovado.</li>
+          <li>Um revisor aprova o conteúdo, escolhe a prateleira de destino e publica o normativo.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="br-card">
+      <div class="card-header">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-user-check mr-2" style="color:#1351B4;" aria-hidden="true"></i>
+          <span class="text-medium-weight">Usuário conectado</span>
+        </div>
+      </div>
+      <div class="card-content">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-user-circle fa-2x mr-3" style="color:#1351B4;" aria-hidden="true"></i>
+          <div>
+            <div class="text-medium-weight">{{ request.session.user.name }}</div>
+            <div class="text-down-01" style="color:#555;">{{ request.session.user.email }}</div>
+            <div class="mt-1">
+              <span class="br-tag
+                {% if request.session.user.role == 'revisor' %}success
+                {% elif request.session.user.role == 'admin' %}warning
+                {% else %}info{% endif %}
+                text" style="font-size:.75rem;">
+                {% if request.session.user.role == 'revisor' %}Revisor
+                {% elif request.session.user.role == 'admin' %}Administrador
+                {% else %}Servidor{% endif %}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Exibe o nome do arquivo selecionado
+  const pdfInput = document.getElementById('pdf_file');
+  const dropZone = document.getElementById('drop-zone');
+
+  pdfInput.addEventListener('change', function() {
+    showFile(this.files[0]);
+  });
+
+  function showFile(file) {
+    if (!file) return;
+    const display = document.getElementById('file-name-display');
+    const size = (file.size / 1024 / 1024).toFixed(2);
+    display.innerHTML =
+      '<i class="fas fa-file-pdf mr-1" style="color:#E52207;"></i>' +
+      '<strong>' + file.name + '</strong> (' + size + ' MB)' +
+      '<button type="button" id="remove-file-btn" title="Remover arquivo" ' +
+        'style="background:none; border:none; cursor:pointer; color:#888; padding:0 .25rem;" ' +
+        'aria-label="Remover arquivo selecionado">' +
+        '<i class="fas fa-times-circle"></i>' +
+      '</button>';
+    document.getElementById('remove-file-btn').addEventListener('click', clearFile);
+  }
+
+  function clearFile() {
+    pdfInput.value = '';
+    document.getElementById('file-name-display').innerHTML = '';
+    document.getElementById('error-pdf_file').style.display = 'none';
+  }
+
+  // Drag-and-drop
+  ['dragenter', 'dragover'].forEach(function(evt) {
+    dropZone.addEventListener(evt, function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.style.background = '#DCE9FF';
+      dropZone.style.borderColor = '#0D3D87';
+    });
+  });
+  ['dragleave', 'drop'].forEach(function(evt) {
+    dropZone.addEventListener(evt, function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.style.background = '#F8FAFF';
+      dropZone.style.borderColor = '#1351B4';
+    });
+  });
+  dropZone.addEventListener('drop', function(e) {
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      // Transfere o arquivo para o input
+      const dt = new DataTransfer();
+      dt.items.add(files[0]);
+      pdfInput.files = dt.files;
+      showFile(files[0]);
+    }
+  });
+
+  const submitBtn = document.getElementById('submit-btn');
+  const uploadForm = document.getElementById('upload-form');
+
+  function validateForm() {
+    let valid = true;
+
+    const title = document.getElementById('title');
+    const titleError = document.getElementById('error-title');
+    if (!title.value.trim()) {
+      titleError.style.display = 'block';
+      valid = false;
+    } else {
+      titleError.style.display = 'none';
+    }
+
+    const pdf = document.getElementById('pdf_file');
+    const pdfError = document.getElementById('error-pdf_file');
+    const maxBytes = {{ max_size_mb }} * 1024 * 1024;
+    if (!pdf.files || pdf.files.length === 0) {
+      pdfError.textContent = 'Selecione o arquivo PDF antes de enviar.';
+      pdfError.style.display = 'block';
+      valid = false;
+    } else if (!pdf.files[0].name.toLowerCase().endsWith('.pdf')) {
+      pdfError.textContent = 'Somente arquivos PDF são aceitos (.pdf).';
+      pdfError.style.display = 'block';
+      valid = false;
+    } else if (pdf.files[0].size > maxBytes) {
+      pdfError.textContent = 'O arquivo excede o limite de {{ max_size_mb }} MB.';
+      pdfError.style.display = 'block';
+      valid = false;
+    } else {
+      pdfError.style.display = 'none';
+    }
+
+    return valid;
+  }
+
+  // Fase de captura: dispara ANTES do HTMX (que escuta na fase de borbulhamento).
+  // Garante que a validação ocorre para qualquer papel de usuário.
+  uploadForm.addEventListener('submit', function(e) {
+    if (!validateForm()) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+    submitBtn.style.pointerEvents = 'none';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
+  }, true);
+
+  uploadForm.addEventListener('htmx:beforeRequest', function() {
+    submitBtn.disabled = true;
+  });
+
+  uploadForm.addEventListener('htmx:afterRequest', function() {
+    submitBtn.disabled = false;
+    submitBtn.style.pointerEvents = '';
+    submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Enviar para processamento';
+  });
+</script>
+{% endblock %}

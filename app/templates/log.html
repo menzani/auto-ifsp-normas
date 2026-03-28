@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Log de Ações — IFSP Normas{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+
+    <div class="br-card">
+      <div class="card-header">
+        <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:1rem;">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-history fa-lg mr-3" style="color:#1351B4;" aria-hidden="true"></i>
+            <span class="text-up-01 text-medium-weight">Log de ações</span>
+          </div>
+          <span class="br-tag info text">{{ entries|length }} registro{{ 's' if entries|length != 1 else '' }}</span>
+        </div>
+      </div>
+
+      <div class="card-content">
+
+        {% if not entries %}
+          <div class="d-flex flex-column align-items-center py-5" style="color:#888;">
+            <i class="fas fa-clipboard fa-3x mb-3" style="color:#DAE3F0;" aria-hidden="true"></i>
+            <p class="text-up-01 text-medium-weight">Nenhuma ação registrada</p>
+          </div>
+        {% else %}
+
+          <div class="br-table">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Data/Hora</th>
+                  <th scope="col">Usuário</th>
+                  <th scope="col">Ação</th>
+                  <th scope="col">Normativo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for entry in entries %}
+                <tr>
+                  <td class="text-down-01" style="white-space:nowrap;">{{ entry.ts_display }}</td>
+                  <td>
+                    <i class="fas fa-user mr-1" style="color:#888;" aria-hidden="true"></i>
+                    {{ entry.user }}
+                  </td>
+                  <td>
+                    {% if entry.action == "upload" %}
+                      <span class="br-tag info text">
+                        <i class="fas fa-upload mr-1" aria-hidden="true"></i> Upload
+                      </span>
+                    {% elif entry.action == "publicar" %}
+                      <span class="br-tag success text">
+                        <i class="fas fa-check mr-1" aria-hidden="true"></i> Publicação
+                      </span>
+                    {% elif entry.action == "revogar" %}
+                      <span class="br-tag warning text">
+                        <i class="fas fa-ban mr-1" aria-hidden="true"></i> Revogação
+                      </span>
+                    {% elif entry.action == "remover" %}
+                      <span class="br-tag danger text">
+                        <i class="fas fa-trash mr-1" aria-hidden="true"></i> Exclusão de rascunho
+                      </span>
+                    {% elif entry.action == "remover_revogado" %}
+                      <span class="br-tag danger text" style="background:#6c1414; color:#fff;">
+                        <i class="fas fa-times-circle mr-1" aria-hidden="true"></i> Exclusão de revogado
+                      </span>
+                    {% elif entry.action == "alterar_papel" %}
+                      <span class="br-tag warning text">
+                        <i class="fas fa-user-edit mr-1" aria-hidden="true"></i> Papel alterado
+                      </span>
+                    {% else %}
+                      <span class="br-tag text">{{ entry.action }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ entry.details }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+        {% endif %}
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

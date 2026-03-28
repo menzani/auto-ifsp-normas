@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Gerenciar Usuários — IFSP Normas{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+
+    <div class="br-card">
+      <div class="card-header">
+        <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:1rem;">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-users-cog fa-lg mr-3" style="color:#1351B4;" aria-hidden="true"></i>
+            <span class="text-up-01 text-medium-weight">Gerenciamento de usuários</span>
+          </div>
+          <span class="br-tag info text">{{ all_users|length }} usuário{{ 's' if all_users|length != 1 else '' }}</span>
+        </div>
+      </div>
+
+      <div class="card-content">
+
+        {% if saved_email is defined %}
+        <div class="br-message success mb-4" role="alert">
+          <div class="icon"><i class="fas fa-check-circle" aria-hidden="true"></i></div>
+          <div class="content">Papel de <strong>{{ saved_email }}</strong> atualizado com sucesso.</div>
+        </div>
+        {% endif %}
+
+        <div class="br-message info mb-4" role="alert">
+          <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
+          <div class="content">
+            Alterações entram em vigor imediatamente. O usuário não precisa fazer logout.
+            Para adicionar um usuário, ele deve fazer login ao menos uma vez.
+          </div>
+        </div>
+
+        {% if not all_users %}
+          <div class="d-flex flex-column align-items-center py-5" style="color:#888;">
+            <i class="fas fa-users fa-3x mb-3" style="color:#DAE3F0;" aria-hidden="true"></i>
+            <p class="text-up-01 text-medium-weight">Nenhum usuário registrado</p>
+            <p class="text-down-01">Os usuários aparecem aqui após o primeiro login.</p>
+          </div>
+        {% else %}
+
+          <div class="br-table">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Usuário</th>
+                  <th scope="col">Último acesso</th>
+                  <th scope="col">Papel</th>
+                  <th scope="col" class="text-center">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for u in all_users %}
+                <tr id="user-row-{{ loop.index }}">
+                  <td>
+                    <div>
+                      <div class="text-medium-weight">{{ u.name or '—' }}</div>
+                      <div class="text-down-01" style="color:#555;">{{ u.email }}</div>
+                    </div>
+                  </td>
+                  <td class="text-down-01">{{ u.last_login or '—' }}</td>
+                  <td>
+                    {% if u.role == 'admin' %}
+                      <span class="br-tag warning text">Admin</span>
+                    {% elif u.role == 'revisor' %}
+                      <span class="br-tag success text">Revisor</span>
+                    {% else %}
+                      <span class="br-tag info text">Servidor</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-center">
+                    <form method="post" action="/admin/users/{{ u.email }}/role"
+                          class="d-flex align-items-center justify-content-center" style="gap:.5rem;">
+                      <div class="br-select" style="min-width:130px;">
+                        <div class="br-input">
+                          <select name="role" aria-label="Papel de {{ u.name or u.email }}">
+                            {% for r in valid_roles %}
+                            <option value="{{ r }}" {% if r == u.role %}selected{% endif %}>
+                              {{ r|capitalize }}
+                            </option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                      </div>
+                      <button type="submit" class="br-button primary small"
+                              title="Salvar papel">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+        {% endif %}
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

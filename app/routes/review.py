@@ -99,6 +99,22 @@ async def revoke_status(job_id: str, request: Request, user=Depends(get_current_
     )
 
 
+@router.post("/revoke-cancel/{job_id}", response_class=HTMLResponse)
+async def cancel_revoke_job(job_id: str, request: Request, user=Depends(get_current_user)):
+    job = storage.load_status(job_id)
+    if job is None:
+        raise HTTPException(404, "Job não encontrado.")
+    if job.get("owner") and job["owner"] != user["email"] and user.get("role") not in ("revisor", "admin"):
+        raise HTTPException(403, "Acesso negado.")
+    if job.get("status") == "processing":
+        storage.save_status(job_id, {**job, "status": "cancelled"})
+        job = storage.load_status(job_id)
+    return templates.TemplateResponse(
+        "partials/revoke_progress.html",
+        {"request": request, "job": job},
+    )
+
+
 @router.post("/{book_id}/invalidate", response_class=HTMLResponse)
 async def invalidate_book_route(book_id: int, request: Request, user=Depends(get_current_user)):
     if user.get("role") not in ("revisor", "admin"):

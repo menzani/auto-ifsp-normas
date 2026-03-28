@@ -23,18 +23,27 @@
     <div class="card-content">
 
       {% if not is_done %}
-      <div class="d-flex align-items-center mb-3">
-        <div class="br-loading medium mr-3" role="status">
-          <div class="br-loading-icon">
-            <svg viewBox="25 25 50 50" class="br-loading-icon-path">
-              <circle cx="50" cy="50" r="20" fill="none"></circle>
-            </svg>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="d-flex align-items-center">
+          <div class="br-loading medium mr-3" role="status">
+            <div class="br-loading-icon">
+              <svg viewBox="25 25 50 50" class="br-loading-icon-path">
+                <circle cx="50" cy="50" r="20" fill="none"></circle>
+              </svg>
+            </div>
+          </div>
+          <div>
+            <p class="text-medium-weight mb-0">Processando revogação...</p>
+            <p class="text-down-01 mb-0" style="color:#555;">{{ job.current_step_label }}</p>
           </div>
         </div>
-        <div>
-          <p class="text-medium-weight mb-0">Processando revogação...</p>
-          <p class="text-down-01 mb-0" style="color:#555;">{{ job.current_step_label }}</p>
-        </div>
+        <button class="br-button secondary small"
+                hx-post="/review/revoke-cancel/{{ job.id }}"
+                hx-target="#revoke-progress-{{ job.id }}"
+                hx-swap="outerHTML"
+                hx-confirm="Cancelar a revogação em andamento?">
+          <i class="fas fa-times mr-1" aria-hidden="true"></i>Cancelar
+        </button>
       </div>
 
       <!-- Barra de progresso -->
@@ -90,6 +99,18 @@
   </div>
   {% endif %}
 
+</div>
+
+{% elif job.status == "cancelled" %}
+
+<div id="revoke-progress-{{ job_id }}">
+  <div class="br-message warning" role="alert">
+    <div class="icon"><i class="fas fa-ban" aria-hidden="true"></i></div>
+    <div class="content">
+      <p class="text-medium-weight mb-1">Revogação cancelada</p>
+      <p class="mb-0">O processo foi cancelado antes de ser concluído. Nenhuma alteração foi feita.</p>
+    </div>
+  </div>
 </div>
 
 {% elif job.status == "error" %}

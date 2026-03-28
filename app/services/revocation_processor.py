@@ -17,6 +17,16 @@ from app.services import bookstack as bs
 from app.services import audit, storage
 from app.services.bedrock import generate_revocation_summary
 
+class _JobCancelled(Exception):
+    pass
+
+
+def _raise_if_cancelled(job_id: str) -> None:
+    status = storage.load_status(job_id) or {}
+    if status.get("status") == "cancelled":
+        raise _JobCancelled()
+
+
 STEPS = [
     (1, "Buscando normativo no Bookstack"),
     (2, "Gerando resumo com IA"),
@@ -74,6 +84,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
     """Executa o pipeline completo de revogação. Bloqueia até concluir."""
     try:
         # ── Etapa 1: Buscar normativo ─────────────────────────────────────
+        _raise_if_cancelled(job_id)
         _set_step(job_id, 1)
         info = bs.get_book_for_revocation(book_id)
         title = info["title"]
@@ -83,6 +94,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         pdf_url = storage.get_download_url(pdf_key) if pdf_key else ""
 
         # ── Etapa 2: Resumo com IA ────────────────────────────────────────
+        _raise_if_cancelled(job_id)
         _set_step(job_id, 2)
         summary_markdown = generate_revocation_summary(page_markdown, title)
 
@@ -102,6 +114,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         revoked_book_title = f"Revogada - {base}, de {data}" if data else f"Revogada - {base}"
 
         # ── Etapa 3: Criar entrada em Revogadas ───────────────────────────
+        _raise_if_cancelled(job_id)
         _set_step(job_id, 3)
         revoked_book_url, revoked_book_id = bs.create_revoked_book_entry(
             title=revoked_book_title,
@@ -112,6 +125,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         )
 
         # ── Etapa 4: Remover normativo original ───────────────────────────
+        _raise_if_cancelled(job_id)
         _set_step(job_id, 4)
         bs.delete_book_from_bookstack(book_id)
 
@@ -136,6 +150,8 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
             "pdf_url": pdf_url,
         })
 
+    except _JobCancelled:
+        pass  # status já foi gravado como "cancelled" pela rota
     except Exception as exc:
         import logging
         logging.getLogger(__name__).exception("Erro no pipeline de revogação job=%s", job_id)

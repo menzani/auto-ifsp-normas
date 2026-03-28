@@ -21,7 +21,8 @@
       <div class="card-content">
 
         {% if not is_done %}
-        <div class="d-flex align-items-center mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="d-flex align-items-center">
           <div class="br-loading medium mr-3" role="status">
             <div class="br-loading-icon">
               <svg viewBox="25 25 50 50" class="br-loading-icon-path">
@@ -29,10 +30,18 @@
               </svg>
             </div>
           </div>
-          <div>
-            <p class="text-medium-weight mb-0">Processando normativo...</p>
-            <p class="text-down-01 mb-0" style="color:#555;">{{ job.current_step_label }}</p>
+            <div>
+              <p class="text-medium-weight mb-0">Processando normativo...</p>
+              <p class="text-down-01 mb-0" style="color:#555;">{{ job.current_step_label }}</p>
+            </div>
           </div>
+          <button class="br-button secondary small"
+                  hx-post="/status/{{ job.id }}/cancel"
+                  hx-target="#progress-area"
+                  hx-swap="innerHTML"
+                  hx-confirm="Cancelar o processamento em andamento?">
+            <i class="fas fa-times mr-1" aria-hidden="true"></i>Cancelar
+          </button>
         </div>
 
         <!-- Barra de progresso -->
@@ -104,6 +113,16 @@
     {{ job.result.extraction_check.pages }} página(s) · {{ job.result.extraction_check.total_chars }} caracteres extraídos
   </p>
   {% endif %}
+
+{% elif job.status == "cancelled" %}
+
+  <div class="br-message warning" role="alert">
+    <div class="icon"><i class="fas fa-ban" aria-hidden="true"></i></div>
+    <div class="content">
+      <p class="text-medium-weight mb-1">Processamento cancelado</p>
+      <p class="mb-0">O envio foi cancelado antes de ser concluído. Nenhuma alteração foi feita.</p>
+    </div>
+  </div>
 
 {% elif job.status == "error" %}
 

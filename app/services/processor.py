@@ -18,6 +18,16 @@ from app.services import storage
 from app.services.bedrock import fix_extraction_artifacts, generate_faq
 from app.services.pdf import pdf_to_markdown
 
+class _JobCancelled(Exception):
+    pass
+
+
+def _raise_if_cancelled(job_id: str) -> None:
+    status = storage.load_status(job_id) or {}
+    if status.get("status") == "cancelled":
+        raise _JobCancelled()
+
+
 STEPS = [
     (1, "Extraindo texto do PDF"),
     (2, "Corrigindo artefatos de extração"),
@@ -72,6 +82,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
     """Executa o pipeline completo. Bloqueia até concluir."""
     try:
         # ── Etapa 1: Extração de PDF ─────────────────────────────────────
+        _raise_if_cancelled(job_id)
         _set_step(job_id, 1)
         pdf_bytes = storage.get_pdf(pdf_key)
 
@@ -94,6 +105,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         extraction_check = _verify_extraction(markdown_text)
 
         # ── Etapa 2: Correção de artefatos ───────────────────────────────
+        _raise_if_cancelled(job_id)
         _set_step(job_id, 2)
 
         def on_correction_progress(current, total):
@@ -107,10 +119,12 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         markdown_text = fix_extraction_artifacts(markdown_text, on_progress=on_correction_progress)
 
         # ── Etapa 3: FAQ com IA ──────────────────────────────────────────
+        _raise_if_cancelled(job_id)
         _set_step(job_id, 3)
         faq_markdown = generate_faq(markdown_text, title)
 
         # ── Etapa 4: Bookstack ───────────────────────────────────────────
+        _raise_if_cancelled(job_id)
         _set_step(job_id, 4)
         download_url = storage.get_download_url(pdf_key)
         book_url = bs.create_normativo(
@@ -125,6 +139,8 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         # ── Etapa 5: Concluído ───────────────────────────────────────────
         _set_done(job_id, {"book_url": book_url, "extraction_check": extraction_check})
 
+    except _JobCancelled:
+        pass  # status já foi gravado como "cancelled" pela rota
     except Exception as exc:
         import logging
         logging.getLogger(__name__).exception("Erro no pipeline de upload job=%s", job_id)

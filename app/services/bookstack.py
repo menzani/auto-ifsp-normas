@@ -194,7 +194,7 @@ def create_normativo(
             "\n\n---\n\n*Texto truncado: o documento excede o limite de exibição. "
             "Consulte o PDF original via link de Download.*"
         )
-    logging.info("Texto integral para Bookstack (%d chars): %r", len(page_text), page_text[:500])
+    logging.warning("Texto integral para Bookstack (%d chars): %r", len(page_text), page_text[:500])
     _api_post("/pages", {
         "chapter_id": text_chapter["id"],
         "name": "Texto Integral",

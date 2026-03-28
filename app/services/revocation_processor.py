@@ -82,6 +82,7 @@ def _extract_field(text: str, field: str) -> str:
 
 def run(job_id: str, book_id: int, revoked_by: str) -> None:
     """Executa o pipeline completo de revogação. Bloqueia até concluir."""
+    revoked_book_id: int | None = None
     try:
         # ── Etapa 1: Buscar normativo ─────────────────────────────────────
         _raise_if_cancelled(job_id)
@@ -151,7 +152,8 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         })
 
     except _JobCancelled:
-        pass  # status já foi gravado como "cancelled" pela rota
+        if revoked_book_id:
+            bs.delete_book_from_bookstack(revoked_book_id)
     except Exception as exc:
         import logging
         logging.getLogger(__name__).exception("Erro no pipeline de revogação job=%s", job_id)

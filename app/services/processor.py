@@ -140,7 +140,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         _set_done(job_id, {"book_url": book_url, "extraction_check": extraction_check})
 
     except _JobCancelled:
-        pass  # status já foi gravado como "cancelled" pela rota
+        storage.delete_pdf(pdf_key)
     except Exception as exc:
         import logging
         logging.getLogger(__name__).exception("Erro no pipeline de upload job=%s", job_id)

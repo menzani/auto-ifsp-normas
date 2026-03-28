@@ -16,6 +16,8 @@ from app.config import get_settings
 
 settings = get_settings()
 
+_MAX_PAGE_CHARS = 50_000  # limite conservador para evitar bloqueio por WAF/nginx
+
 # ── Dados de mock ─────────────────────────────────────────────────────────────
 
 MOCK_SHELVES = [
@@ -175,10 +177,16 @@ def create_normativo(
         "name": "2. Texto Completo",
         "description": "Reprodução do texto completo para simplificação de busca e consultas específicas.",
     })
+    page_text = full_text_markdown
+    if len(page_text) > _MAX_PAGE_CHARS:
+        page_text = page_text[:_MAX_PAGE_CHARS] + (
+            "\n\n---\n\n*Texto truncado: o documento excede o limite de exibição. "
+            "Consulte o PDF original via link de Download.*"
+        )
     _api_post("/pages", {
         "chapter_id": text_chapter["id"],
         "name": "Texto Integral",
-        "markdown": full_text_markdown,
+        "markdown": page_text,
         "draft": True,
     })
 

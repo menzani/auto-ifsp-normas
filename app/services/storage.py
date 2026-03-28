@@ -13,6 +13,20 @@ settings = get_settings()
 
 LOCAL_DATA = Path("data")
 
+_s3_client = None
+_s3_client_lock = __import__("threading").Lock()
+
+
+def _get_s3_client():
+    global _s3_client
+    if _s3_client is not None:
+        return _s3_client
+    with _s3_client_lock:
+        if _s3_client is None:
+            import boto3
+            _s3_client = boto3.client("s3", region_name=settings.aws_region)
+    return _s3_client
+
 
 def _local_path(key: str) -> Path:
     p = LOCAL_DATA / key
@@ -27,8 +41,7 @@ def save_pdf(job_id: str, content: bytes) -> str:
         _local_path(key).write_bytes(content)
         return key
 
-    import boto3
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     s3.put_object(
         Bucket=settings.s3_bucket_name,
         Key=key,
@@ -43,8 +56,7 @@ def get_pdf(key: str) -> bytes:
     if settings.mock_s3:
         return _local_path(key).read_bytes()
 
-    import boto3
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=key)
     return obj["Body"].read()
 
@@ -57,8 +69,7 @@ def delete_pdf(key: str) -> None:
             p.unlink()
         return
 
-    import boto3
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     s3.delete_object(Bucket=settings.s3_bucket_name, Key=key)
 
 
@@ -70,8 +81,7 @@ def save_status(job_id: str, status_data: dict) -> None:
         _local_path(key).write_bytes(content)
         return
 
-    import boto3
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     s3.put_object(
         Bucket=settings.s3_bucket_name,
         Key=key,
@@ -89,9 +99,8 @@ def load_status(job_id: str) -> dict | None:
             return None
         return json.loads(p.read_text())
 
-    import boto3
     from botocore.exceptions import ClientError
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     try:
         obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=key)
         return json.loads(obj["Body"].read())
@@ -99,6 +108,40 @@ def load_status(job_id: str) -> dict | None:
         if e.response["Error"]["Code"] == "NoSuchKey":
             return None
         raise
+
+
+def list_processing_jobs() -> list[dict]:
+    """
+    Lista todos os jobs com status 'processing'.
+    Usado no startup para detectar jobs órfãos (processo reiniciado enquanto processava).
+    """
+    if settings.mock_s3:
+        status_dir = LOCAL_DATA / "status"
+        if not status_dir.exists():
+            return []
+        jobs = []
+        for p in status_dir.glob("*.json"):
+            try:
+                data = json.loads(p.read_text())
+                if data.get("status") == "processing":
+                    jobs.append(data)
+            except Exception:
+                pass
+        return jobs
+
+    s3 = _get_s3_client()
+    paginator = s3.get_paginator("list_objects_v2")
+    jobs = []
+    for page in paginator.paginate(Bucket=settings.s3_bucket_name, Prefix="status/"):
+        for obj in page.get("Contents", []):
+            try:
+                resp = s3.get_object(Bucket=settings.s3_bucket_name, Key=obj["Key"])
+                data = json.loads(resp["Body"].read())
+                if data.get("status") == "processing":
+                    jobs.append(data)
+            except Exception:
+                pass
+    return jobs
 
 
 def get_download_url(key: str) -> str:
@@ -122,9 +165,8 @@ def get_revoked_registry() -> list[dict]:
             return []
         return json.loads(p.read_text())
 
-    import boto3
     from botocore.exceptions import ClientError
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     try:
         obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_REVOKED_REGISTRY_KEY)
         return json.loads(obj["Body"].read())
@@ -159,8 +201,7 @@ def _save_revoked_registry(registry: list[dict]) -> None:
         _local_path(_REVOKED_REGISTRY_KEY).write_bytes(content)
         return
 
-    import boto3
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     s3.put_object(
         Bucket=settings.s3_bucket_name,
         Key=_REVOKED_REGISTRY_KEY,

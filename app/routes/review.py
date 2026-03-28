@@ -1,7 +1,7 @@
 import html as html_module
 import secrets
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
@@ -43,18 +43,27 @@ async def publish_book(
     if user.get("role") not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso restrito a revisores.")
 
+    # Valida shelf_id: deve existir e não pode ser staging ou revogadas
+    forbidden_shelves = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
+    available_shelves = {s["id"] for s in bs.get_shelves()}
+    if shelf_id in forbidden_shelves or shelf_id not in available_shelves:
+        raise HTTPException(400, "Prateleira de destino inválida.")
+
     drafts = bs.get_draft_books()
     draft = next((d for d in drafts if d["book_id"] == book_id), None)
-    title = draft["title"] if draft else str(book_id)
-    book_url = draft["bookstack_url"] if draft else settings.bookstack_base_url
+    if draft is None:
+        raise HTTPException(404, "Rascunho não encontrado.")
+    title = draft["title"]
+    book_url = draft["bookstack_url"]
 
     bs.publish_book(book_id, shelf_id)
     audit.log(user["email"], "publicar", title)
 
     t = html_module.escape(title)
     u = html_module.escape(book_url)
+    bid = html_module.escape(str(book_id))
     return HTMLResponse(f"""
-<tbody id="draft-rows-{book_id}" style="background:#F0FAF1;">
+<tbody id="draft-rows-{bid}" style="background:#F0FAF1;">
   <tr>
     <td colspan="5">
       <div class="d-flex align-items-center justify-content-between flex-wrap px-2 py-2" style="gap:.5rem;">
@@ -86,8 +95,21 @@ async def delete_book_route(book_id: int, request: Request, user=Depends(get_cur
     return HTMLResponse("")
 
 
+_REVOKE_JOB_ID_PATTERN = r"^rev_[a-zA-Z0-9_-]{10,50}$"
+_INTERNAL_JOB_FIELDS = {"owner"}
+
+
+def _public_job(job: dict) -> dict:
+    """Remove campos internos que não devem ser expostos ao cliente via template."""
+    return {k: v for k, v in job.items() if k not in _INTERNAL_JOB_FIELDS}
+
+
 @router.get("/revoke-status/{job_id}", response_class=HTMLResponse)
-async def revoke_status(job_id: str, request: Request, user=Depends(get_current_user)):
+async def revoke_status(
+    request: Request,
+    job_id: str = Path(..., pattern=_REVOKE_JOB_ID_PATTERN),
+    user=Depends(get_current_user),
+):
     job = storage.load_status(job_id)
     if job is None:
         raise HTTPException(404, "Job não encontrado.")
@@ -95,12 +117,16 @@ async def revoke_status(job_id: str, request: Request, user=Depends(get_current_
         raise HTTPException(403, "Acesso negado.")
     return templates.TemplateResponse(
         "partials/revoke_progress.html",
-        {"request": request, "job": job},
+        {"request": request, "job": _public_job(job)},
     )
 
 
 @router.post("/revoke-cancel/{job_id}", response_class=HTMLResponse)
-async def cancel_revoke_job(job_id: str, request: Request, user=Depends(get_current_user)):
+async def cancel_revoke_job(
+    request: Request,
+    job_id: str = Path(..., pattern=_REVOKE_JOB_ID_PATTERN),
+    user=Depends(get_current_user),
+):
     job = storage.load_status(job_id)
     if job is None:
         raise HTTPException(404, "Job não encontrado.")
@@ -111,7 +137,7 @@ async def cancel_revoke_job(job_id: str, request: Request, user=Depends(get_curr
         job = storage.load_status(job_id)
     return templates.TemplateResponse(
         "partials/revoke_progress.html",
-        {"request": request, "job": job},
+        {"request": request, "job": _public_job(job)},
     )
 
 
@@ -142,8 +168,15 @@ async def invalidate_book_route(book_id: int, request: Request, user=Depends(get
     )
 
 
+_REVOCATION_ID_PATTERN = r"^[a-zA-Z0-9_-]{10,50}$"
+
+
 @router.delete("/revoked/{revocation_id}", response_class=HTMLResponse)
-async def delete_revoked(revocation_id: str, request: Request, user=Depends(get_current_user)):
+async def delete_revoked(
+    request: Request,
+    revocation_id: str = Path(..., pattern=_REVOCATION_ID_PATTERN),
+    user=Depends(get_current_user),
+):
     if user.get("role") != "admin":
         raise HTTPException(403, "Acesso restrito a administradores.")
 

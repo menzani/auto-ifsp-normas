@@ -18,6 +18,19 @@ settings = get_settings()
 # 80 000 caracteres ≈ 20 000 tokens — bem abaixo do limite do Haiku (200k tokens).
 _MAX_INPUT_CHARS = 80_000
 
+_bedrock_client = None
+_bedrock_client_lock = __import__("threading").Lock()
+
+
+def _get_bedrock_client():
+    global _bedrock_client
+    if _bedrock_client is not None:
+        return _bedrock_client
+    with _bedrock_client_lock:
+        if _bedrock_client is None:
+            _bedrock_client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+    return _bedrock_client
+
 
 def generate_faq(markdown_text: str, title: str) -> str:
     """
@@ -28,7 +41,7 @@ def generate_faq(markdown_text: str, title: str) -> str:
     if len(markdown_text) > _MAX_INPUT_CHARS:
         text += "\n\n*[Texto truncado — documento excede o limite de processamento.]*"
 
-    client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+    client = _get_bedrock_client()
 
     body = {
         "anthropic_version": "bedrock-2023-05-31",
@@ -61,7 +74,7 @@ def generate_revocation_summary(markdown_text: str, title: str) -> str:
     if len(markdown_text) > _MAX_INPUT_CHARS:
         text += "\n\n*[Texto truncado — documento excede o limite de processamento.]*"
 
-    client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+    client = _get_bedrock_client()
 
     body = {
         "anthropic_version": "bedrock-2023-05-31",
@@ -110,8 +123,7 @@ def fix_extraction_artifacts(text: str, on_progress=None) -> str:
 
 
 def _fix_artifacts_chunk(chunk: str) -> str:
-    settings = get_settings()
-    client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+    client = _get_bedrock_client()
     body = {
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 5_500,

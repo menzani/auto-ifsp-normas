@@ -81,11 +81,20 @@ def _set_error(job_id: str, message: str):
 def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
     """Executa o pipeline completo. Bloqueia até concluir."""
     bookstack_book_id: int | None = None
+    # Campos internos que devem persistir em todos os status saves do pipeline.
+    # _set_step reescreve o dict completo, então esses campos precisam ser incluídos
+    # explicitamente para que as verificações de ownership continuem funcionando.
+    _private = {"owner": uploaded_by, "pdf_key": pdf_key}
     try:
         # ── Etapa 1: Extração de PDF ─────────────────────────────────────
         _raise_if_cancelled(job_id)
-        _set_step(job_id, 1)
+        _set_step(job_id, 1, _private)
         pdf_bytes = storage.get_pdf(pdf_key)
+
+        # Captura o status base uma vez — reutilizado nas callbacks para evitar
+        # um load_status por página (poderia gerar 100+ leituras S3 num PDF grande).
+        # Carregado após _set_step para que base_status já inclua owner e pdf_key.
+        base_status = storage.load_status(job_id) or {"id": job_id}
 
         pages_done = [0]
         pages_total = [1]
@@ -94,8 +103,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
             pages_done[0] = current
             pages_total[0] = total
             pct = int(current / total * 50)  # 0–50 %
-            current_status = storage.load_status(job_id) or {}
-            storage.save_status(job_id, current_status | {
+            storage.save_status(job_id, base_status | {
                 "current_step_label": f"Extraindo texto — página {current}/{total}",
                 "progress_pct": pct,
             })
@@ -107,12 +115,11 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 
         # ── Etapa 2: Correção de artefatos ───────────────────────────────
         _raise_if_cancelled(job_id)
-        _set_step(job_id, 2)
+        _set_step(job_id, 2, _private)
 
         def on_correction_progress(current, total):
             pct = int(20 + current / total * 20)  # 20–40 %
-            current_status = storage.load_status(job_id) or {}
-            storage.save_status(job_id, current_status | {
+            storage.save_status(job_id, base_status | {
                 "current_step_label": f"Corrigindo artefatos — parte {current}/{total}",
                 "progress_pct": pct,
             })
@@ -121,12 +128,12 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 
         # ── Etapa 3: FAQ com IA ──────────────────────────────────────────
         _raise_if_cancelled(job_id)
-        _set_step(job_id, 3)
+        _set_step(job_id, 3, _private)
         faq_markdown = generate_faq(markdown_text, title)
 
         # ── Etapa 4: Bookstack ───────────────────────────────────────────
         _raise_if_cancelled(job_id)
-        _set_step(job_id, 4)
+        _set_step(job_id, 4, _private)
         download_url = storage.get_download_url(pdf_key)
         book_url, bookstack_book_id = bs.create_normativo(
             title=title,

@@ -1,34 +1,81 @@
 """
 Log de auditoria de ações.
 
-MOCK_S3=true  → armazenado em data/audit.jsonl (local)
-MOCK_S3=false → armazenado em s3://<bucket>/meta/audit.jsonl
+MOCK_S3=true  → armazenado em data/audit-YYYY-MM.jsonl (local)
+MOCK_S3=false → armazenado em s3://<bucket>/meta/audit-YYYY-MM.jsonl
+
+Arquivos são rotacionados mensalmente para evitar que reads + rewrites S3
+cresçam linearmente com o volume total do log.
+Leituras (`recent()`) consultam o mês atual e o anterior para cobrir a virada de mês.
+Arquivo legado meta/audit.jsonl (sem sufixo de mês) é lido como fallback de migração.
 """
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from app.config import get_settings
 
 settings = get_settings()
 
-_LOCAL_FILE = Path("data/audit.jsonl")
-_S3_KEY = "meta/audit.jsonl"
 _lock = threading.Lock()
 
+_s3_client = None
+_s3_client_lock = threading.Lock()
 
-def _read_lines() -> list[str]:
+
+def _get_s3_client():
+    global _s3_client
+    if _s3_client is not None:
+        return _s3_client
+    with _s3_client_lock:
+        if _s3_client is None:
+            import boto3
+            _s3_client = boto3.client("s3", region_name=settings.aws_region)
+    return _s3_client
+
+# Chave/arquivo legado (gravado antes da rotação mensal) — lido como fallback
+_LEGACY_S3_KEY = "meta/audit.jsonl"
+_LEGACY_LOCAL_FILE = Path("data/audit.jsonl")
+
+
+def _s3_key_for(dt: datetime) -> str:
+    return f"meta/audit-{dt.strftime('%Y-%m')}.jsonl"
+
+
+def _local_file_for(dt: datetime) -> Path:
+    return Path(f"data/audit-{dt.strftime('%Y-%m')}.jsonl")
+
+
+def _read_lines_for_month(dt: datetime) -> list[str]:
     if settings.mock_s3:
-        if not _LOCAL_FILE.exists():
+        f = _local_file_for(dt)
+        if not f.exists():
             return []
-        return _LOCAL_FILE.read_text(encoding="utf-8").splitlines()
+        return f.read_text(encoding="utf-8").splitlines()
 
-    import boto3
     from botocore.exceptions import ClientError
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     try:
-        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_S3_KEY)
+        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_s3_key_for(dt))
+        return obj["Body"].read().decode("utf-8").splitlines()
+    except ClientError as e:
+        if e.response["Error"]["Code"] in ("NoSuchKey", "NoSuchBucket"):
+            return []
+        raise
+
+
+def _read_legacy_lines() -> list[str]:
+    """Lê o arquivo de log anterior à rotação mensal (migração)."""
+    if settings.mock_s3:
+        if not _LEGACY_LOCAL_FILE.exists():
+            return []
+        return _LEGACY_LOCAL_FILE.read_text(encoding="utf-8").splitlines()
+
+    from botocore.exceptions import ClientError
+    s3 = _get_s3_client()
+    try:
+        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_LEGACY_S3_KEY)
         return obj["Body"].read().decode("utf-8").splitlines()
     except ClientError as e:
         if e.response["Error"]["Code"] in ("NoSuchKey", "NoSuchBucket"):
@@ -42,21 +89,25 @@ def _append_line(line: str) -> None:
 
 
 def _append_line_locked(line: str) -> None:
+    now = datetime.now(timezone.utc)
+
     if settings.mock_s3:
-        _LOCAL_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with _LOCAL_FILE.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+        f = _local_file_for(now)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        with f.open("a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
         return
 
-    # S3 não suporta append nativo — lê, adiciona e reescreve
-    import boto3
-    s3 = boto3.client("s3", region_name=settings.aws_region)
-    existing = "\n".join(_read_lines())
-    updated = (existing + "\n" + line).lstrip("\n")
+    # S3 não suporta append nativo — lê o arquivo do mês atual, adiciona e reescreve.
+    # Arquivo mensal cresce no máximo ~30× menos que um único arquivo anual.
+    s3 = _get_s3_client()
+    key = _s3_key_for(now)
+    existing_lines = _read_lines_for_month(now)
+    existing_lines.append(line)
     s3.put_object(
         Bucket=settings.s3_bucket_name,
-        Key=_S3_KEY,
-        Body=updated.encode("utf-8"),
+        Key=key,
+        Body="\n".join(existing_lines).encode("utf-8"),
         ContentType="application/x-ndjson",
     )
 
@@ -72,12 +123,26 @@ def log(user_email: str, action: str, details: str) -> None:
 
 
 def recent(limit: int = 200) -> list[dict]:
-    lines = _read_lines()
+    """
+    Retorna as entradas mais recentes do log, em ordem decrescente de timestamp.
+    Lê o mês atual, o anterior e o arquivo legado (pré-rotação).
+    """
+    now = datetime.now(timezone.utc)
+    prev_month = now.replace(day=1) - timedelta(days=1)
+
+    all_lines = (
+        _read_lines_for_month(now)
+        + _read_lines_for_month(prev_month)
+        + _read_legacy_lines()
+    )
+
     entries = []
-    for line in reversed(lines):
+    seen: set[str] = set()
+    for line in all_lines:
         line = line.strip()
-        if not line:
+        if not line or line in seen:
             continue
+        seen.add(line)
         try:
             entry = json.loads(line)
             try:
@@ -88,6 +153,6 @@ def recent(limit: int = 200) -> list[dict]:
             entries.append(entry)
         except json.JSONDecodeError:
             continue
-        if len(entries) >= limit:
-            break
-    return entries
+
+    entries.sort(key=lambda e: e.get("ts", ""), reverse=True)
+    return entries[:limit]

@@ -10,6 +10,8 @@ Papéis válidos:
   admin     — acesso total + gerenciar usuários + ver logs
 """
 import json
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,8 +21,46 @@ settings = get_settings()
 
 VALID_ROLES = ("servidor", "revisor", "admin")
 
+_s3_client = None
+_s3_client_lock = threading.Lock()
+
+
+def _get_s3_client():
+    global _s3_client
+    if _s3_client is not None:
+        return _s3_client
+    with _s3_client_lock:
+        if _s3_client is None:
+            import boto3
+            _s3_client = boto3.client("s3", region_name=settings.aws_region)
+    return _s3_client
+
 _LOCAL_STORE = Path("data/users.json")
 _S3_KEY = "meta/users.json"
+
+# Cache em memória para papéis — evita leitura S3 a cada request autenticado.
+# Invalidado individualmente ao alterar ou criar um usuário.
+_ROLE_TTL = 60.0  # segundos
+_role_cache: dict[str, tuple[str, float]] = {}  # email → (role, timestamp)
+_role_cache_lock = threading.Lock()
+
+
+def _role_cache_get(email: str) -> str | None:
+    with _role_cache_lock:
+        entry = _role_cache.get(email)
+    if entry and (time.monotonic() - entry[1]) < _ROLE_TTL:
+        return entry[0]
+    return None
+
+
+def _role_cache_set(email: str, role: str) -> None:
+    with _role_cache_lock:
+        _role_cache[email] = (role, time.monotonic())
+
+
+def _role_cache_invalidate(email: str) -> None:
+    with _role_cache_lock:
+        _role_cache.pop(email, None)
 
 
 def _load() -> dict:
@@ -32,9 +72,8 @@ def _load() -> dict:
         except Exception:
             return {}
 
-    import boto3
     from botocore.exceptions import ClientError
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     try:
         obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_S3_KEY)
         return json.loads(obj["Body"].read())
@@ -52,8 +91,7 @@ def _save(data: dict) -> None:
         _LOCAL_STORE.write_bytes(content)
         return
 
-    import boto3
-    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3 = _get_s3_client()
     s3.put_object(
         Bucket=settings.s3_bucket_name,
         Key=_S3_KEY,
@@ -63,7 +101,12 @@ def _save(data: dict) -> None:
 
 
 def get_role(email: str) -> str:
-    return _load().get(email, {}).get("role", "servidor")
+    cached = _role_cache_get(email)
+    if cached is not None:
+        return cached
+    role = _load().get(email, {}).get("role", "servidor")
+    _role_cache_set(email, role)
+    return role
 
 
 def set_role(email: str, role: str) -> None:
@@ -74,6 +117,7 @@ def set_role(email: str, role: str) -> None:
         data[email] = {}
     data[email]["role"] = role
     _save(data)
+    _role_cache_invalidate(email)
 
 
 def upsert_user(email: str, name: str, bootstrap_admins: list[str]) -> str:
@@ -94,7 +138,9 @@ def upsert_user(email: str, name: str, bootstrap_admins: list[str]) -> str:
             data[email]["role"] = "admin"
     data[email]["last_login"] = now
     _save(data)
-    return data[email]["role"]
+    role = data[email]["role"]
+    _role_cache_set(email, role)
+    return role
 
 
 def list_users() -> list[dict]:

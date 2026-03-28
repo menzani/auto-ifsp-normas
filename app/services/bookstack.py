@@ -7,6 +7,7 @@ MOCK_BOOKSTACK=false → conecta ao normas.ifsp.edu.br via API token.
 Referência: https://demo.bookstackapp.com/api/docs
 """
 import logging
+import threading
 import time
 from datetime import datetime
 
@@ -47,30 +48,37 @@ _shelf_map_cache: dict = {} # {"data": {...}, "ts": float}
 _UNSET = object()
 _public_role_id = _UNSET   # cache: _UNSET = não buscado, None = não encontrado, int = ID
 
+_cache_lock = threading.Lock()
+
 
 def _invalidate_drafts_cache() -> None:
-    _drafts_cache.clear()
+    with _cache_lock:
+        _drafts_cache.clear()
 
 
 def _invalidate_shelf_map_cache() -> None:
-    _shelf_map_cache.clear()
+    with _cache_lock:
+        _shelf_map_cache.clear()
 
 
 def _get_public_role_id() -> int | None:
     """Busca o ID do papel 'Public' (acesso anônimo) uma vez e cacheia."""
     global _public_role_id
-    if _public_role_id is not _UNSET:
-        return _public_role_id  # type: ignore[return-value]
+    with _cache_lock:
+        if _public_role_id is not _UNSET:
+            return _public_role_id  # type: ignore[return-value]
     try:
         roles = _api_get("/roles", params={"count": 100})["data"]
+        role_id = None
         for role in roles:
             if role.get("display_name", "").lower() == "public":
-                _public_role_id = role["id"]
-                return _public_role_id
+                role_id = role["id"]
+                break
     except Exception:
-        pass
-    _public_role_id = None
-    return None
+        role_id = None
+    with _cache_lock:
+        _public_role_id = role_id
+    return role_id
 
 
 def _restrict_book_to_authenticated(book_id: int) -> None:
@@ -108,11 +116,12 @@ def get_shelves() -> list[dict]:
     """Lista todas as prateleiras disponíveis. Usa o cache do shelf map quando disponível."""
     if settings.mock_bookstack:
         return MOCK_SHELVES
-    if _shelf_map_cache and "shelves" in _shelf_map_cache and (
-        time.monotonic() - _shelf_map_cache.get("ts", 0) < _SHELF_MAP_TTL
-    ):
-        return _shelf_map_cache["shelves"]
-    return _api_get("/shelves", params={"count": 500})["data"]
+    with _cache_lock:
+        if _shelf_map_cache and "shelves" in _shelf_map_cache and (
+            time.monotonic() - _shelf_map_cache.get("ts", 0) < _SHELF_MAP_TTL
+        ):
+            return _shelf_map_cache["shelves"]
+    return _api_get_all("/shelves")
 
 
 def create_normativo(
@@ -208,13 +217,14 @@ def get_draft_books() -> list[dict]:
     if settings.mock_bookstack:
         return MOCK_DRAFTS
 
-    # Verifica cache
-    if _drafts_cache and (time.monotonic() - _drafts_cache["ts"] < _CACHE_TTL):
-        return _drafts_cache["data"]
+    with _cache_lock:
+        if _drafts_cache and (time.monotonic() - _drafts_cache["ts"] < _CACHE_TTL):
+            return _drafts_cache["data"]
 
     result = _fetch_draft_books()
-    _drafts_cache["data"] = result
-    _drafts_cache["ts"] = time.monotonic()
+    with _cache_lock:
+        _drafts_cache["data"] = result
+        _drafts_cache["ts"] = time.monotonic()
     return result
 
 
@@ -233,7 +243,7 @@ def get_all_books_overview() -> dict:
     from concurrent.futures import ThreadPoolExecutor
 
     def _fetch_all_books() -> list:
-        return _api_get("/books", params={"count": 500})["data"]
+        return _api_get_all("/books")
 
     # Busca lista de livros e dados de prateleiras em paralelo.
     # _build_shelf_data() retorna tudo que precisamos sobre prateleiras numa chamada cacheada.
@@ -412,7 +422,7 @@ def _fetch_draft_books() -> list[dict]:
     Busca os livros na prateleira de staging (rascunhos aguardando revisão).
     Consistente com get_all_books_overview(): usa staging shelf como fonte da verdade.
     """
-    all_books = {b["id"]: b for b in _api_get("/books", params={"count": 500})["data"]}
+    all_books = {b["id"]: b for b in _api_get_all("/books")}
 
     staging_book_ids: set[int] = set()
     if settings.bookstack_staging_shelf_id:
@@ -496,31 +506,41 @@ def delete_book(book_id: int) -> None:
 
 # ── Helpers HTTP ──────────────────────────────────────────────────────────────
 
-def _headers() -> dict:
-    return {
+# httpx.Client é thread-safe e mantém pool de conexões TCP/TLS entre chamadas.
+# Evita a sobrecarga de handshake por requisição, especialmente nas operações paralelas
+# com ThreadPoolExecutor (ex: _build_shelf_data, _fetch_uploaded_by).
+_http_client = httpx.Client(
+    base_url=f"{settings.bookstack_base_url}/api",
+    headers={
         "Authorization": f"Token {settings.bookstack_token_id}:{settings.bookstack_token_secret}",
         "Content-Type": "application/json",
-    }
+    },
+    timeout=15,
+)
+
+
+def _api_get_all(path: str, extra_params: dict | None = None) -> list:
+    """Percorre todas as páginas de um endpoint paginado e retorna a lista completa."""
+    page_size = 100
+    params: dict = {"count": page_size, "offset": 0, **(extra_params or {})}
+    results: list = []
+    while True:
+        batch = _api_get(path, params=params)["data"]
+        results.extend(batch)
+        if len(batch) < page_size:
+            break
+        params = {**params, "offset": params["offset"] + len(batch)}
+    return results
 
 
 def _api_get(path: str, params: dict | None = None) -> dict:
-    r = httpx.get(
-        f"{settings.bookstack_base_url}/api{path}",
-        headers=_headers(),
-        params=params,
-        timeout=15,
-    )
+    r = _http_client.get(path, params=params)
     r.raise_for_status()
     return r.json()
 
 
 def _api_post(path: str, body: dict) -> dict:
-    r = httpx.post(
-        f"{settings.bookstack_base_url}/api{path}",
-        headers=_headers(),
-        json=body,
-        timeout=15,
-    )
+    r = _http_client.post(path, json=body)
     if not r.is_success:
         logging.error("Bookstack API error %s %s: %s", r.status_code, path, r.text[:500])
     r.raise_for_status()
@@ -528,22 +548,13 @@ def _api_post(path: str, body: dict) -> dict:
 
 
 def _api_put(path: str, body: dict) -> dict:
-    r = httpx.put(
-        f"{settings.bookstack_base_url}/api{path}",
-        headers=_headers(),
-        json=body,
-        timeout=15,
-    )
+    r = _http_client.put(path, json=body)
     r.raise_for_status()
     return r.json()
 
 
 def _api_delete(path: str) -> None:
-    r = httpx.delete(
-        f"{settings.bookstack_base_url}/api{path}",
-        headers=_headers(),
-        timeout=15,
-    )
+    r = _http_client.delete(path)
     r.raise_for_status()
 
 
@@ -553,19 +564,20 @@ def _build_shelf_data() -> tuple[dict, list, set, set]:
     Cacheado por _SHELF_MAP_TTL segundos — prateleiras mudam raramente.
     Detalhes de cada prateleira buscados em paralelo.
     """
-    if _shelf_map_cache and "shelves" in _shelf_map_cache and (
-        time.monotonic() - _shelf_map_cache["ts"] < _SHELF_MAP_TTL
-    ):
-        return (
-            _shelf_map_cache["data"],
-            _shelf_map_cache["shelves"],
-            _shelf_map_cache["staging_ids"],
-            _shelf_map_cache["revoked_ids"],
-        )
+    with _cache_lock:
+        if _shelf_map_cache and "shelves" in _shelf_map_cache and (
+            time.monotonic() - _shelf_map_cache["ts"] < _SHELF_MAP_TTL
+        ):
+            return (
+                _shelf_map_cache["data"],
+                _shelf_map_cache["shelves"],
+                _shelf_map_cache["staging_ids"],
+                _shelf_map_cache["revoked_ids"],
+            )
 
     from concurrent.futures import ThreadPoolExecutor
 
-    shelves = _api_get("/shelves", params={"count": 500})["data"]
+    shelves = _api_get_all("/shelves")
     book_to_shelf: dict[int, str] = {}
     staging_ids: set[int] = set()
     revoked_ids: set[int] = set()
@@ -584,11 +596,12 @@ def _build_shelf_data() -> tuple[dict, list, set, set]:
                 if shelf_id == settings.bookstack_revoked_shelf_id:
                     revoked_ids.add(bid)
 
-    _shelf_map_cache.update({
-        "data": book_to_shelf,
-        "shelves": shelves,
-        "staging_ids": staging_ids,
-        "revoked_ids": revoked_ids,
-        "ts": time.monotonic(),
-    })
+    with _cache_lock:
+        _shelf_map_cache.update({
+            "data": book_to_shelf,
+            "shelves": shelves,
+            "staging_ids": staging_ids,
+            "revoked_ids": revoked_ids,
+            "ts": time.monotonic(),
+        })
     return book_to_shelf, shelves, staging_ids, revoked_ids

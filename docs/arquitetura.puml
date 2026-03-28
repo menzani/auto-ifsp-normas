@@ -33,7 +33,7 @@ AWSCloudGroup(cloud, "AWS Cloud") {
     Bedrock(bedrock, "IA Generativa\n(Claude Haiku)", "Amazon Bedrock")
 
     VPCGroup(vpc, "VPC Privada") {
-        EC2Instance(ec2, "EC2 (Free Tier)\nnginx + FastAPI\n(uvicorn, systemd)", "EC2")
+        EC2Instance(ec2, "EC2 t3.micro (Free Tier)\nnginx + FastAPI\n(uvicorn, systemd)", "EC2")
     }
 }
 
@@ -52,7 +52,7 @@ iam ..> bedrock : acesso via instância
 note right of ec2
   Pipelines assíncronos
   (threading.Thread):
-  - Upload: extração PDF → FAQ (IA) → Bookstack
+  - Upload: extração PDF → correção → FAQ (IA) → Bookstack
   - Revogação: busca → resumo (IA) → Revogadas → remove original
 end note
 

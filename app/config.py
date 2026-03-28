@@ -1,15 +1,27 @@
 from functools import lru_cache
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+_INSECURE_SECRET = "troque-esta-chave-em-producao"
 
 
 class Settings(BaseSettings):
-    # Modos de desenvolvimento
-    mock_auth: bool = True
-    mock_bookstack: bool = True
-    mock_s3: bool = True
+    # Modos de desenvolvimento (False em produção; True requer opt-in explícito no .env)
+    mock_auth: bool = False
+    mock_bookstack: bool = False
+    mock_s3: bool = False
 
     # Sessão
-    session_secret_key: str = "troque-esta-chave-em-producao"
+    session_secret_key: str = _INSECURE_SECRET
+
+    @model_validator(mode="after")
+    def validate_secrets(self) -> "Settings":
+        if not any([self.mock_auth, self.mock_bookstack, self.mock_s3]):
+            if self.session_secret_key == _INSECURE_SECRET:
+                raise ValueError(
+                    "SESSION_SECRET_KEY deve ser definida no .env com um valor seguro antes de rodar em modo produção."
+                )
+        return self
 
     # Google OAuth
     google_client_id: str = ""

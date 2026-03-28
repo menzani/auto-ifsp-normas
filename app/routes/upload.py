@@ -32,7 +32,7 @@ async def upload_pdf(
     request: Request,
     user=Depends(get_current_user),
     pdf_file: UploadFile = File(...),
-    title: str = Form(...),
+    title: str = Form(..., min_length=3, max_length=255),
 ):
     # ── Rate limit simples por usuário ───────────────────────────────────
     _check_rate_limit(user["sub"])
@@ -107,6 +107,12 @@ def _check_rate_limit(user_sub: str) -> None:
     now = time.time()
     window = 3600  # 1 hora
     limit = settings.max_uploads_per_user_per_hour
+
+    # Remove entradas de usuários cujos timestamps já expiraram todos.
+    # Previne acúmulo indefinido do dict ao longo de meses de operação.
+    stale = [s for s, ts in _rate_limit.items() if not any(now - t < window for t in ts)]
+    for s in stale:
+        del _rate_limit[s]
 
     timestamps = _rate_limit.get(user_sub, [])
     timestamps = [t for t in timestamps if now - t < window]

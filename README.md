@@ -48,6 +48,7 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 3. Clique em **Enviar para processamento**
 4. Acompanhe o progresso pelas etapas exibidas na tela:
    - **Extração** — o texto do PDF é lido automaticamente
+   - **Correção** — artefatos de extração (acentos, hifenizações) são corrigidos automaticamente
    - **FAQ / IA** — uma inteligência artificial gera perguntas frequentes sobre o documento
    - **Bookstack** — o rascunho é criado no portal de normas
    - **Concluído** — link para visualizar o rascunho no Bookstack

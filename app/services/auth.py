@@ -147,5 +147,7 @@ def mock_login(email: str, name: str) -> dict[str, Any]:
 
 def _callback_url(request: Request) -> str:
     proto = request.headers.get("x-forwarded-proto", request.url.scheme)
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.hostname))
+    # Não usa X-Forwarded-Host — nginx não o define, cliente poderia injetá-lo.
+    # Host é setado pelo nginx via proxy_set_header Host $host; — valor verificado.
+    host = request.headers.get("host", request.url.hostname)
     return f"{proto}://{host}/auth/callback"

@@ -37,17 +37,20 @@ STEPS = [
 TOTAL_STEPS = len(STEPS)
 
 
-def _set_step(job_id: str, step: int) -> None:
+def _set_step(job_id: str, step: int, extra: dict | None = None) -> None:
     label = STEPS[step - 1][1]
     pct = int((step - 1) / TOTAL_STEPS * 100)
-    storage.save_status(job_id, {
+    data = {
         "id": job_id,
         "status": "processing",
         "current_step": step,
         "total_steps": TOTAL_STEPS,
         "current_step_label": label,
         "progress_pct": pct,
-    })
+    }
+    if extra:
+        data.update(extra)
+    storage.save_status(job_id, data)
 
 
 def _set_done(job_id: str, result: dict) -> None:
@@ -83,10 +86,12 @@ def _extract_field(text: str, field: str) -> str:
 def run(job_id: str, book_id: int, revoked_by: str) -> None:
     """Executa o pipeline completo de revogação. Bloqueia até concluir."""
     revoked_book_id: int | None = None
+    # owner deve persistir em todos os saves — _set_step reescreve o dict completo.
+    _private = {"owner": revoked_by}
     try:
         # ── Etapa 1: Buscar normativo ─────────────────────────────────────
         _raise_if_cancelled(job_id)
-        _set_step(job_id, 1)
+        _set_step(job_id, 1, _private)
         info = bs.get_book_for_revocation(book_id)
         title = info["title"]
         pdf_key = info["pdf_key"]
@@ -96,7 +101,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
 
         # ── Etapa 2: Resumo com IA ────────────────────────────────────────
         _raise_if_cancelled(job_id)
-        _set_step(job_id, 2)
+        _set_step(job_id, 2, _private)
         summary_markdown = generate_revocation_summary(page_markdown, title)
 
         # Compõe o título com dados extraídos pela IA: "Tipo nº X/YYYY, de DD/MM/YYYY"
@@ -116,7 +121,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
 
         # ── Etapa 3: Criar entrada em Revogadas ───────────────────────────
         _raise_if_cancelled(job_id)
-        _set_step(job_id, 3)
+        _set_step(job_id, 3, _private)
         revoked_book_url, revoked_book_id = bs.create_revoked_book_entry(
             title=revoked_book_title,
             summary_markdown=summary_markdown,
@@ -127,7 +132,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
 
         # ── Etapa 4: Remover normativo original ───────────────────────────
         _raise_if_cancelled(job_id)
-        _set_step(job_id, 4)
+        _set_step(job_id, 4, _private)
         bs.delete_book_from_bookstack(book_id)
 
         # ── Concluído: persistir no registro ──────────────────────────────

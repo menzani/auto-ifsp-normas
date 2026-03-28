@@ -1,3 +1,5 @@
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -10,10 +12,36 @@ from app.routes import auth, upload, status, review, log, admin
 
 settings = get_settings()
 
+_log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def _lifespan(application: FastAPI):
+    # ── Startup: marca jobs órfãos como erro ─────────────────────────────
+    # Ao reiniciar o processo, qualquer job "processing" não tem mais uma thread
+    # associada — o usuário ficaria esperando indefinidamente sem esta verificação.
+    try:
+        from app.services import storage
+        orphaned = storage.list_processing_jobs()
+        for job in orphaned:
+            storage.save_status(job["id"], {
+                **job,
+                "status": "error",
+                "error": "O processamento foi interrompido por uma reinicialização do servidor. Tente novamente.",
+            })
+            _log.warning("Job órfão marcado como erro no startup: %s", job["id"])
+    except Exception:
+        _log.exception("Erro ao verificar jobs órfãos no startup")
+
+    yield
+    # Shutdown: nenhuma ação necessária
+
+
 app = FastAPI(
     title="IFSP Normas",
     docs_url=None,
     redoc_url=None,
+    lifespan=_lifespan,
 )
 
 

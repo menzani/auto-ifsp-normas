@@ -54,14 +54,69 @@ def pdf_to_markdown(pdf_bytes: bytes, on_progress=None) -> str:
     A estruturação Markdown é feita posteriormente pela etapa de IA.
     on_progress(current, total): callback opcional chamado a cada página.
     """
-    pages_md = []
+    pages_text = []
     for page_num, total, text in extract_pages(pdf_bytes):
-        pages_md.append(_page_to_text(page_num, text))
+        pages_text.append(_page_to_text(page_num, text))
         if on_progress:
             on_progress(page_num, total)
 
-    full_text = "\n\n---\n\n".join(pages_md)
+    pages_text = _remove_running_headers(pages_text)
+    full_text = "\n\n---\n\n".join(pages_text)
     return _remove_signature_artifacts(full_text)
+
+
+def _remove_running_headers(pages: list[str]) -> list[str]:
+    """
+    Remove cabeçalhos de página recorrentes (ex: timbre institucional) que aparecem
+    como texto simples no topo de muitas páginas.
+
+    Estratégia: linhas que aparecem nas primeiras 5 linhas de ≥ 40% das páginas
+    (mínimo 3 páginas) são consideradas cabeçalhos de rodapé/cabeçalho corrente e
+    removidas de todas as páginas.
+    A comparação é insensível a maiúsculas e ignora variações de espaço para tolerar
+    pequenas inconsistências de OCR entre páginas.
+    """
+    if len(pages) < 3:
+        return pages
+
+    _HEAD_LINES = 5
+    threshold = max(3, int(len(pages) * 0.4))
+
+    import unicodedata
+
+    def _norm(s: str) -> str:
+        """Normaliza para comparação: sem acentos, maiúsculas, espaços colapsados, sem pontuação."""
+        s = unicodedata.normalize("NFD", s)
+        s = "".join(c for c in s if unicodedata.category(c) != "Mn")  # remove diacríticos
+        s = re.sub(r"[^\w\s]", " ", s)  # remove pontuação
+        return re.sub(r"\s+", " ", s.strip()).upper()
+
+    # Conta ocorrências de cada linha normalizada nas primeiras linhas de cada página
+    from collections import Counter
+    counts: Counter = Counter()
+    for page in pages:
+        seen_in_page: set[str] = set()
+        for line in page.splitlines()[:_HEAD_LINES]:
+            norm = _norm(line)
+            if len(norm) > 5 and norm not in seen_in_page:
+                counts[norm] += 1
+                seen_in_page.add(norm)
+
+    running = {norm for norm, cnt in counts.items() if cnt >= threshold}
+    if not running:
+        return pages
+
+    result = []
+    for page in pages:
+        lines = page.splitlines()
+        # Remove apenas nas primeiras linhas de cada página para não apagar
+        # conteúdo legítimo que coincida com o cabeçalho mais adiante no texto.
+        filtered_head = []
+        for line in lines[:_HEAD_LINES]:
+            if _norm(line) not in running:
+                filtered_head.append(line)
+        result.append("\n".join(filtered_head + lines[_HEAD_LINES:]))
+    return result
 
 
 def _page_to_text(page_num: int, raw_text: str) -> str:

@@ -2,7 +2,7 @@ import html
 import secrets
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
 from app.constants import REVOCATION_ID_PATTERN, REVOKE_JOB_ID_PATTERN
@@ -20,7 +20,8 @@ router = APIRouter(prefix="/review", tags=["review"])
 async def review_page(request: Request, user=Depends(get_current_user)):
     overview = bs.get_all_books_overview()
     role = user.get("role")
-    shelves = [s for s in overview["shelves"] if s["id"] != settings.bookstack_staging_shelf_id]
+    forbidden = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
+    shelves = [s for s in overview["shelves"] if s["id"] not in forbidden]
     return templates.TemplateResponse("review.html", {
         "request": request,
         "user": user,

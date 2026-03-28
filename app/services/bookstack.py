@@ -177,16 +177,10 @@ def create_normativo(
         "name": "2. Texto Completo",
         "description": "Reprodução do texto completo para simplificação de busca e consultas específicas.",
     })
-    page_text = full_text_markdown
-    if len(page_text) > _MAX_PAGE_CHARS:
-        page_text = page_text[:_MAX_PAGE_CHARS] + (
-            "\n\n---\n\n*Texto truncado: o documento excede o limite de exibição. "
-            "Consulte o PDF original via link de Download.*"
-        )
     _api_post("/pages", {
         "chapter_id": text_chapter["id"],
         "name": "Texto Integral",
-        "markdown": page_text,
+        "markdown": "teste",
         "draft": True,
     })
 

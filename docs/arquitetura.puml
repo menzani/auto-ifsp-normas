@@ -1,0 +1,47 @@
+@startuml
+title Arquitetura: auto.normas.ifsp.edu.br
+
+skinparam componentStyle rectangle
+
+package "Externo" {
+    actor "Usuário\n@ifsp.edu.br" as user
+    node "Google OAuth\n(Workspace Institucional)" as oauth
+    node "Bookstack\n(Wiki de Normas)" as bookstack
+}
+
+package "AWS Cloud" {
+    component "DNS\n(Route 53)" as r53
+    component "IAM Role\n(permissões mínimas)" as iam
+
+    package "VPC Privada" {
+        node "EC2 (Free Tier)" as ec2 {
+            component "Nginx\n(TLS + proxy reverso)" as nginx
+            component "FastAPI\n(uvicorn, systemd)" as fastapi
+        }
+    }
+
+    database "S3\n(PDFs, metadados,\nregistro de revogações)" as s3
+    component "Amazon Bedrock\n(Claude Haiku — IA)" as bedrock
+}
+
+user --> r53 : resolução DNS
+r53 ..> ec2 : aponta para IP elástico
+user --> nginx : HTTPS (443)
+nginx --> fastapi : proxy reverso (127.0.0.1:8000)
+
+fastapi --> oauth : autenticação OAuth 2.0
+fastapi --> s3 : PDFs e metadados
+fastapi --> bedrock : geração de FAQ e resumos
+fastapi --> bookstack : criação e gestão de livros
+
+iam ..> s3 : acesso via credenciais da instância
+iam ..> bedrock : acesso via credenciais da instância
+
+note right of fastapi
+  Pipelines assíncronos
+  (threading.Thread):
+  - Upload (4 etapas)
+  - Revogação (5 etapas)
+end note
+
+@enduml

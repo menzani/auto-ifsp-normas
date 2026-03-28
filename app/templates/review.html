@@ -192,6 +192,7 @@
                       <input type="text"
                              id="remove-input-{{ draft.book_id }}"
                              oninput="updateRemoveBtn({{ draft.book_id }}, this.value)"
+                             onkeydown="removeInputKeydown(event, {{ draft.book_id }})"
                              autocomplete="off"
                              placeholder="REMOVER"
                              style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:110px; letter-spacing:.05em;" />
@@ -313,6 +314,7 @@
                       <input type="text"
                              id="remove-input-{{ book.book_id }}"
                              oninput="updateRemoveBtn({{ book.book_id }}, this.value)"
+                             onkeydown="removeInputKeydown(event, {{ book.book_id }})"
                              autocomplete="off"
                              placeholder="REMOVER"
                              style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:110px; letter-spacing:.05em;" />
@@ -427,6 +429,7 @@
                     <input type="text"
                            id="remove-input-{{ entry.id }}"
                            oninput="updateRemoveBtn('{{ entry.id }}', this.value)"
+                           onkeydown="removeInputKeydown(event, '{{ entry.id }}')"
                            autocomplete="off"
                            placeholder="REMOVER"
                            style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:110px; letter-spacing:.05em;" />
@@ -498,6 +501,12 @@
   }
   function updateRemoveBtn(bookId, val) {
     document.getElementById('remove-confirm-btn-' + bookId).disabled = (val !== 'REMOVER');
+  }
+  function removeInputKeydown(event, bookId) {
+    if (event.key === 'Enter') {
+      var btn = document.getElementById('remove-confirm-btn-' + bookId);
+      if (!btn.disabled) btn.click();
+    }
   }
   function copyUrl(btn) {
     var url = btn.dataset.url;

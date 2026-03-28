@@ -11,12 +11,23 @@ from collections.abc import Generator
 import fitz  # PyMuPDF
 
 # Padrões de linhas de assinatura digital em documentos governamentais brasileiros
-_SIGNATURE_RE = re.compile(
+_SIGNATURE_LINE_RE = re.compile(
     r"assinado\s+(de\s+forma\s+)?digitalmente|"
     r"assinado\s+eletronicamente|"
     r"icp[.\s\-]?brasil|"
     r"código\s+(verificador|de\s+autenticação|crc)\s*:|"
     r"autenticidade\s+deste\s+documento",
+    re.IGNORECASE,
+)
+
+# Marcadores de início de bloco de assinatura eletrônica SUAP/Gov.br
+# Tudo a partir dessa linha até o fim do documento é removido.
+_SIGNATURE_BLOCK_RE = re.compile(
+    r"emitido\s+pelo\s+suap\s+em\s+\d|"           # "Este documento foi emitido pelo SUAP em 09/11/2025"
+    r"para\s+comprovar\s+sua\s+autenticidade|"     # "Para comprovar sua autenticidade..."
+    r"faça\s+a\s+leitura\s+do\s+qrcode|"          # "faça a leitura do QRCode"
+    r"acesse\s+https?://suap\.|"                   # "acesse https://suap.ifsp.edu.br/..."
+    r"\bcd\d\b.{0,30}\bifsp\b",                   # "REITOR(A) - CD1 - IFSP"
     re.IGNORECASE,
 )
 
@@ -66,8 +77,25 @@ def _page_to_text(page_num: int, raw_text: str) -> str:
 
 def _remove_signature_artifacts(text: str) -> str:
     """
-    Remove linhas de assinatura digital típicas de PDFs governamentais brasileiros
-    (ex: "Assinado digitalmente por ...", referências ICP-Brasil, códigos de autenticação).
+    Remove blocos e linhas de assinatura eletrônica de PDFs governamentais brasileiros.
+
+    Dois modos:
+    - Bloco: ao encontrar marcador de início (SUAP, QRCode, CDn-IFSP), descarta
+      tudo a partir dali até o próximo separador de página '---' ou fim do texto.
+    - Linha: remove linhas isoladas com padrões de assinatura digital (ICP-Brasil, etc.).
     """
-    lines = text.splitlines()
-    return "\n".join(line for line in lines if not _SIGNATURE_RE.search(line))
+    pages = text.split("\n\n---\n\n")
+    cleaned_pages = []
+    for page in pages:
+        lines = page.splitlines()
+        result = []
+        skip = False
+        for line in lines:
+            if not skip and _SIGNATURE_BLOCK_RE.search(line):
+                skip = True  # descarta esta linha e todas as seguintes na página
+            if skip:
+                continue
+            if not _SIGNATURE_LINE_RE.search(line):
+                result.append(line)
+        cleaned_pages.append("\n".join(result))
+    return "\n\n---\n\n".join(cleaned_pages)

@@ -6,6 +6,7 @@ MOCK_BOOKSTACK=false → conecta ao normas.ifsp.edu.br via API token.
 
 Referência: https://demo.bookstackapp.com/api/docs
 """
+import logging
 import time
 from datetime import datetime
 
@@ -521,6 +522,8 @@ def _api_post(path: str, body: dict) -> dict:
         json=body,
         timeout=15,
     )
+    if not r.is_success:
+        logging.error("Bookstack API error %s %s: %s", r.status_code, path, r.text[:500])
     r.raise_for_status()
     return r.json()
 

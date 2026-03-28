@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 30
     max_uploads_per_user_per_hour: int = 10
     lambda_reserved_concurrency: int = 15
+    # Máximo de páginas submetidas ao Textract por PDF (controle de custo)
+    max_ocr_pages_per_pdf: int = 15
 
     class Config:
         env_file = ".env"

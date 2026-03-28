@@ -49,15 +49,20 @@ def extract_pages(pdf_bytes: bytes) -> Generator[tuple[int, int, str], None, Non
     except Exception as exc:
         raise ValueError(f"Não foi possível abrir o PDF: {exc}") from exc
     total = len(doc)
+    ocr_count = 0
     for i, page in enumerate(doc, start=1):
         text = page.get_text("text")
         if len(text.strip()) < 50 and not settings.mock_s3:
-            # Página sem texto detectado — tenta OCR via Textract
-            from app.services.textract import ocr_page_image
-            image_bytes = page.get_pixmap(dpi=200).tobytes("png")
-            ocr_text = ocr_page_image(image_bytes)
-            if ocr_text.strip():
-                text = ocr_text
+            if ocr_count < settings.max_ocr_pages_per_pdf:
+                # Página sem texto detectado — tenta OCR via Textract
+                from app.services.textract import ocr_page_image
+                image_bytes = page.get_pixmap(dpi=200).tobytes("png")
+                ocr_text = ocr_page_image(image_bytes)
+                if ocr_text.strip():
+                    text = ocr_text
+                ocr_count += 1
+            else:
+                text = f"*[Página {i} sem texto — limite de OCR atingido ({settings.max_ocr_pages_per_pdf} páginas)]*"
         yield i, total, text
     doc.close()
 

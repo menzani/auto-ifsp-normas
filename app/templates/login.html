@@ -78,14 +78,25 @@
         </script>
 
         {% else %}
+        <div class="br-message info mb-4" role="alert">
+          <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
+          <div class="content" style="font-size:.875rem;">
+            Use sua conta institucional <strong>@ifsp.edu.br</strong>.<br>
+            Contas pessoais do Gmail não são aceitas.
+          </div>
+        </div>
+
         <a href="/auth/google" class="br-button primary large block text-center">
           <i class="fab fa-google mr-2" aria-hidden="true"></i>
           Entrar com Google Workspace
         </a>
 
-        <p class="text-center text-down-01 mt-3" style="color:#888;">
-          <i class="fas fa-lock mr-1" aria-hidden="true"></i>
-          Acesso restrito a servidores do IFSP
+        <p class="text-center text-down-01 mt-3" style="color:#888; font-size:.8rem;">
+          Caso o Google selecione automaticamente a conta errada,
+          <a href="https://accounts.google.com/logout" target="_blank" rel="noopener noreferrer">
+            saia do Google
+          </a>
+          e tente novamente com sua conta @ifsp.edu.br.
         </p>
         {% endif %}
 

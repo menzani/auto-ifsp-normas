@@ -61,16 +61,17 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 ### Papel: Revisor — Publicar um rascunho
 
 1. Acesse o menu **Revisão**
-2. Na seção **Rascunhos aguardando revisão**, clique em **Revisar** para abrir o documento no Bookstack e verificar o conteúdo
-3. Se o conteúdo estiver correto, clique em **Publicar**, selecione a **prateleira de destino** e confirme
-4. Se houver problema no rascunho, clique em **Remover** (apenas administradores)
+2. Na seção **Rascunhos aguardando revisão**, use a busca por título para localizar o normativo
+3. Clique em **Revisar** para abrir o documento no Bookstack e verificar o conteúdo
+4. Se o conteúdo estiver correto, clique em **Publicar**, selecione a **prateleira de destino** e confirme
+5. Se houver problema no rascunho, clique em **Remover** (apenas administradores)
 
 ---
 
 ### Papel: Revisor — Revogar um normativo publicado
 
 1. Acesse o menu **Revisão**
-2. Na seção **Normativos publicados**, localize o normativo
+2. Na seção **Normativos publicados**, localize o normativo usando a busca por título ou o filtro por prateleira
 3. Clique em **Revogar** e confirme
 4. O sistema irá:
    - Gerar automaticamente um resumo estruturado (tipo, número, data e objetivo)

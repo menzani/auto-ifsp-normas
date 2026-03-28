@@ -123,7 +123,7 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 ### Atualizar o código em produção
 
 ```bash
-ssh -i ~/.ssh/ifsp-normas-key.pem ec2-user@98.93.9.11
+ssh -i ~/.ssh/ifsp-normas-key.pem ec2-user@auto.normas.ifsp.edu.br
 cd /home/ec2-user/auto-ifsp-normas
 git pull
 sudo systemctl restart ifsp-normas

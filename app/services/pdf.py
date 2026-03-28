@@ -10,6 +10,10 @@ from collections.abc import Generator
 
 import fitz  # PyMuPDF
 
+from app.config import get_settings
+
+settings = get_settings()
+
 # Padrões de linhas de assinatura digital em documentos governamentais brasileiros
 _SIGNATURE_LINE_RE = re.compile(
     r"assinado\s+(de\s+forma\s+)?digitalmente|"
@@ -44,6 +48,13 @@ def extract_pages(pdf_bytes: bytes) -> Generator[tuple[int, int, str], None, Non
     total = len(doc)
     for i, page in enumerate(doc, start=1):
         text = page.get_text("text")
+        if len(text.strip()) < 50 and not settings.mock_s3:
+            # Página sem texto detectado — tenta OCR via Textract
+            from app.services.textract import ocr_page_image
+            image_bytes = page.get_pixmap(dpi=200).tobytes("png")
+            ocr_text = ocr_page_image(image_bytes)
+            if ocr_text.strip():
+                text = ocr_text
         yield i, total, text
     doc.close()
 

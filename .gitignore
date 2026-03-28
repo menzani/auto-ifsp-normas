@@ -221,3 +221,6 @@ awscliv2.zip
 
 # PDFs de teste local
 *.pdf
+
+# Configurações locais do Claude Code
+.claude/

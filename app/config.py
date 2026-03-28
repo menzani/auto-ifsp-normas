@@ -42,7 +42,10 @@ class Settings(BaseSettings):
     # AWS / S3
     aws_region: str = "us-east-1"
     s3_bucket_name: str = ""
-    s3_presigned_url_expiry: int = 31536000  # 1 ano
+    s3_presigned_url_expiry: int = 3600  # 1 hora — janela curta reduz exposição de URLs vazadas
+
+    # URL base da aplicação — usada para gerar links absolutos em conteúdo externo (ex: Bookstack)
+    app_base_url: str = "http://localhost:8000"
 
     # Bedrock
     bedrock_model_id: str = "anthropic.claude-haiku-4-5-20251001-v1:0"

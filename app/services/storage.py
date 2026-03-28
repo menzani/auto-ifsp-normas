@@ -144,14 +144,27 @@ def list_processing_jobs() -> list[dict]:
     return jobs
 
 
+def get_presigned_url(key: str) -> str:
+    """Gera URL presigned do S3 com expiração configurável (padrão: 1 hora)."""
+    return _get_s3_client().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": settings.s3_bucket_name, "Key": key},
+        ExpiresIn=settings.s3_presigned_url_expiry,
+    )
+
+
 def get_download_url(key: str) -> str:
-    """Gera URL de download (local: path relativo; S3: URL pública permanente)."""
+    """
+    Gera URL de download.
+    - Mock: path relativo ao diretório estático local.
+    - S3: endpoint da aplicação com rate limit por IP (nginx → /pdf/{job_id}).
+      O endpoint gera uma presigned URL na hora do acesso, evitando exposição direta do S3.
+    """
     if settings.mock_s3:
         return f"/static/data/{key}"
 
-    return (
-        f"https://{settings.s3_bucket_name}.s3.{settings.aws_region}.amazonaws.com/{key}"
-    )
+    job_id = key.removeprefix("pdfs/").removesuffix(".pdf")
+    return f"{settings.app_base_url}/pdf/{job_id}"
 
 
 _REVOKED_REGISTRY_KEY = "registry/revoked_books.json"

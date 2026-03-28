@@ -12,6 +12,7 @@ title Arquitetura: auto.normas.ifsp.edu.br
 !include AWSPuml/NetworkingContentDelivery/Route53.puml
 !include AWSPuml/Storage/SimpleStorageService.puml
 !include AWSPuml/ArtificialIntelligence/Bedrock.puml
+!include AWSPuml/ArtificialIntelligence/Textract.puml
 !include AWSPuml/SecurityIdentityCompliance/IdentityAccessManagementRole.puml
 !include AWSPuml/General/Internet.puml
 !include AWSPuml/Groups/AWSCloud.puml
@@ -31,6 +32,7 @@ AWSCloudGroup(cloud, "AWS Cloud") {
     IdentityAccessManagementRole(iam, "IAM Role\n(permissões mínimas)", "Credenciais da instância")
     SimpleStorageService(s3, "Armazenamento\n(PDFs, metadados,\nregistro de revogações)", "S3")
     Bedrock(bedrock, "IA Generativa\n(Claude Haiku)", "Amazon Bedrock")
+    Textract(textract, "OCR\n(páginas sem texto)", "Amazon Textract")
 
     VPCGroup(vpc, "VPC Privada") {
         EC2Instance(ec2, "EC2 t3.micro (Free Tier)\nnginx + FastAPI\n(uvicorn, systemd)", "EC2")
@@ -44,15 +46,17 @@ user --> ec2 : HTTPS (443)
 ec2 --> oauth : autenticação OAuth 2.0
 ec2 --> s3 : PDFs e metadados
 ec2 --> bedrock : geração de FAQ e resumos
+ec2 --> textract : OCR de páginas-imagem
 ec2 --> bookstack : criação e gestão de livros
 
 iam ..> s3 : acesso via instância
 iam ..> bedrock : acesso via instância
+iam ..> textract : acesso via instância
 
 note right of ec2
   Pipelines assíncronos
   (threading.Thread):
-  - Upload: extração PDF → correção → FAQ (IA) → Bookstack
+  - Upload: extração PDF + OCR (Textract) → estruturação (IA) → FAQ (IA) → Bookstack
   - Revogação: busca → resumo (IA) → Revogadas → remove original
 end note
 

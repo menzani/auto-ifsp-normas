@@ -42,7 +42,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret_key,
     session_cookie="ifsp_session",
-    max_age=28800,       # 8 horas
+    max_age=7200,        # 2 horas
     https_only=settings.https_only,
     same_site="lax",
 )

@@ -2,7 +2,7 @@ import html
 import secrets
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from app.config import get_settings
 from app.constants import REVOCATION_ID_PATTERN, REVOKE_JOB_ID_PATTERN
@@ -80,6 +80,32 @@ async def publish_book(
     </td>
   </tr>
 </tbody>""")
+
+
+@router.post("/{book_id}/move", response_class=HTMLResponse)
+async def move_book_route(
+    book_id: int,
+    request: Request,
+    user=Depends(get_current_user),
+    shelf_id: int = Form(...),
+):
+    if user.get("role") not in ("revisor", "admin"):
+        raise HTTPException(403, "Acesso restrito a revisores.")
+
+    forbidden_shelves = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
+    available_shelves = {s["id"] for s in bs.get_shelves()}
+    if shelf_id in forbidden_shelves or shelf_id not in available_shelves:
+        raise HTTPException(400, "Prateleira de destino inválida.")
+
+    overview = bs.get_all_books_overview()
+    book = next((b for b in overview["published"] if b["book_id"] == book_id), None)
+    if book is None:
+        raise HTTPException(404, "Normativo publicado não encontrado.")
+
+    bs.move_book(book_id, shelf_id)
+    audit.log(user["email"], "mover", book["title"])
+
+    return HTMLResponse(content="", status_code=200, headers={"HX-Refresh": "true"})
 
 
 @router.delete("/{book_id}", response_class=HTMLResponse)

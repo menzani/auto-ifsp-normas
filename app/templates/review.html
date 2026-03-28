@@ -43,6 +43,10 @@
             <strong>Publicar</strong> — aprova o rascunho e move para a prateleira escolhida
           </span>
           <span>
+            <i class="fas fa-exchange-alt mr-1" style="color:#1351B4;" aria-hidden="true"></i>
+            <strong>Mover</strong> — transfere o normativo publicado para outra prateleira
+          </span>
+          <span>
             <i class="fas fa-ban mr-1" style="color:#8a5200;" aria-hidden="true"></i>
             <strong>Revogar</strong> — IA gera resumo e publica na prateleira Revogadas; normativo original é removido
           </span>
@@ -277,6 +281,13 @@
 
                       {% if is_reviewer %}
                       <button class="br-button secondary small"
+                              id="move-btn-{{ book.book_id }}"
+                              type="button"
+                              onclick="showMovePicker({{ book.book_id }})"
+                              title="Mover para outra prateleira">
+                        <i class="fas fa-exchange-alt mr-1" aria-hidden="true"></i> Mover
+                      </button>
+                      <button class="br-button secondary small"
                               hx-post="/review/{{ book.book_id }}/invalidate"
                               hx-confirm="Revogar '{{ book.title }}'?&#10;&#10;Uma IA irá gerar um resumo estruturado que será publicado na prateleira Revogadas. O normativo original será removido do Bookstack."
                               hx-target="#pub-rows-{{ book.book_id }}"
@@ -303,6 +314,43 @@
                     </div>
                   </td>
                 </tr>
+                {% if is_reviewer %}
+                <tr id="move-row-{{ book.book_id }}" style="display:none; background:#f0f4ff;">
+                  <td colspan="4" class="text-center" style="padding:.75rem 1rem;">
+                    <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
+                      <span class="text-down-01" style="color:#555;">Mover para a prateleira:</span>
+                      <select id="move-select-{{ book.book_id }}"
+                              name="shelf_id"
+                              onchange="updateMoveConfirmBtn({{ book.book_id }}, this.value)"
+                              style="border:1px solid #1351B4; border-radius:4px; padding:.25rem .5rem; font-size:.875rem;">
+                        <option value="" disabled selected>Selecione...</option>
+                        {% for shelf in shelves %}
+                        <option value="{{ shelf.id }}">{{ shelf.name }}</option>
+                        {% endfor %}
+                      </select>
+                      <button class="br-button primary small"
+                              id="move-confirm-btn-{{ book.book_id }}"
+                              hx-post="/review/{{ book.book_id }}/move"
+                              hx-include="#move-select-{{ book.book_id }}"
+                              hx-target="this"
+                              disabled
+                              title="Confirmar movimentação">
+                        <span class="btn-idle">
+                          <i class="fas fa-check mr-1" aria-hidden="true"></i> Confirmar
+                        </span>
+                        <span class="btn-loading">
+                          <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Movendo...
+                        </span>
+                      </button>
+                      <button class="br-button secondary small" type="button"
+                              onclick="hideMovePicker({{ book.book_id }})"
+                              title="Cancelar">
+                        Cancelar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {% endif %}
                 {% if is_admin %}
                 <tr id="remove-row-{{ book.book_id }}" style="display:none; background:#fff5f5;">
                   <td colspan="4" style="padding:.75rem 1rem;">
@@ -485,6 +533,21 @@
   }
   function updateConfirmBtn(bookId, val) {
     document.getElementById('confirm-btn-' + bookId).disabled = !val;
+  }
+  function showMovePicker(bookId) {
+    document.getElementById('move-btn-' + bookId).style.display = 'none';
+    document.getElementById('move-row-' + bookId).style.display = '';
+  }
+  function hideMovePicker(bookId) {
+    document.getElementById('move-row-' + bookId).style.display = 'none';
+    document.getElementById('move-btn-' + bookId).style.display = '';
+    const sel = document.getElementById('move-select-' + bookId);
+    if (sel) sel.selectedIndex = 0;
+    const btn = document.getElementById('move-confirm-btn-' + bookId);
+    if (btn) btn.disabled = true;
+  }
+  function updateMoveConfirmBtn(bookId, val) {
+    document.getElementById('move-confirm-btn-' + bookId).disabled = !val;
   }
   function showRemovePicker(bookId) {
     document.getElementById('remove-btn-' + bookId).style.display = 'none';

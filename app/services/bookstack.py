@@ -484,6 +484,35 @@ def publish_book(book_id: int, shelf_id: int) -> None:
     _invalidate_shelf_map_cache()
 
 
+def move_book(book_id: int, new_shelf_id: int) -> None:
+    """Move um livro publicado de uma prateleira para outra."""
+    if settings.mock_bookstack:
+        return
+
+    _, all_shelves, _, _ = _build_shelf_data()
+    forbidden = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
+
+    # Remove da prateleira atual (primeira não-proibida que contém o livro)
+    for shelf in all_shelves:
+        sid = shelf["id"]
+        if sid in forbidden or sid == new_shelf_id:
+            continue
+        detail = _api_get(f"/shelves/{sid}")
+        book_ids = [b["id"] for b in detail.get("books", [])]
+        if book_id in book_ids:
+            remaining = [bid for bid in book_ids if bid != book_id]
+            _api_put(f"/shelves/{sid}", {"books": remaining})
+            break
+
+    # Adiciona à nova prateleira
+    target = _api_get(f"/shelves/{new_shelf_id}")
+    existing = [b["id"] for b in target.get("books", [])]
+    if book_id not in existing:
+        _api_put(f"/shelves/{new_shelf_id}", {"books": existing + [book_id]})
+
+    _invalidate_shelf_map_cache()
+
+
 def delete_book(book_id: int) -> None:
     """Remove o livro do Bookstack e o PDF correspondente do S3."""
     if settings.mock_bookstack:

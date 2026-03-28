@@ -114,7 +114,7 @@ def structure_markdown(text: str, on_progress=None) -> str:
     Processa em chunks de 8.000 chars. Retorna o texto original em caso de falha.
     on_progress(current, total) é chamado após cada chunk processado.
     """
-    _CHUNK = 8_000
+    _CHUNK = 12_000
     source = text[:_MAX_INPUT_CHARS]
     chunks = [source[i:i+_CHUNK] for i in range(0, len(source), _CHUNK)]
     structured = []
@@ -171,7 +171,7 @@ def _structure_chunk(chunk: str, is_continuation: bool) -> str:
     )
     body = {
         "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 9_000,
+        "max_tokens": 16_384,
         "messages": [{"role": "user", "content": prompt}],
     }
     try:

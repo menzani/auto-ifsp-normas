@@ -156,5 +156,6 @@ def mock_login(email: str, name: str) -> dict[str, Any]:
 
 
 def _callback_url(request: Request) -> str:
-    base = str(request.base_url).rstrip("/")
-    return f"{base}/auth/callback"
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.hostname))
+    return f"{proto}://{host}/auth/callback"

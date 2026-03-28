@@ -10,15 +10,19 @@
   button.htmx-request { opacity: .7; cursor: wait; pointer-events: none; }
   tr.htmx-swapping { opacity: 0; transition: opacity .3s ease-out; }
   .review-search {
+    -webkit-appearance: none;
+    appearance: none;
     border: 1px solid #ccc;
     border-radius: 4px;
     padding: .25rem .6rem;
     font-size: .875rem;
+    line-height: 1.5;
     height: 2rem;
     box-sizing: border-box;
     width: 200px;
     max-width: 100%;
-    vertical-align: middle;
+    margin: 0;
+    align-self: center;
   }
   .review-search:focus { outline: none; border-color: #1351B4; box-shadow: 0 0 0 2px #d4e0f7; }
   .action-btns {
@@ -269,7 +273,7 @@
             {% if pub_shelf_groups | length > 1 %}
             <select id="pub-shelf-filter"
                     onchange="sections.pub.setFilter(this.value)"
-                    style="border:1px solid #ccc; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; height:2rem; box-sizing:border-box; vertical-align:middle;">
+                    style="border:1px solid #ccc; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; line-height:1.5; height:2rem; box-sizing:border-box; margin:0; align-self:center;">
               <option value="">Todas as prateleiras</option>
               {% for shelf_name, _ in pub_shelf_groups %}
               <option value="{{ shelf_name }}">{{ shelf_name }}</option>

@@ -38,7 +38,31 @@ def pdf_to_markdown(pdf_bytes: bytes, on_progress=None) -> str:
         if on_progress:
             on_progress(page_num, total)
 
-    return "\n\n---\n\n".join(pages_md)
+    full_text = "\n\n---\n\n".join(pages_md)
+    return _deduplicate_headings(full_text)
+
+
+def _deduplicate_headings(text: str) -> str:
+    """
+    Remove headings consecutivos idênticos — artefato comum em PDFs com timbre
+    de página (ex: "MINISTÉRIO DA EDUCAÇÃO" repetido a cada folha).
+    Mantém a primeira ocorrência de cada sequência consecutiva.
+    """
+    lines = text.splitlines()
+    result = []
+    prev_heading: str | None = None
+    for line in lines:
+        is_heading = line.startswith("#")
+        if is_heading:
+            normalized = line.lstrip("#").strip()
+            if normalized == prev_heading:
+                continue  # duplicata consecutiva — descarta
+            prev_heading = normalized
+        else:
+            if line.strip():
+                prev_heading = None  # conteúdo real entre headings — reseta
+        result.append(line)
+    return "\n".join(result)
 
 
 def _page_to_markdown(page_num: int, raw_text: str) -> str:

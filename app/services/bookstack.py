@@ -17,7 +17,7 @@ from app.config import get_settings
 
 settings = get_settings()
 
-_MAX_PAGE_CHARS = 6_000  # limite imposto pelo WAF em normas.ifsp.edu.br
+_CHUNK_SIZE = 5_500  # limite seguro abaixo do teto do WAF em normas.ifsp.edu.br (~6K)
 
 _RE_URL = re.compile(r"https?://\S+", re.IGNORECASE)
 _RE_EMAIL = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
@@ -28,6 +28,29 @@ def _sanitize_for_waf(text: str) -> str:
     text = _RE_URL.sub("[URL]", text)
     text = _RE_EMAIL.sub("[e-mail]", text)
     return text
+
+
+def _split_text(text: str) -> list[str]:
+    """Divide texto em chunks de _CHUNK_SIZE, quebrando em parágrafos quando possível."""
+    if len(text) <= _CHUNK_SIZE:
+        return [text]
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + _CHUNK_SIZE
+        if end >= len(text):
+            chunks.append(text[start:])
+            break
+        for sep in ("\n\n---\n\n", "\n\n", "\n"):
+            pos = text.rfind(sep, start, end)
+            if pos > start:
+                chunks.append(text[start:pos])
+                start = pos + len(sep)
+                break
+        else:
+            chunks.append(text[start:end])
+            start = end
+    return [c for c in chunks if c.strip()]
 
 # ── Dados de mock ─────────────────────────────────────────────────────────────
 
@@ -181,25 +204,22 @@ def create_normativo(
         "draft": True,
     })
 
-    # 4. Capítulo "2. Texto Completo" — página única com o texto integral
-    #    Os headings ## gerados pelo extrator de PDF servem como âncoras de navegação.
+    # 4. Capítulo "2. Texto Completo" — uma página por chunk (limite do WAF: ~6K chars)
     text_chapter = _api_post("/chapters", {
         "book_id": book_id,
         "name": "2. Texto Completo",
         "description": "Reprodução do texto completo para simplificação de busca e consultas específicas.",
     })
-    page_text = _sanitize_for_waf(full_text_markdown)
-    if len(page_text) > _MAX_PAGE_CHARS:
-        page_text = page_text[:_MAX_PAGE_CHARS] + (
-            "\n\n---\n\n*Texto truncado: o documento excede o limite de exibição. "
-            "Consulte o PDF original via link de Download.*"
-        )
-    _api_post("/pages", {
-        "chapter_id": text_chapter["id"],
-        "name": "Texto Integral",
-        "markdown": page_text,
-        "draft": True,
-    })
+    chunks = _split_text(_sanitize_for_waf(full_text_markdown))
+    total_chunks = len(chunks)
+    for i, chunk in enumerate(chunks, start=1):
+        name = "Texto Integral" if total_chunks == 1 else f"Texto Integral ({i}/{total_chunks})"
+        _api_post("/pages", {
+            "chapter_id": text_chapter["id"],
+            "name": name,
+            "markdown": chunk,
+            "draft": True,
+        })
 
     # 5. Capítulo "3. Download" — link permanente para o PDF original
     if download_url:

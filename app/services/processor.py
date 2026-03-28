@@ -15,14 +15,15 @@ import threading
 
 from app.services import bookstack as bs
 from app.services import storage
-from app.services.bedrock import generate_faq
+from app.services.bedrock import fix_extraction_artifacts, generate_faq
 from app.services.pdf import pdf_to_markdown
 
 STEPS = [
     (1, "Extraindo texto do PDF"),
-    (2, "Gerando FAQ com IA"),
-    (3, "Publicando rascunho no Bookstack"),
-    (4, "Concluído"),
+    (2, "Corrigindo artefatos de extração"),
+    (3, "Gerando FAQ com IA"),
+    (4, "Publicando rascunho no Bookstack"),
+    (5, "Concluído"),
 ]
 TOTAL_STEPS = len(STEPS)
 
@@ -92,12 +93,16 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         # ── Conferência de qualidade da extração ─────────────────────────
         extraction_check = _verify_extraction(markdown_text)
 
-        # ── Etapa 2: FAQ com IA ──────────────────────────────────────────
+        # ── Etapa 2: Correção de artefatos ───────────────────────────────
         _set_step(job_id, 2)
+        markdown_text = fix_extraction_artifacts(markdown_text)
+
+        # ── Etapa 3: FAQ com IA ──────────────────────────────────────────
+        _set_step(job_id, 3)
         faq_markdown = generate_faq(markdown_text, title)
 
-        # ── Etapa 3: Bookstack ───────────────────────────────────────────
-        _set_step(job_id, 3)
+        # ── Etapa 4: Bookstack ───────────────────────────────────────────
+        _set_step(job_id, 4)
         download_url = storage.get_download_url(pdf_key)
         book_url = bs.create_normativo(
             title=title,
@@ -108,7 +113,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
             pdf_key=pdf_key,
         )
 
-        # ── Concluído ────────────────────────────────────────────────────
+        # ── Etapa 5: Concluído ───────────────────────────────────────────
         _set_done(job_id, {"book_url": book_url, "extraction_check": extraction_check})
 
     except Exception as exc:

@@ -88,6 +88,50 @@ def generate_revocation_summary(markdown_text: str, title: str) -> str:
     return raw
 
 
+def fix_extraction_artifacts(text: str) -> str:
+    """
+    Corrige artefatos de extração de PDF: acentos quebrados, hifenizações incorretas,
+    espaços onde deveriam haver letras acentuadas (ex: "Poli ca" → "Política").
+    Processa em chunks de 5.000 chars. Retorna o texto original em caso de falha.
+    """
+    _CHUNK = 5_000
+    source = text[:_MAX_INPUT_CHARS]
+    chunks = [source[i:i+_CHUNK] for i in range(0, len(source), _CHUNK)]
+    corrected = [_fix_artifacts_chunk(c) for c in chunks]
+    if len(text) > _MAX_INPUT_CHARS:
+        corrected.append(text[_MAX_INPUT_CHARS:])
+    return "".join(corrected)
+
+
+def _fix_artifacts_chunk(chunk: str) -> str:
+    settings = get_settings()
+    client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+    body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 5_500,
+        "messages": [{"role": "user", "content": (
+            "Corrija apenas os artefatos de extração de PDF no texto abaixo: "
+            "caracteres com acentuação incorreta, palavras partidas por hifenização "
+            "e espaços onde deveriam haver letras acentuadas. "
+            "Não altere conteúdo, formatação ou estrutura. "
+            "Retorne apenas o texto corrigido, sem nenhuma explicação.\n\n"
+            + chunk
+        )}],
+    }
+    try:
+        response = client.invoke_model(
+            modelId=settings.bedrock_model_id,
+            body=json.dumps(body),
+            contentType="application/json",
+            accept="application/json",
+        )
+        result = json.loads(response["body"].read())
+        return result["content"][0]["text"]
+    except Exception:
+        logging.getLogger(__name__).exception("Erro ao corrigir artefatos de extração no chunk")
+        return chunk
+
+
 def _build_revocation_prompt(title: str, text: str) -> str:
     return f"""Você é um assistente especializado em normativos institucionais do IFSP \
 (Instituto Federal de Educação, Ciência e Tecnologia de São Paulo).

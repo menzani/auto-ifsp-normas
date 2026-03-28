@@ -112,13 +112,13 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 ## Informações técnicas (para técnicos)
 
 ### Stack
-- **Backend:** Python 3.12 + FastAPI + Uvicorn
+- **Backend:** Python + FastAPI + Uvicorn
 - **Frontend:** Jinja2 + HTMX + Design System GOV.BR
 - **Autenticação:** Google OAuth 2.0 — restrito ao Workspace `@ifsp.edu.br`
 - **Armazenamento:** AWS S3
 - **IA Generativa:** Amazon Bedrock (Claude Haiku)
 - **Wiki:** Bookstack (normas.ifsp.edu.br)
-- **Infraestrutura:** EC2 (Amazon Linux 2023) + nginx + Let's Encrypt
+- **Infraestrutura:** AWS EC2 + nginx + Let's Encrypt
 
 ### Atualizar o código em produção
 

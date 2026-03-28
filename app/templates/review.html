@@ -18,6 +18,14 @@
     max-width: 100%;
   }
   .review-search:focus { outline: none; border-color: #1351B4; box-shadow: 0 0 0 2px #d4e0f7; }
+  .action-btns {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    width: 100%;
+  }
 </style>
 {% endblock %}
 
@@ -127,7 +135,7 @@
                   </td>
                   <td class="text-down-01">{{ draft.created_at }}</td>
                   <td class="text-center">
-                    <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
+                    <div class="action-btns">
                       <a href="{{ draft.bookstack_url }}"
                          target="_blank" rel="noopener noreferrer"
                          class="br-button secondary"
@@ -251,9 +259,17 @@
             <span class="text-up-01 text-medium-weight">Normativos publicados</span>
           </div>
           <div class="d-flex align-items-center" style="gap:.75rem; flex-wrap:wrap;">
-            <input type="search" id="pub-search" class="review-search"
-                   placeholder="Buscar normativo..."
-                   aria-label="Buscar nos normativos publicados">
+            {% set pub_shelf_groups = published_books | groupby('shelf_name') | list %}
+            {% if pub_shelf_groups | length > 1 %}
+            <select id="pub-shelf-filter"
+                    onchange="sections.pub.setFilter(this.value)"
+                    style="border:1px solid #ccc; border-radius:4px; padding:.25rem .5rem; font-size:.875rem;">
+              <option value="">Todas as prateleiras</option>
+              {% for shelf_name, _ in pub_shelf_groups %}
+              <option value="{{ shelf_name }}">{{ shelf_name }}</option>
+              {% endfor %}
+            </select>
+            {% endif %}
             <span class="br-tag success text">{{ published_books|length }} publicado{{ 's' if published_books|length != 1 else '' }}</span>
           </div>
         </div>
@@ -271,7 +287,7 @@
               </tr>
             </thead>
             {% for book in published_books %}
-            <tbody class="pub-item" data-title="{{ book.title | lower }}" id="pub-rows-{{ book.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
+            <tbody class="pub-item" data-filter="{{ book.shelf_name }}" data-title="{{ book.title | lower }}" id="pub-rows-{{ book.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
               <tr id="pub-row-{{ book.book_id }}">
                 <td>
                   <div class="d-flex align-items-center">
@@ -285,7 +301,7 @@
                   {{ book.uploaded_by }}
                 </td>
                 <td class="text-center">
-                  <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
+                  <div class="action-btns">
                     <a href="{{ book.bookstack_url }}"
                        target="_blank" rel="noopener noreferrer"
                        class="br-button secondary">
@@ -606,7 +622,7 @@
     });
   }
 
-  // ── Paginação e busca ────────────────────────────────────────────────────
+  // ── Paginação, filtro e busca ────────────────────────────────────────────
   var PAGE_SIZE = 5;
   var sections = {};
 
@@ -637,14 +653,18 @@
     pag.innerHTML = html;
   }
 
-  function initSection(name, tbodyClass, pagId, searchInputId) {
+  function initSection(name, tbodyClass, pagId) {
     var page = 1;
+    var filterVal = '';
     var searchVal = '';
 
     function items() { return Array.from(document.querySelectorAll('tbody.' + tbodyClass)); }
     function filtered() {
-      if (!searchVal) return items();
-      return items().filter(function(el) { return (el.dataset.title || '').indexOf(searchVal) !== -1; });
+      return items().filter(function(el) {
+        if (filterVal && el.dataset.filter !== filterVal) return false;
+        if (searchVal && (el.dataset.title || '').indexOf(searchVal) === -1) return false;
+        return true;
+      });
     }
 
     function render() {
@@ -657,22 +677,24 @@
       renderPagination(pagId, name, total, page, totalPages);
     }
 
+    function setFilter(val) { filterVal = val; page = 1; render(); }
     function setSearch(val) { searchVal = val.toLowerCase().trim(); page = 1; render(); }
     function goTo(p) { page = p; render(); }
 
-    sections[name] = { render: render, setSearch: setSearch, goTo: goTo };
+    sections[name] = { render: render, setFilter: setFilter, setSearch: setSearch, goTo: goTo };
     render();
-
-    if (searchInputId) {
-      var inp = document.getElementById(searchInputId);
-      if (inp) inp.addEventListener('input', function() { setSearch(this.value); });
-    }
   }
 
   document.addEventListener('DOMContentLoaded', function() {
-    initSection('drafts', 'draft-item', 'drafts-pagination', 'drafts-search');
-    initSection('pub',    'pub-item',   'pub-pagination',    'pub-search');
-    initSection('rev',    'rev-item',   'rev-pagination',    'rev-search');
+    initSection('drafts', 'draft-item', 'drafts-pagination');
+    initSection('pub',    'pub-item',   'pub-pagination');
+    initSection('rev',    'rev-item',   'rev-pagination');
+
+    // Busca por texto nos rascunhos e revogados
+    ['drafts', 'rev'].forEach(function(name) {
+      var inp = document.getElementById(name + '-search');
+      if (inp) inp.addEventListener('input', function() { sections[name].setSearch(this.value); });
+    });
 
     // Re-renderiza após HTMX remover ou substituir um item
     document.body.addEventListener('htmx:afterSwap', function() {

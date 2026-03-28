@@ -3,14 +3,11 @@
 
 {% block extra_head %}
 <style>
-  /* Indicadores de carregamento nos botões de ação */
   .btn-idle { display: inline; }
   .btn-loading { display: none; }
   button.htmx-request .btn-idle { display: none; }
   button.htmx-request .btn-loading { display: inline; }
   button.htmx-request { opacity: .7; cursor: wait; pointer-events: none; }
-
-  /* Linha sendo removida */
   tr.htmx-swapping { opacity: 0; transition: opacity .3s ease-out; }
 </style>
 {% endblock %}
@@ -28,7 +25,7 @@
     </div>
     {% endif %}
 
-    <!-- ── Legenda de ações ──────────────────────────────────────────────── -->
+    <!-- ── Legenda ────────────────────────────────────────────────────────── -->
     <div class="br-card mb-4" style="background:#f8f9fc; border:1px solid #dce1ef;">
       <div class="card-content py-2 px-3">
         <div class="d-flex flex-wrap align-items-center" style="gap:.75rem 1.5rem; font-size:.8rem; color:#555;">
@@ -79,7 +76,6 @@
         </div>
       </div>
       <div class="card-content">
-
         {% if not drafts %}
           <div class="d-flex flex-column align-items-center py-5" style="color:#888;">
             <i class="fas fa-check-double fa-3x mb-3" style="color:#168821;" aria-hidden="true"></i>
@@ -100,7 +96,7 @@
                 </tr>
               </thead>
               {% for draft in drafts %}
-              <tbody id="draft-rows-{{ draft.book_id }}">
+              <tbody class="draft-item" id="draft-rows-{{ draft.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
                 <tr>
                   <td>
                     <div class="d-flex align-items-center">
@@ -116,38 +112,31 @@
                   <td class="text-down-01">{{ draft.created_at }}</td>
                   <td class="text-center">
                     <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
-
                       <a href="{{ draft.bookstack_url }}"
                          target="_blank" rel="noopener noreferrer"
-                         class="br-button secondary small"
+                         class="br-button secondary"
                          title="Abrir no Bookstack para revisar">
-                        <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>
-                        <span class="d-none d-sm-inline">Revisar</span>
+                        <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i> Revisar
                       </a>
-
                       {% if is_reviewer %}
-                      <button class="br-button primary small"
+                      <button class="br-button primary"
                               id="publish-btn-{{ draft.book_id }}"
                               type="button"
                               onclick="showShelfPicker({{ draft.book_id }})"
                               title="Aprovar e publicar este normativo">
-                        <i class="fas fa-check mr-1" aria-hidden="true"></i>
-                        <span class="d-none d-sm-inline">Publicar</span>
+                        <i class="fas fa-check mr-1" aria-hidden="true"></i> Publicar
                       </button>
                       {% endif %}
-
                       {% if is_admin %}
-                      <button class="br-button secondary small"
+                      <button class="br-button secondary"
                               id="remove-btn-{{ draft.book_id }}"
                               type="button"
                               onclick="showRemovePicker({{ draft.book_id }})"
                               title="Remover rascunho permanentemente (somente admin)"
                               style="color:#E52207; border-color:#E52207;">
-                        <i class="fas fa-trash mr-1" aria-hidden="true"></i>
-                        <span class="d-none d-sm-inline">Remover</span>
+                        <i class="fas fa-trash mr-1" aria-hidden="true"></i> Remover
                       </button>
                       {% endif %}
-
                     </div>
                   </td>
                 </tr>
@@ -181,8 +170,7 @@
                         </span>
                       </button>
                       <button class="br-button secondary small" type="button"
-                              onclick="hideShelfPicker({{ draft.book_id }})"
-                              title="Cancelar">
+                              onclick="hideShelfPicker({{ draft.book_id }})">
                         Cancelar
                       </button>
                     </div>
@@ -232,8 +220,8 @@
             </table>
           </div>
           </div>
+          <div id="drafts-pagination"></div>
         {% endif %}
-
       </div>
     </div>
 
@@ -246,7 +234,20 @@
             <i class="fas fa-check-circle fa-lg mr-3" style="color:#168821;" aria-hidden="true"></i>
             <span class="text-up-01 text-medium-weight">Normativos publicados</span>
           </div>
-          <span class="br-tag success text">{{ published_books|length }} publicado{{ 's' if published_books|length != 1 else '' }}</span>
+          <div class="d-flex align-items-center" style="gap:.75rem; flex-wrap:wrap;">
+            {% set pub_shelf_groups = published_books | groupby('shelf_name') | list %}
+            {% if pub_shelf_groups | length > 1 %}
+            <select id="pub-shelf-filter"
+                    onchange="sections.pub.setFilter(this.value)"
+                    style="border:1px solid #ccc; border-radius:4px; padding:.25rem .5rem; font-size:.875rem;">
+              <option value="">Todas as prateleiras</option>
+              {% for shelf_name, _ in pub_shelf_groups %}
+              <option value="{{ shelf_name }}">{{ shelf_name }}</option>
+              {% endfor %}
+            </select>
+            {% endif %}
+            <span class="br-tag success text">{{ published_books|length }} publicado{{ 's' if published_books|length != 1 else '' }}</span>
+          </div>
         </div>
       </div>
       <div class="card-content">
@@ -261,152 +262,143 @@
                 <th scope="col" class="text-center">Ações</th>
               </tr>
             </thead>
-              {% for book in published_books %}
-              <tbody id="pub-rows-{{ book.book_id }}">
-                <tr id="pub-row-{{ book.book_id }}">
-                  <td>
-                    <div class="d-flex align-items-center">
-                      <i class="fas fa-book-open mr-2" style="color:#168821;" aria-hidden="true"></i>
-                      <strong>{{ book.title }}</strong>
-                    </div>
-                  </td>
-                  <td><span class="br-tag success text">{{ book.shelf_name }}</span></td>
-                  <td>
-                    <i class="fas fa-user mr-1" style="color:#888;" aria-hidden="true"></i>
-                    {{ book.uploaded_by }}
-                  </td>
-                  <td class="text-center">
-                    <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
-
-                      <a href="{{ book.bookstack_url }}"
-                         target="_blank" rel="noopener noreferrer"
-                         class="br-button secondary small">
-                        <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>
-                        <span class="d-none d-sm-inline">Consultar</span>
-                      </a>
-
-                      {% if is_reviewer %}
-                      <button class="br-button secondary small"
-                              id="move-btn-{{ book.book_id }}"
-                              type="button"
-                              onclick="showMovePicker({{ book.book_id }})"
-                              title="Mover para outra prateleira">
-                        <i class="fas fa-exchange-alt mr-1" aria-hidden="true"></i>
-                        <span class="d-none d-sm-inline">Mover</span>
-                      </button>
-                      <button class="br-button secondary small"
-                              hx-post="/review/{{ book.book_id }}/invalidate"
-                              hx-confirm="Revogar '{{ book.title }}'?&#10;&#10;Uma IA irá gerar um resumo estruturado que será publicado na prateleira Revogadas. O normativo original será removido do Bookstack."
-                              hx-target="#pub-rows-{{ book.book_id }}"
-                              hx-swap="outerHTML"
-                              title="Revogar normativo: IA gera resumo e publica em Revogadas"
-                              style="color:#8a5200; border-color:#8a5200;">
-                        <span class="btn-idle">
-                          <i class="fas fa-ban mr-1" aria-hidden="true"></i>
-                          <span class="d-none d-sm-inline">Revogar</span>
-                        </span>
-                        <span class="btn-loading">
-                          <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>
-                          <span class="d-none d-sm-inline">Revogando...</span>
-                        </span>
-                      </button>
-                      {% endif %}
-
-                      {% if is_admin %}
-                      <button class="br-button secondary small"
-                              id="remove-btn-{{ book.book_id }}"
-                              type="button"
-                              onclick="showRemovePicker({{ book.book_id }})"
-                              title="Remover normativo permanentemente (somente admin)"
-                              style="color:#E52207; border-color:#E52207;">
-                        <i class="fas fa-trash mr-1" aria-hidden="true"></i>
-                        <span class="d-none d-sm-inline">Remover</span>
-                      </button>
-                      {% endif %}
-
-                    </div>
-                  </td>
-                </tr>
-                {% if is_reviewer %}
-                <tr id="move-row-{{ book.book_id }}" style="display:none; background:#f0f4ff;">
-                  <td colspan="4" class="text-center" style="padding:.75rem 1rem;">
-                    <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
-                      <span class="text-down-01" style="color:#555;">Mover para a prateleira:</span>
-                      <select id="move-select-{{ book.book_id }}"
-                              name="shelf_id"
-                              onchange="updateMoveConfirmBtn({{ book.book_id }}, this.value)"
-                              style="border:1px solid #1351B4; border-radius:4px; padding:.25rem .5rem; font-size:.875rem;">
-                        <option value="" disabled selected>Selecione...</option>
-                        {% for shelf in shelves %}
-                        <option value="{{ shelf.id }}">{{ shelf.name }}</option>
-                        {% endfor %}
-                      </select>
-                      <button class="br-button primary small"
-                              id="move-confirm-btn-{{ book.book_id }}"
-                              hx-post="/review/{{ book.book_id }}/move"
-                              hx-include="#move-select-{{ book.book_id }}"
-                              hx-target="this"
-                              disabled
-                              title="Confirmar movimentação">
-                        <span class="btn-idle">
-                          <i class="fas fa-check mr-1" aria-hidden="true"></i> Confirmar
-                        </span>
-                        <span class="btn-loading">
-                          <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Movendo...
-                        </span>
-                      </button>
-                      <button class="br-button secondary small" type="button"
-                              onclick="hideMovePicker({{ book.book_id }})"
-                              title="Cancelar">
-                        Cancelar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                {% endif %}
-                {% if is_admin %}
-                <tr id="remove-row-{{ book.book_id }}" style="display:none; background:#fff5f5;">
-                  <td colspan="4" style="padding:.75rem 1rem;">
-                    <div class="d-flex align-items-center justify-content-center" style="gap:.75rem; flex-wrap:wrap;">
-                      <span class="text-down-01" style="color:#E52207;">
-                        <i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i>
-                        Ação <strong>irreversível</strong>. Digite <strong>REMOVER</strong> para confirmar:
+            {% for book in published_books %}
+            <tbody class="pub-item" data-filter="{{ book.shelf_name }}" id="pub-rows-{{ book.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
+              <tr id="pub-row-{{ book.book_id }}">
+                <td>
+                  <div class="d-flex align-items-center">
+                    <i class="fas fa-book-open mr-2" style="color:#168821;" aria-hidden="true"></i>
+                    <strong>{{ book.title }}</strong>
+                  </div>
+                </td>
+                <td><span class="br-tag success text">{{ book.shelf_name }}</span></td>
+                <td>
+                  <i class="fas fa-user mr-1" style="color:#888;" aria-hidden="true"></i>
+                  {{ book.uploaded_by }}
+                </td>
+                <td class="text-center">
+                  <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
+                    <a href="{{ book.bookstack_url }}"
+                       target="_blank" rel="noopener noreferrer"
+                       class="br-button secondary">
+                      <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i> Consultar
+                    </a>
+                    {% if is_reviewer %}
+                    <button class="br-button secondary"
+                            id="move-btn-{{ book.book_id }}"
+                            type="button"
+                            onclick="showMovePicker({{ book.book_id }})"
+                            title="Mover para outra prateleira">
+                      <i class="fas fa-exchange-alt mr-1" aria-hidden="true"></i> Mover
+                    </button>
+                    <button class="br-button secondary"
+                            hx-post="/review/{{ book.book_id }}/invalidate"
+                            hx-confirm="Revogar '{{ book.title }}'?&#10;&#10;Uma IA irá gerar um resumo estruturado que será publicado na prateleira Revogadas. O normativo original será removido do Bookstack."
+                            hx-target="#pub-rows-{{ book.book_id }}"
+                            hx-swap="outerHTML"
+                            title="Revogar normativo: IA gera resumo e publica em Revogadas"
+                            style="color:#8a5200; border-color:#8a5200;">
+                      <span class="btn-idle">
+                        <i class="fas fa-ban mr-1" aria-hidden="true"></i> Revogar
                       </span>
-                      <input type="text"
-                             id="remove-input-{{ book.book_id }}"
-                             oninput="updateRemoveBtn({{ book.book_id }}, this.value)"
-                             onkeydown="removeInputKeydown(event, {{ book.book_id }})"
-                             autocomplete="off"
-                             placeholder="REMOVER"
-                             style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:110px; letter-spacing:.05em;" />
-                      <button class="br-button secondary small"
-                              id="remove-confirm-btn-{{ book.book_id }}"
-                              hx-delete="/review/{{ book.book_id }}"
-                              hx-target="#pub-rows-{{ book.book_id }}"
-                              hx-swap="outerHTML swap:300ms"
-                              disabled
-                              title="Confirmar remoção permanente"
-                              style="color:#E52207; border-color:#E52207;">
-                        <span class="btn-idle">
-                          <i class="fas fa-trash mr-1" aria-hidden="true"></i> Confirmar remoção
-                        </span>
-                        <span class="btn-loading">
-                          <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Removendo...
-                        </span>
-                      </button>
-                      <button class="br-button secondary small" type="button"
-                              onclick="hideRemovePicker({{ book.book_id }})">
-                        Cancelar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                {% endif %}
-              </tbody>
-              {% endfor %}
+                      <span class="btn-loading">
+                        <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Revogando...
+                      </span>
+                    </button>
+                    {% endif %}
+                    {% if is_admin %}
+                    <button class="br-button secondary"
+                            id="remove-btn-{{ book.book_id }}"
+                            type="button"
+                            onclick="showRemovePicker({{ book.book_id }})"
+                            title="Remover normativo permanentemente (somente admin)"
+                            style="color:#E52207; border-color:#E52207;">
+                      <i class="fas fa-trash mr-1" aria-hidden="true"></i> Remover
+                    </button>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% if is_reviewer %}
+              <tr id="move-row-{{ book.book_id }}" style="display:none; background:#f0f4ff;">
+                <td colspan="4" class="text-center" style="padding:.75rem 1rem;">
+                  <div class="d-flex align-items-center justify-content-center" style="gap:.5rem; flex-wrap:wrap;">
+                    <span class="text-down-01" style="color:#555;">Mover para a prateleira:</span>
+                    <select id="move-select-{{ book.book_id }}"
+                            name="shelf_id"
+                            onchange="updateMoveConfirmBtn({{ book.book_id }}, this.value)"
+                            style="border:1px solid #1351B4; border-radius:4px; padding:.25rem .5rem; font-size:.875rem;">
+                      <option value="" disabled selected>Selecione...</option>
+                      {% for shelf in shelves %}
+                      <option value="{{ shelf.id }}">{{ shelf.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <button class="br-button primary small"
+                            id="move-confirm-btn-{{ book.book_id }}"
+                            hx-post="/review/{{ book.book_id }}/move"
+                            hx-include="#move-select-{{ book.book_id }}"
+                            hx-target="this"
+                            disabled
+                            title="Confirmar movimentação">
+                      <span class="btn-idle">
+                        <i class="fas fa-check mr-1" aria-hidden="true"></i> Confirmar
+                      </span>
+                      <span class="btn-loading">
+                        <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Movendo...
+                      </span>
+                    </button>
+                    <button class="br-button secondary small" type="button"
+                            onclick="hideMovePicker({{ book.book_id }})">
+                      Cancelar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
+              {% if is_admin %}
+              <tr id="remove-row-{{ book.book_id }}" style="display:none; background:#fff5f5;">
+                <td colspan="4" style="padding:.75rem 1rem;">
+                  <div class="d-flex align-items-center justify-content-center" style="gap:.75rem; flex-wrap:wrap;">
+                    <span class="text-down-01" style="color:#E52207;">
+                      <i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i>
+                      Ação <strong>irreversível</strong>. Digite <strong>REMOVER</strong> para confirmar:
+                    </span>
+                    <input type="text"
+                           id="remove-input-{{ book.book_id }}"
+                           oninput="updateRemoveBtn({{ book.book_id }}, this.value)"
+                           onkeydown="removeInputKeydown(event, {{ book.book_id }})"
+                           autocomplete="off"
+                           placeholder="REMOVER"
+                           style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:110px; letter-spacing:.05em;" />
+                    <button class="br-button secondary small"
+                            id="remove-confirm-btn-{{ book.book_id }}"
+                            hx-delete="/review/{{ book.book_id }}"
+                            hx-target="#pub-rows-{{ book.book_id }}"
+                            hx-swap="outerHTML swap:300ms"
+                            disabled
+                            title="Confirmar remoção permanente"
+                            style="color:#E52207; border-color:#E52207;">
+                      <span class="btn-idle">
+                        <i class="fas fa-trash mr-1" aria-hidden="true"></i> Confirmar remoção
+                      </span>
+                      <span class="btn-loading">
+                        <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i> Removendo...
+                      </span>
+                    </button>
+                    <button class="br-button secondary small" type="button"
+                            onclick="hideRemovePicker({{ book.book_id }})">
+                      Cancelar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
+            </tbody>
+            {% endfor %}
           </table>
         </div>
         </div>
+        <div id="pub-pagination"></div>
       </div>
     </div>
     {% endif %}
@@ -420,9 +412,16 @@
             <i class="fas fa-ban fa-lg mr-3" style="color:#888;" aria-hidden="true"></i>
             <span class="text-up-01 text-medium-weight" style="color:#888;">Normativos revogados</span>
           </div>
-          <span class="br-tag text" style="background:#e0e0e0; color:#555;">
-            {{ revoked_books|length }} revogado{{ 's' if revoked_books|length != 1 else '' }}
-          </span>
+          <div class="d-flex align-items-center" style="gap:.75rem; flex-wrap:wrap;">
+            <select id="rev-cat-filter"
+                    onchange="sections.rev.setFilter(this.value)"
+                    style="border:1px solid #ccc; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; display:none;">
+              <option value="">Todos os tipos</option>
+            </select>
+            <span class="br-tag text" style="background:#e0e0e0; color:#555;">
+              {{ revoked_books|length }} revogado{{ 's' if revoked_books|length != 1 else '' }}
+            </span>
+          </div>
         </div>
       </div>
       <div class="card-content">
@@ -440,7 +439,9 @@
               </tr>
             </thead>
             {% for entry in revoked_books %}
-            <tbody id="rev-rows-{{ entry.id }}">
+            {% set _parts = entry.title.split(' - ', 1) %}
+            {% set _tipo = _parts[1].split(' ')[0] if _parts|length > 1 and _parts[1] else '' %}
+            <tbody class="rev-item" data-filter="{{ _tipo }}" id="rev-rows-{{ entry.id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
               <tr style="background:repeating-linear-gradient(45deg,#fafafa,#fafafa 10px,#f0f0f0 10px,#f0f0f0 20px); opacity:.75;">
                 <td>
                   <div class="d-flex align-items-center">
@@ -457,11 +458,10 @@
                 <td class="text-down-01" style="color:#aaa;">{{ entry.revoked_at }}</td>
                 <td class="text-center">
                   {% if entry.pdf_url %}
-                  <button class="br-button secondary small" type="button"
+                  <button class="br-button secondary" type="button"
                           data-url="{{ entry.pdf_url }}" onclick="copyUrl(this)"
                           title="Copiar URL permanente do PDF">
-                    <i class="fas fa-copy mr-1" aria-hidden="true"></i>
-                    <span class="d-none d-sm-inline">Copiar URL</span>
+                    <i class="fas fa-copy mr-1" aria-hidden="true"></i> Copiar URL
                   </button>
                   {% else %}
                   <span style="color:#aaa;">—</span>
@@ -469,14 +469,13 @@
                 </td>
                 {% if is_admin %}
                 <td class="text-center">
-                  <button class="br-button secondary small"
+                  <button class="br-button secondary"
                           id="remove-btn-{{ entry.id }}"
                           type="button"
                           onclick="showRemovePicker('{{ entry.id }}')"
                           title="Remover permanentemente (somente admin)"
                           style="color:#E52207; border-color:#E52207;">
-                    <i class="fas fa-trash mr-1" aria-hidden="true"></i>
-                    <span class="d-none d-sm-inline">Remover</span>
+                    <i class="fas fa-trash mr-1" aria-hidden="true"></i> Remover
                   </button>
                 </td>
                 {% endif %}
@@ -524,6 +523,7 @@
           </table>
         </div>
         </div>
+        <div id="rev-pagination"></div>
       </div>
     </div>
     {% endif %}
@@ -534,6 +534,7 @@
 
 {% block extra_scripts %}
 <script>
+  // ── Picker de prateleira (publicar) ──────────────────────────────────────
   function showShelfPicker(bookId) {
     document.getElementById('publish-btn-' + bookId).style.display = 'none';
     document.getElementById('picker-row-' + bookId).style.display = '';
@@ -549,6 +550,8 @@
   function updateConfirmBtn(bookId, val) {
     document.getElementById('confirm-btn-' + bookId).disabled = !val;
   }
+
+  // ── Picker de prateleira (mover) ─────────────────────────────────────────
   function showMovePicker(bookId) {
     document.getElementById('move-btn-' + bookId).style.display = 'none';
     document.getElementById('move-row-' + bookId).style.display = '';
@@ -564,6 +567,8 @@
   function updateMoveConfirmBtn(bookId, val) {
     document.getElementById('move-confirm-btn-' + bookId).disabled = !val;
   }
+
+  // ── Picker de remoção ────────────────────────────────────────────────────
   function showRemovePicker(bookId) {
     document.getElementById('remove-btn-' + bookId).style.display = 'none';
     document.getElementById('remove-row-' + bookId).style.display = '';
@@ -586,6 +591,8 @@
       if (!btn.disabled) btn.click();
     }
   }
+
+  // ── Copiar URL ───────────────────────────────────────────────────────────
   function copyUrl(btn) {
     var url = btn.dataset.url;
     navigator.clipboard.writeText(url).then(function() {
@@ -594,5 +601,89 @@
       setTimeout(function() { btn.innerHTML = orig; }, 2000);
     });
   }
+
+  // ── Paginação e filtro ───────────────────────────────────────────────────
+  const PAGE_SIZE = 5;
+  const sections = {};
+
+  function renderPagination(pagId, name, total, page, totalPages) {
+    const pag = document.getElementById(pagId);
+    if (!pag) return;
+    if (total <= PAGE_SIZE) { pag.innerHTML = ''; return; }
+
+    const from = (page - 1) * PAGE_SIZE + 1;
+    const to   = Math.min(page * PAGE_SIZE, total);
+
+    let html = '<div class="d-flex align-items-center justify-content-center flex-wrap" style="gap:.4rem; margin-top:1rem; padding-bottom:.25rem;">';
+    html += `<button class="br-button secondary small" onclick="sections['${name}'].goTo(${page-1})" ${page===1?'disabled':''}><i class="fas fa-chevron-left" aria-hidden="true"></i></button>`;
+
+    for (let p = 1; p <= totalPages; p++) {
+      const near = Math.abs(p - page) <= 1;
+      const edge = p === 1 || p === totalPages;
+      if (near || edge) {
+        html += `<button class="br-button ${p===page?'primary':'secondary'} small" onclick="sections['${name}'].goTo(${p})">${p}</button>`;
+      } else if ((p === 2 && page > 4) || (p === totalPages - 1 && page < totalPages - 3)) {
+        html += `<span style="color:#aaa; line-height:2; padding:0 .1rem;">…</span>`;
+      }
+    }
+
+    html += `<button class="br-button secondary small" onclick="sections['${name}'].goTo(${page+1})" ${page===totalPages?'disabled':''}><i class="fas fa-chevron-right" aria-hidden="true"></i></button>`;
+    html += `<span class="text-down-01" style="color:#888; margin-left:.4rem; white-space:nowrap;">${from}–${to} de ${total}</span>`;
+    html += '</div>';
+    pag.innerHTML = html;
+  }
+
+  function initSection(name, tbodyClass, pagId) {
+    let page = 1;
+    let filterVal = '';
+
+    function items()    { return Array.from(document.querySelectorAll('tbody.' + tbodyClass)); }
+    function filtered() { return filterVal ? items().filter(el => el.dataset.filter === filterVal) : items(); }
+
+    function render() {
+      const vis = filtered();
+      const total = vis.length;
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (page > totalPages) page = totalPages;
+
+      items().forEach(el => el.style.display = 'none');
+      vis.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).forEach(el => el.style.display = '');
+
+      renderPagination(pagId, name, total, page, totalPages);
+    }
+
+    function setFilter(val) { filterVal = val; page = 1; render(); }
+    function goTo(p)        { page = p; render(); }
+
+    sections[name] = { render, setFilter, goTo };
+    render();
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initSection('drafts', 'draft-item', 'drafts-pagination');
+    initSection('pub',    'pub-item',   'pub-pagination');
+    initSection('rev',    'rev-item',   'rev-pagination');
+
+    // Constrói o filtro de tipo dos revogados a partir dos atributos data-filter
+    (function buildRevFilter() {
+      const cats = new Set();
+      document.querySelectorAll('tbody.rev-item').forEach(function(el) {
+        if (el.dataset.filter) cats.add(el.dataset.filter);
+      });
+      const sel = document.getElementById('rev-cat-filter');
+      if (!sel || cats.size <= 1) return;
+      Array.from(cats).sort().forEach(function(c) {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        sel.appendChild(opt);
+      });
+      sel.style.display = '';
+    })();
+
+    // Re-renderiza após HTMX remover ou substituir um item
+    document.body.addEventListener('htmx:afterSwap', function() {
+      Object.values(sections).forEach(function(s) { s.render(); });
+    });
+  });
 </script>
 {% endblock %}

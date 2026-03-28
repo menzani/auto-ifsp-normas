@@ -5,6 +5,7 @@ Documentação da API:
   https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
 """
 import json
+import re
 
 import boto3
 
@@ -76,8 +77,7 @@ def generate_revocation_summary(markdown_text: str, title: str) -> str:
     result = json.loads(response["body"].read())
     raw = result["content"][0]["text"]
     # Garante linha em branco entre campos **Field:** para renderização correta em Markdown
-    import re as _re
-    raw = _re.sub(r'(\*\*[^:\n]+:\*\*[^\n]+)\n(\*\*)', r'\1\n\n\2', raw)
+    raw = re.sub(r'(\*\*[^:\n]+:\*\*[^\n]+)\n(\*\*)', r'\1\n\n\2', raw)
     return raw
 
 

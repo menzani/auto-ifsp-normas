@@ -66,7 +66,7 @@ async def upload_pdf(
         "id": job_id,
         "status": "processing",
         "current_step": 1,
-        "total_steps": 4,
+        "total_steps": 5,
         "current_step_label": "Iniciando processamento...",
         "progress_pct": 0,
     }

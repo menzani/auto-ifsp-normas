@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # Esses usuários recebem papel "admin" automaticamente no primeiro login.
     admin_emails: str = ""
 
+    # Sessão / segurança
+    https_only: bool = False  # True em produção (HTTPS obrigatório para o cookie de sessão)
+
     # Limites de segurança
     max_upload_size_mb: int = 30
     max_uploads_per_user_per_hour: int = 10

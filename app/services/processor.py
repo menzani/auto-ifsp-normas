@@ -3,7 +3,7 @@ Pipeline de processamento síncrono de um normativo.
 
 Em produção (Fase 3), este código roda numa Lambda separada
 acionada por evento S3. Em dev local, é chamado em background
-via asyncio.to_thread().
+via threading.Thread (daemon=True).
 
 Etapas e suas fatias de progresso:
   1. Extraindo texto do PDF        (0–25 %)

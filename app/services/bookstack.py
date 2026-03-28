@@ -467,10 +467,9 @@ def delete_book(book_id: int) -> None:
 
     _api_delete(f"/books/{book_id}")
 
-    if pdf_key and not settings.mock_s3:
-        import boto3
-        s3 = boto3.client("s3", region_name=settings.aws_region)
-        s3.delete_object(Bucket=settings.s3_bucket_name, Key=pdf_key)
+    if pdf_key:
+        from app.services import storage
+        storage.delete_pdf(pdf_key)
 
     _invalidate_drafts_cache()
 

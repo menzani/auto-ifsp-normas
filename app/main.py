@@ -43,7 +43,7 @@ app.add_middleware(
     secret_key=settings.session_secret_key,
     session_cookie="ifsp_session",
     max_age=28800,       # 8 horas
-    https_only=False,    # True em produção (Lambda/HTTPS)
+    https_only=settings.https_only,
     same_site="strict",
 )
 

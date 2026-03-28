@@ -49,6 +49,19 @@ def get_pdf(key: str) -> bytes:
     return obj["Body"].read()
 
 
+def delete_pdf(key: str) -> None:
+    """Remove o PDF do armazenamento. No modo mock, apaga o arquivo local se existir."""
+    if settings.mock_s3:
+        p = LOCAL_DATA / key
+        if p.exists():
+            p.unlink()
+        return
+
+    import boto3
+    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3.delete_object(Bucket=settings.s3_bucket_name, Key=key)
+
+
 def save_status(job_id: str, status_data: dict) -> None:
     """Persiste o status do job como JSON."""
     key = f"status/{job_id}.json"

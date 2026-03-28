@@ -97,13 +97,12 @@ async def move_book_route(
     if shelf_id in forbidden_shelves or shelf_id not in available_shelves:
         raise HTTPException(400, "Prateleira de destino inválida.")
 
-    overview = bs.get_all_books_overview()
-    book = next((b for b in overview["published"] if b["book_id"] == book_id), None)
-    if book is None:
+    title = bs.get_published_book_title(book_id)
+    if title is None:
         raise HTTPException(404, "Normativo publicado não encontrado.")
 
     bs.move_book(book_id, shelf_id)
-    audit.log(user["email"], "mover", book["title"])
+    audit.log(user["email"], "mover", title)
 
     return HTMLResponse(content="", status_code=200, headers={"HX-Refresh": "true"})
 

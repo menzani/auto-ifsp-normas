@@ -484,25 +484,40 @@ def publish_book(book_id: int, shelf_id: int) -> None:
     _invalidate_shelf_map_cache()
 
 
+def get_published_book_title(book_id: int) -> str | None:
+    """
+    Retorna o título do livro se estiver publicado (fora da staging e revogadas).
+    Usa o cache de prateleiras para a verificação e uma única chamada à API para o título.
+    Retorna None se o livro estiver em staging/revogadas ou não for encontrado.
+    """
+    if settings.mock_bookstack:
+        return f"Normativo Mock {book_id}"
+    _, _, staging_ids, revoked_ids = _build_shelf_data()
+    if book_id in staging_ids or book_id in revoked_ids:
+        return None
+    try:
+        return _api_get(f"/books/{book_id}")["name"]
+    except Exception:
+        return None
+
+
 def move_book(book_id: int, new_shelf_id: int) -> None:
     """Move um livro publicado de uma prateleira para outra."""
     if settings.mock_bookstack:
         return
 
-    _, all_shelves, _, _ = _build_shelf_data()
+    book_to_shelf_name, all_shelves, _, _ = _build_shelf_data()
     forbidden = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
 
-    # Remove da prateleira atual (primeira não-proibida que contém o livro)
-    for shelf in all_shelves:
-        sid = shelf["id"]
-        if sid in forbidden or sid == new_shelf_id:
-            continue
-        detail = _api_get(f"/shelves/{sid}")
-        book_ids = [b["id"] for b in detail.get("books", [])]
-        if book_id in book_ids:
-            remaining = [bid for bid in book_ids if bid != book_id]
-            _api_put(f"/shelves/{sid}", {"books": remaining})
-            break
+    # Localiza a prateleira atual via cache — evita iterar sobre todas as prateleiras com chamadas HTTP
+    current_shelf_name = book_to_shelf_name.get(book_id)
+    name_to_id = {s["name"]: s["id"] for s in all_shelves}
+    current_shelf_id = name_to_id.get(current_shelf_name) if current_shelf_name else None
+
+    if current_shelf_id and current_shelf_id not in forbidden and current_shelf_id != new_shelf_id:
+        detail = _api_get(f"/shelves/{current_shelf_id}")
+        remaining = [b["id"] for b in detail.get("books", []) if b["id"] != book_id]
+        _api_put(f"/shelves/{current_shelf_id}", {"books": remaining})
 
     # Adiciona à nova prateleira
     target = _api_get(f"/shelves/{new_shelf_id}")

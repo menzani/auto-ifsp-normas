@@ -114,18 +114,18 @@ def get_shelves() -> list[dict]:
 
 def create_normativo(
     title: str,
-    sections: list[dict],
+    full_text_markdown: str,
     faq_markdown: str,
     download_url: str,
     uploaded_by: str,
     pdf_key: str = "",
 ) -> str:
     """
-    Cria um livro (normativo) com capítulos e páginas em rascunho na prateleira de staging.
+    Cria um livro (normativo) com capítulos em rascunho na prateleira de staging.
 
     Estrutura criada:
       1. Perguntas Frequentes  (capítulo com 1 página: FAQ + link de download)
-      2. Texto Completo        (capítulo com N páginas, uma por seção/capítulo do documento)
+      2. Texto Completo        (capítulo com 1 página: texto integral com headings de navegação)
 
     A prateleira definitiva é escolhida pelo revisor na hora da publicação.
     Retorna a URL do livro no Bookstack.
@@ -152,37 +152,49 @@ def create_normativo(
         _api_put(f"/shelves/{settings.bookstack_staging_shelf_id}", {"books": existing_ids + [book_id]})
     _restrict_book_to_authenticated(book_id)
 
-    # 3. Capítulo "1. Perguntas Frequentes" — FAQ + link de download
+    # 3. Capítulo "1. Perguntas Frequentes"
     faq_chapter = _api_post("/chapters", {
         "book_id": book_id,
         "name": "1. Perguntas Frequentes",
         "description": "Seção que resume e simplifica a compreensão da política para amplo acesso.",
     })
-    faq_content = faq_markdown
-    if download_url:
-        faq_content += f"\n\n---\n\n## Download\n\n[Baixar PDF original]({download_url})"
     _api_post("/pages", {
         "chapter_id": faq_chapter["id"],
         "name": "Perguntas Frequentes",
-        "markdown": faq_content,
+        "markdown": faq_markdown,
         "draft": True,
     })
 
-    # 4. Capítulo "2. Texto Completo" — uma página por seção
+    # 4. Capítulo "2. Texto Completo" — página única com o texto integral
+    #    Os headings ## gerados pelo extrator de PDF servem como âncoras de navegação.
     text_chapter = _api_post("/chapters", {
         "book_id": book_id,
         "name": "2. Texto Completo",
         "description": "Reprodução do texto completo para simplificação de busca e consultas específicas.",
     })
-    for section in sections:
+    _api_post("/pages", {
+        "chapter_id": text_chapter["id"],
+        "name": "Texto Integral",
+        "markdown": full_text_markdown,
+        "draft": True,
+    })
+
+    # 5. Capítulo "3. Download" — link permanente para o PDF original
+    if download_url:
+        dl_chapter = _api_post("/chapters", {
+            "book_id": book_id,
+            "name": "3. Download",
+            "description": "Link permanente para o PDF original do normativo.",
+        })
         _api_post("/pages", {
-            "chapter_id": text_chapter["id"],
-            "name": section["title"],
-            "markdown": section["content"],
+            "chapter_id": dl_chapter["id"],
+            "name": "Download do PDF",
+            "markdown": f"## Download\n\n[Baixar PDF original]({download_url})",
             "draft": True,
         })
 
     _invalidate_drafts_cache()
+    _invalidate_shelf_map_cache()
     return f"{settings.bookstack_base_url}/books/{book['slug']}"
 
 
@@ -231,16 +243,22 @@ def get_all_books_overview() -> dict:
 
     all_books = {b["id"]: b for b in all_books_list}
 
-    # Busca uploaded_by dos livros em staging em paralelo (a listagem não inclui tags)
+    # Busca uploaded_by dos livros em staging em paralelo (a listagem não inclui tags).
+    # Filtra apenas os IDs que realmente existem em all_books para evitar 404 em caso
+    # de livros deletados diretamente no Bookstack sem remoção da prateleira (referência órfã).
     def _fetch_uploaded_by(bid: int) -> tuple[int, str]:
-        detail = _api_get(f"/books/{bid}")
-        tags = {t["name"]: t["value"] for t in detail.get("tags", [])}
-        return bid, tags.get("uploaded_by", "—")
+        try:
+            detail = _api_get(f"/books/{bid}")
+            tags = {t["name"]: t["value"] for t in detail.get("tags", [])}
+            return bid, tags.get("uploaded_by", "—")
+        except Exception:
+            return bid, "—"
 
+    staging_to_fetch = staging_book_ids & all_books.keys()
     staging_uploaded_by: dict[int, str] = {}
-    if staging_book_ids:
-        with ThreadPoolExecutor(max_workers=min(10, len(staging_book_ids))) as executor:
-            staging_uploaded_by = dict(executor.map(_fetch_uploaded_by, staging_book_ids))
+    if staging_to_fetch:
+        with ThreadPoolExecutor(max_workers=min(10, len(staging_to_fetch))) as executor:
+            staging_uploaded_by = dict(executor.map(_fetch_uploaded_by, staging_to_fetch))
 
     drafts = []
     published = []
@@ -304,7 +322,7 @@ def get_book_for_revocation(book_id: int) -> dict:
     tags_dict = {t["name"]: t["value"] for t in book.get("tags", [])}
 
     # Busca páginas de texto para alimentar a IA (exclui FAQ e links de download)
-    _SKIP_PAGE_NAMES = {"Perguntas Frequentes", "FAQ", "Link de Download", "Resumo e Download"}
+    _SKIP_PAGE_NAMES = {"Perguntas Frequentes", "FAQ", "Link de Download", "Resumo e Download", "Download do PDF"}
     pages = _api_get("/pages", params={"filter[book_id:eq]": book_id, "count": 500})["data"]
     text_pages = [p for p in pages if p.get("name", "") not in _SKIP_PAGE_NAMES]
 
@@ -334,13 +352,13 @@ def create_revoked_book_entry(
     pdf_url: str,
     uploaded_by: str,
     tipo: str = "",
-) -> str:
+) -> tuple[str, int]:
     """
     Cria um livro na prateleira Revogadas com o resumo gerado pela IA e o link do PDF.
-    Retorna a URL do livro criado.
+    Retorna (url, book_id) do livro criado.
     """
     if settings.mock_bookstack:
-        return f"{settings.bookstack_base_url}/books/revogado-mock-{title[:20].lower().replace(' ', '-')}"
+        return f"{settings.bookstack_base_url}/books/revogado-mock-{title[:20].lower().replace(' ', '-')}", 0
 
     tags = [
         {"name": "uploaded_by", "value": uploaded_by},
@@ -374,7 +392,7 @@ def create_revoked_book_entry(
             _api_put(f"/shelves/{settings.bookstack_revoked_shelf_id}", {"books": existing + [book_id]})
 
     _invalidate_shelf_map_cache()
-    return f"{settings.bookstack_base_url}/books/{book['slug']}"
+    return f"{settings.bookstack_base_url}/books/{book['slug']}", book_id
 
 
 def delete_book_from_bookstack(book_id: int) -> None:

@@ -44,7 +44,7 @@ app.add_middleware(
     session_cookie="ifsp_session",
     max_age=28800,       # 8 horas
     https_only=settings.https_only,
-    same_site="strict",
+    same_site="lax",
 )
 
 # Assets estáticos

@@ -128,11 +128,12 @@ async def delete_revoked(revocation_id: str, request: Request, user=Depends(get_
     if user.get("role") != "admin":
         raise HTTPException(403, "Acesso restrito a administradores.")
 
-    pdf_key = storage.remove_from_revoked_registry(revocation_id)
-    if pdf_key and not settings.mock_s3:
-        import boto3
-        s3 = boto3.client("s3", region_name=settings.aws_region)
-        s3.delete_object(Bucket=settings.s3_bucket_name, Key=pdf_key)
+    entry = storage.remove_from_revoked_registry(revocation_id)
+    if entry:
+        if entry.get("bookstack_book_id"):
+            bs.delete_book_from_bookstack(entry["bookstack_book_id"])
+        if entry.get("pdf_key"):
+            storage.delete_pdf(entry["pdf_key"])
 
     audit.log(user["email"], "remover_revogado", revocation_id)
     return HTMLResponse("")

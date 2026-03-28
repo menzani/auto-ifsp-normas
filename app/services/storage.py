@@ -141,16 +141,16 @@ def add_to_revoked_registry(entry: dict) -> None:
     _save_revoked_registry(registry)
 
 
-def remove_from_revoked_registry(revocation_id: str) -> str | None:
+def remove_from_revoked_registry(revocation_id: str) -> dict | None:
     """
-    Remove uma entrada pelo id. Retorna o pdf_key da entrada removida, ou None se não encontrada.
+    Remove uma entrada pelo id. Retorna a entrada completa removida, ou None se não encontrada.
     """
     registry = get_revoked_registry()
     entry = next((e for e in registry if e["id"] == revocation_id), None)
     if entry is None:
         return None
     _save_revoked_registry([e for e in registry if e["id"] != revocation_id])
-    return entry.get("pdf_key")
+    return entry
 
 
 def _save_revoked_registry(registry: list[dict]) -> None:

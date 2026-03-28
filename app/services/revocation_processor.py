@@ -103,7 +103,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
 
         # ── Etapa 3: Criar entrada em Revogadas ───────────────────────────
         _set_step(job_id, 3)
-        revoked_book_url = bs.create_revoked_book_entry(
+        revoked_book_url, revoked_book_id = bs.create_revoked_book_entry(
             title=revoked_book_title,
             summary_markdown=summary_markdown,
             pdf_url=pdf_url,
@@ -126,6 +126,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
             "revoked_by": revoked_by,
             "revoked_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
             "bookstack_url": revoked_book_url,
+            "bookstack_book_id": revoked_book_id,
         })
         audit.log(revoked_by, "revogar", title)
 

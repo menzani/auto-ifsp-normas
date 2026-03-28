@@ -8,24 +8,21 @@ via threading.Thread (daemon=True).
 Etapas e suas fatias de progresso:
   1. Extraindo texto do PDF        (0–25 %)
   2. Gerando FAQ com IA            (25–50 %)
-  3. Analisando estrutura          (50–75 %)
-  4. Publicando rascunho           (75–90 %)
-  5. Concluído                     (100 %)
+  3. Publicando rascunho           (50–90 %)
+  4. Concluído                     (100 %)
 """
-import re
 import threading
 
 from app.services import bookstack as bs
 from app.services import storage
-from app.services.bedrock import generate_faq, generate_section_titles
+from app.services.bedrock import generate_faq
 from app.services.pdf import pdf_to_markdown
 
 STEPS = [
     (1, "Extraindo texto do PDF"),
     (2, "Gerando FAQ com IA"),
-    (3, "Analisando estrutura do documento"),
-    (4, "Publicando rascunho no Bookstack"),
-    (5, "Concluído"),
+    (3, "Publicando rascunho no Bookstack"),
+    (4, "Concluído"),
 ]
 TOTAL_STEPS = len(STEPS)
 
@@ -92,21 +89,19 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 
         markdown_text = pdf_to_markdown(pdf_bytes, on_progress=on_progress)
 
+        # ── Conferência de qualidade da extração ─────────────────────────
+        extraction_check = _verify_extraction(markdown_text)
+
         # ── Etapa 2: FAQ com IA ──────────────────────────────────────────
         _set_step(job_id, 2)
         faq_markdown = generate_faq(markdown_text, title)
 
-        # ── Etapa 3: Estrutura do documento ──────────────────────────────
+        # ── Etapa 3: Bookstack ───────────────────────────────────────────
         _set_step(job_id, 3)
-        titles = generate_section_titles(markdown_text, title)
-        sections = _split_into_sections(markdown_text, titles)
-
-        # ── Etapa 4: Bookstack ───────────────────────────────────────────
-        _set_step(job_id, 4)
         download_url = storage.get_download_url(pdf_key)
         book_url = bs.create_normativo(
             title=title,
-            sections=sections,
+            full_text_markdown=markdown_text,
             faq_markdown=faq_markdown,
             download_url=download_url,
             uploaded_by=uploaded_by,
@@ -114,39 +109,50 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         )
 
         # ── Concluído ────────────────────────────────────────────────────
-        _set_done(job_id, {"book_url": book_url})
+        _set_done(job_id, {"book_url": book_url, "extraction_check": extraction_check})
 
     except Exception as exc:
         _set_error(job_id, str(exc))
         raise
 
 
-def _split_into_sections(markdown_text: str, titles: list[str]) -> list[dict]:
+def _verify_extraction(markdown_text: str) -> dict:
     """
-    Divide o texto extraído do PDF nas seções identificadas pela IA.
-    Cada título é buscado no texto; o conteúdo vai até o próximo título.
-    Se nenhum título for encontrado, retorna a página com o texto completo.
+    Confere a qualidade do texto extraído do PDF.
+    Páginas são separadas por '\\n\\n---\\n\\n' pelo pdf_to_markdown.
+    Retorna estatísticas e um aviso (warning) se detectar problemas.
     """
-    if not titles:
-        return [{"title": "Texto Completo", "content": markdown_text}]
+    pages = markdown_text.split("\n\n---\n\n")
+    total_pages = len(pages)
+    chars_per_page = [len(p.strip()) for p in pages]
+    total_chars = sum(chars_per_page)
+    avg_chars = total_chars // total_pages if total_pages else 0
+    blank_pages = sum(1 for c in chars_per_page if c < 50)
 
-    # Mapeia posição de cada título no texto
-    positions: list[tuple[int, str]] = []
-    for t in titles:
-        pos = markdown_text.find(t)
-        if pos != -1:
-            positions.append((pos, t))
-    positions.sort()
+    warning = None
+    if blank_pages == total_pages:
+        warning = (
+            f"Nenhum texto foi extraído ({total_pages} página(s) sem conteúdo). "
+            "O documento pode ser uma imagem digitalizada sem OCR."
+        )
+    elif blank_pages > total_pages * 0.5:
+        warning = (
+            f"{blank_pages} de {total_pages} página(s) sem texto detectado. "
+            "O documento pode conter imagens ou layout complexo — verifique o rascunho."
+        )
+    elif avg_chars < 100 and total_pages > 1:
+        warning = (
+            f"Baixa densidade de texto (média de {avg_chars} caracteres/página). "
+            "Verifique se o conteúdo foi extraído corretamente."
+        )
 
-    if not positions:
-        return [{"title": "Texto Completo", "content": markdown_text}]
-
-    sections = []
-    for i, (start_pos, section_title) in enumerate(positions):
-        end_pos = positions[i + 1][0] if i + 1 < len(positions) else len(markdown_text)
-        content = markdown_text[start_pos:end_pos].strip()
-        sections.append({"title": section_title, "content": content})
-    return sections
+    return {
+        "pages": total_pages,
+        "total_chars": total_chars,
+        "avg_chars_per_page": avg_chars,
+        "blank_pages": blank_pages,
+        "warning": warning,
+    }
 
 
 def run_in_background(job_id: str, pdf_key: str, title: str, uploaded_by: str):

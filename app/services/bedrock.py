@@ -81,34 +81,6 @@ def generate_revocation_summary(markdown_text: str, title: str) -> str:
     return raw
 
 
-def generate_section_titles(markdown_text: str, title: str) -> list[str]:
-    """
-    Identifica os títulos das seções/capítulos principais do normativo.
-    Retorna lista de strings com os títulos EXATAMENTE como aparecem no texto.
-    """
-    text = markdown_text[:_MAX_INPUT_CHARS]
-    client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
-
-    body = {
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 1024,
-        "messages": [
-            {"role": "user", "content": _build_sections_prompt(title, text)},
-        ],
-    }
-
-    response = client.invoke_model(
-        modelId=settings.bedrock_model_id,
-        body=json.dumps(body),
-        contentType="application/json",
-        accept="application/json",
-    )
-
-    result = json.loads(response["body"].read())
-    output = result["content"][0]["text"]
-    return [line.strip() for line in output.splitlines() if line.strip()]
-
-
 def _build_revocation_prompt(title: str, text: str) -> str:
     return f"""Você é um assistente especializado em normativos institucionais do IFSP \
 (Instituto Federal de Educação, Ciência e Tecnologia de São Paulo).
@@ -135,30 +107,6 @@ Responda APENAS com o bloco de informações acima, sem introdução, sem coment
 ---
 
 Extraia as informações agora:"""
-
-
-def _build_sections_prompt(title: str, text: str) -> str:
-    return f"""Você é um assistente especializado em normativos institucionais do IFSP \
-(Instituto Federal de Educação, Ciência e Tecnologia de São Paulo).
-
-Analise o normativo abaixo e liste os títulos das seções ou capítulos principais, um por linha.
-Copie os títulos EXATAMENTE como aparecem no texto (não modifique, não traduza, não resuma).
-Retorne APENAS os títulos, sem numeração adicional, sem explicações, sem comentários.
-
-Exemplo de resposta:
-CAPÍTULO I - DAS DISPOSIÇÕES GERAIS
-CAPÍTULO II - DO ÂMBITO DE APLICAÇÃO
-CAPÍTULO III - DOS PRINCÍPIOS
-
-**Normativo:** {title}
-
----
-
-{text}
-
----
-
-Títulos das seções/capítulos principais:"""
 
 
 def _build_prompt(title: str, text: str) -> str:

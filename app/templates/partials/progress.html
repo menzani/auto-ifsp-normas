@@ -5,7 +5,6 @@
   {% set steps = [
     ("fa-file-pdf",    "Extração"),
     ("fa-robot",       "FAQ / IA"),
-    ("fa-sitemap",     "Estrutura"),
     ("fa-book",        "Bookstack"),
     ("fa-check",       "Concluído"),
   ] %}
@@ -88,6 +87,21 @@
       </p>
     </div>
   </div>
+
+  {% if job.result.extraction_check and job.result.extraction_check.warning %}
+  <div class="br-message warning mt-2" role="alert">
+    <div class="icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
+    <div class="content">
+      <p class="text-medium-weight mb-1">Atenção: qualidade da extração</p>
+      <p class="mb-0">{{ job.result.extraction_check.warning }}</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-down-01 mt-2 mb-0" style="color:#888;">
+    <i class="fas fa-file-alt mr-1" aria-hidden="true"></i>
+    {{ job.result.extraction_check.pages }} página(s) · {{ job.result.extraction_check.total_chars }} caracteres extraídos
+  </p>
   {% endif %}
 
 {% elif job.status == "error" %}

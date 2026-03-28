@@ -32,7 +32,7 @@ async def download_pdf(
     if job.get("status") != "done":
         user = get_current_user(request)
         owner = job.get("owner")
-        if owner and user["email"] != owner and user.get("role") not in ("revisor", "admin"):
+        if user.get("role") not in ("revisor", "admin") and (not owner or user["email"] != owner):
             raise HTTPException(403, "Acesso negado.")
 
     if settings.mock_s3:

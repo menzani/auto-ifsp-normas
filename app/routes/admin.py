@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
@@ -7,6 +9,8 @@ from app.services import audit
 from app.templates import templates
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 @router.get("/users", response_class=HTMLResponse)
@@ -26,7 +30,7 @@ async def update_role(
     role: str = Form(...),
     user=Depends(require_admin),
 ):
-    if "@" not in email or len(email) > 254:
+    if not _EMAIL_RE.match(email) or len(email) > 254:
         raise HTTPException(400, "Email inválido.")
     if role not in user_store.VALID_ROLES:
         raise HTTPException(400, "Papel inválido.")

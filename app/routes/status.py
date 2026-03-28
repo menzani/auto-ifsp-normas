@@ -25,7 +25,8 @@ async def job_status(
     job = storage.load_status(job_id)
     if job is None:
         raise HTTPException(404, "Job não encontrado.")
-    if job.get("owner") and job["owner"] != user["email"] and user.get("role") not in ("revisor", "admin"):
+    owner = job.get("owner")
+    if user.get("role") not in ("revisor", "admin") and (not owner or owner != user["email"]):
         raise HTTPException(403, "Acesso negado.")
     return templates.TemplateResponse(
         "partials/progress.html",
@@ -42,7 +43,8 @@ async def cancel_job(
     job = storage.load_status(job_id)
     if job is None:
         raise HTTPException(404, "Job não encontrado.")
-    if job.get("owner") and job["owner"] != user["email"] and user.get("role") not in ("revisor", "admin"):
+    owner = job.get("owner")
+    if user.get("role") not in ("revisor", "admin") and (not owner or owner != user["email"]):
         raise HTTPException(403, "Acesso negado.")
     if job.get("status") == "processing":
         job = {**job, "status": "cancelled"}

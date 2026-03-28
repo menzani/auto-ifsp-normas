@@ -166,9 +166,11 @@ uvicorn app.main:app --reload
 
 ## Diagrama de arquitetura
 
-O arquivo `docs/arquitetura.puml` contém o diagrama de arquitetura do sistema em formato [PlantUML](https://plantuml.com), com ícones oficiais da AWS.
+![Arquitetura do sistema](docs/arquitetura.png)
 
-**Para visualizar:**
+O diagrama fonte está em `docs/arquitetura.puml` (formato [PlantUML](https://plantuml.com) com ícones oficiais da AWS).
+
+**Para reeditar e regenerar:**
 
 1. Instale a extensão [PlantUML](https://marketplace.visualstudio.com/items?itemName=jebbs.plantuml) no VS Code
 2. Instale as bibliotecas de ícones AWS localmente em `docs/plantuml-libs/`:

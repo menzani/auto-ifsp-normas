@@ -259,6 +259,9 @@
             <span class="text-up-01 text-medium-weight">Normativos publicados</span>
           </div>
           <div class="d-flex align-items-center" style="gap:.75rem; flex-wrap:wrap;">
+            <input type="search" id="pub-search" class="review-search"
+                   placeholder="Buscar publicado..."
+                   aria-label="Buscar nos publicados">
             {% set pub_shelf_groups = published_books | groupby('shelf_name') | list %}
             {% if pub_shelf_groups | length > 1 %}
             <select id="pub-shelf-filter"
@@ -690,8 +693,8 @@
     initSection('pub',    'pub-item',   'pub-pagination');
     initSection('rev',    'rev-item',   'rev-pagination');
 
-    // Busca por texto nos rascunhos e revogados
-    ['drafts', 'rev'].forEach(function(name) {
+    // Busca por texto nos rascunhos, publicados e revogados
+    ['drafts', 'pub', 'rev'].forEach(function(name) {
       var inp = document.getElementById(name + '-search');
       if (inp) inp.addEventListener('input', function() { sections[name].setSearch(this.value); });
     });

@@ -1,47 +1,59 @@
-@startuml
+@startuml Arquitetura: auto.normas.ifsp.edu.br
+
 title Arquitetura: auto.normas.ifsp.edu.br
 
-skinparam componentStyle rectangle
+' Bibliotecas AWS para PlantUML
+' Caminho local: ~/docs/plantuml-libs/aws-icons-for-plantuml/dist
+!define AWSPuml plantuml-libs/aws-icons-for-plantuml/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/AWSSimplified.puml
+!include AWSPuml/Compute/EC2.puml
+!include AWSPuml/Compute/EC2Instance.puml
+!include AWSPuml/NetworkingContentDelivery/Route53.puml
+!include AWSPuml/Storage/SimpleStorageService.puml
+!include AWSPuml/ArtificialIntelligence/Bedrock.puml
+!include AWSPuml/SecurityIdentityCompliance/IdentityAccessManagementRole.puml
+!include AWSPuml/General/Internet.puml
+!include AWSPuml/Groups/AWSCloud.puml
+!include AWSPuml/Groups/VPC.puml
 
-package "Externo" {
-    actor "Usuário\n@ifsp.edu.br" as user
-    node "Google OAuth\n(Workspace Institucional)" as oauth
-    node "Bookstack\n(Wiki de Normas)" as bookstack
-}
+hide stereotype
+skinparam linetype ortho
 
-package "AWS Cloud" {
-    component "DNS\n(Route 53)" as r53
-    component "IAM Role\n(permissões mínimas)" as iam
+' Atores externos
+actor "Usuário\n@ifsp.edu.br" as user
+node "Google OAuth\n(Workspace Institucional)" as oauth
+node "Bookstack\n(Wiki de Normas)" as bookstack
 
-    package "VPC Privada" {
-        node "EC2 (Free Tier)" as ec2 {
-            component "Nginx\n(TLS + proxy reverso)" as nginx
-            component "FastAPI\n(uvicorn, systemd)" as fastapi
-        }
+AWSCloudGroup(cloud, "AWS Cloud") {
+
+    Route53(r53, "DNS", "Route 53")
+    IdentityAccessManagementRole(iam, "IAM Role\n(permissões mínimas)", "Credenciais da instância")
+    SimpleStorageService(s3, "Armazenamento\n(PDFs, metadados,\nregistro de revogações)", "S3")
+    Bedrock(bedrock, "IA Generativa\n(Claude Haiku)", "Amazon Bedrock")
+
+    VPCGroup(vpc, "VPC Privada") {
+        EC2Instance(ec2, "EC2 (Free Tier)\nnginx + FastAPI\n(uvicorn, systemd)", "EC2")
     }
-
-    database "S3\n(PDFs, metadados,\nregistro de revogações)" as s3
-    component "Amazon Bedrock\n(Claude Haiku — IA)" as bedrock
 }
 
 user --> r53 : resolução DNS
 r53 ..> ec2 : aponta para IP elástico
-user --> nginx : HTTPS (443)
-nginx --> fastapi : proxy reverso (127.0.0.1:8000)
+user --> ec2 : HTTPS (443)
 
-fastapi --> oauth : autenticação OAuth 2.0
-fastapi --> s3 : PDFs e metadados
-fastapi --> bedrock : geração de FAQ e resumos
-fastapi --> bookstack : criação e gestão de livros
+ec2 --> oauth : autenticação OAuth 2.0
+ec2 --> s3 : PDFs e metadados
+ec2 --> bedrock : geração de FAQ e resumos
+ec2 --> bookstack : criação e gestão de livros
 
-iam ..> s3 : acesso via credenciais da instância
-iam ..> bedrock : acesso via credenciais da instância
+iam ..> s3 : acesso via instância
+iam ..> bedrock : acesso via instância
 
-note right of fastapi
+note right of ec2
   Pipelines assíncronos
   (threading.Thread):
-  - Upload (4 etapas)
-  - Revogação (5 etapas)
+  - Upload: extração PDF → FAQ (IA) → Bookstack
+  - Revogação: busca → resumo (IA) → Revogadas → remove original
 end note
 
 @enduml

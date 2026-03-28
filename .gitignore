@@ -209,6 +209,9 @@ __marimo__/
 # Contexto local para LLMs (não versionado)
 CLAUDE.md
 
+# Bibliotecas PlantUML (instalação local, não versionada)
+docs/plantuml-libs/
+
 # Dados locais de desenvolvimento (mock S3)
 data/
 

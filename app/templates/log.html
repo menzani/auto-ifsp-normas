@@ -25,6 +25,7 @@
           </div>
         {% else %}
 
+          <div style="overflow-x: auto;">
           <div class="br-table">
             <table>
               <thead>
@@ -64,6 +65,14 @@
                       <span class="br-tag danger text" style="background:#6c1414; color:#fff;">
                         <i class="fas fa-times-circle mr-1" aria-hidden="true"></i> Exclusão de revogado
                       </span>
+                    {% elif entry.action == "cancelar" %}
+                      <span class="br-tag text" style="background:#555; color:#fff;">
+                        <i class="fas fa-ban mr-1" aria-hidden="true"></i> Cancelamento de upload
+                      </span>
+                    {% elif entry.action == "cancelar_revogacao" %}
+                      <span class="br-tag text" style="background:#555; color:#fff;">
+                        <i class="fas fa-ban mr-1" aria-hidden="true"></i> Cancelamento de revogação
+                      </span>
                     {% elif entry.action == "alterar_papel" %}
                       <span class="br-tag warning text">
                         <i class="fas fa-user-edit mr-1" aria-hidden="true"></i> Papel alterado
@@ -77,6 +86,7 @@
                 {% endfor %}
               </tbody>
             </table>
+          </div>
           </div>
 
         {% endif %}

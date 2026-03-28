@@ -154,6 +154,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
     except _JobCancelled:
         if revoked_book_id:
             bs.delete_book_from_bookstack(revoked_book_id)
+        audit.log(revoked_by, "cancelar_revogacao", title or f"book_id={book_id}")
     except Exception as exc:
         import logging
         logging.getLogger(__name__).exception("Erro no pipeline de revogação job=%s", job_id)

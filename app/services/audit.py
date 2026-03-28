@@ -5,6 +5,7 @@ MOCK_S3=true  → armazenado em data/audit.jsonl (local)
 MOCK_S3=false → armazenado em s3://<bucket>/meta/audit.jsonl
 """
 import json
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,6 +15,7 @@ settings = get_settings()
 
 _LOCAL_FILE = Path("data/audit.jsonl")
 _S3_KEY = "meta/audit.jsonl"
+_lock = threading.Lock()
 
 
 def _read_lines() -> list[str]:
@@ -35,6 +37,11 @@ def _read_lines() -> list[str]:
 
 
 def _append_line(line: str) -> None:
+    with _lock:
+        _append_line_locked(line)
+
+
+def _append_line_locked(line: str) -> None:
     if settings.mock_s3:
         _LOCAL_FILE.parent.mkdir(parents=True, exist_ok=True)
         with _LOCAL_FILE.open("a", encoding="utf-8") as f:

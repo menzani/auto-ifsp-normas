@@ -14,7 +14,7 @@ Etapas e suas fatias de progresso:
 import threading
 
 from app.services import bookstack as bs
-from app.services import storage
+from app.services import audit, storage
 from app.services.bedrock import fix_extraction_artifacts, generate_faq
 from app.services.pdf import pdf_to_markdown
 
@@ -141,6 +141,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 
     except _JobCancelled:
         storage.delete_pdf(pdf_key)
+        audit.log(uploaded_by, "cancelar", title)
     except Exception as exc:
         import logging
         logging.getLogger(__name__).exception("Erro no pipeline de upload job=%s", job_id)

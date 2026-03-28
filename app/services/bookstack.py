@@ -16,7 +16,7 @@ from app.config import get_settings
 
 settings = get_settings()
 
-_MAX_PAGE_CHARS = 50_000  # limite conservador para evitar bloqueio por WAF/nginx
+_MAX_PAGE_CHARS = 8_000  # limite conservador para evitar bloqueio por WAF/nginx
 
 # ── Dados de mock ─────────────────────────────────────────────────────────────
 

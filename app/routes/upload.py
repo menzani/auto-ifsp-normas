@@ -69,6 +69,7 @@ async def upload_pdf(
         "total_steps": 4,
         "current_step_label": "Iniciando processamento...",
         "progress_pct": 0,
+        "owner": user["email"],
     }
     storage.save_status(job_id, initial_status)
 

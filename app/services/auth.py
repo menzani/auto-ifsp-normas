@@ -58,16 +58,6 @@ def require_admin(request: Request) -> dict[str, Any]:
     return user
 
 
-def require_reviewer(request: Request) -> dict[str, Any]:
-    """Exige papel de revisor ou admin."""
-    user = get_current_user(request)
-    if user.get("role") not in ("revisor", "admin"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso restrito a revisores.",
-        )
-    return user
-
 
 def build_google_auth_url(request: Request) -> str:
     """Gera a URL de redirecionamento para o Google OAuth."""

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from app.services.auth import require_admin
@@ -26,6 +26,10 @@ async def update_role(
     role: str = Form(...),
     user=Depends(require_admin),
 ):
+    if "@" not in email or len(email) > 254:
+        raise HTTPException(400, "Email inválido.")
+    if role not in user_store.VALID_ROLES:
+        raise HTTPException(400, "Papel inválido.")
     user_store.set_role(email, role)
     audit.log(user["email"], "alterar_papel", f"{email} → {role}")
 

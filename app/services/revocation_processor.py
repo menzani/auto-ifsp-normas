@@ -137,7 +137,9 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         })
 
     except Exception as exc:
-        _set_error(job_id, str(exc))
+        import logging
+        logging.getLogger(__name__).exception("Erro no pipeline de revogação job=%s", job_id)
+        _set_error(job_id, "Erro interno na revogação. Tente novamente ou contate o administrador.")
         raise
 
 

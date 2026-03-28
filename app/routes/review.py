@@ -110,6 +110,7 @@ async def invalidate_book_route(book_id: int, request: Request, user=Depends(get
         "total_steps": 5,
         "current_step_label": "Iniciando...",
         "progress_pct": 0,
+        "owner": user["email"],
     })
     revocation_processor.run_in_background(job_id, book_id, user["email"])
 

@@ -9,6 +9,8 @@ Referência: https://demo.bookstackapp.com/api/docs
 import time
 from datetime import datetime
 
+import httpx
+
 from app.config import get_settings
 
 settings = get_settings()
@@ -502,7 +504,6 @@ def _headers() -> dict:
 
 
 def _api_get(path: str, params: dict | None = None) -> dict:
-    import httpx
     r = httpx.get(
         f"{settings.bookstack_base_url}/api{path}",
         headers=_headers(),
@@ -514,7 +515,6 @@ def _api_get(path: str, params: dict | None = None) -> dict:
 
 
 def _api_post(path: str, body: dict) -> dict:
-    import httpx
     r = httpx.post(
         f"{settings.bookstack_base_url}/api{path}",
         headers=_headers(),
@@ -526,7 +526,6 @@ def _api_post(path: str, body: dict) -> dict:
 
 
 def _api_put(path: str, body: dict) -> dict:
-    import httpx
     r = httpx.put(
         f"{settings.bookstack_base_url}/api{path}",
         headers=_headers(),
@@ -538,7 +537,6 @@ def _api_put(path: str, body: dict) -> dict:
 
 
 def _api_delete(path: str) -> None:
-    import httpx
     r = httpx.delete(
         f"{settings.bookstack_base_url}/api{path}",
         headers=_headers(),
@@ -592,9 +590,3 @@ def _build_shelf_data() -> tuple[dict, list, set, set]:
         "ts": time.monotonic(),
     })
     return book_to_shelf, shelves, staging_ids, revoked_ids
-
-
-def _build_shelf_map() -> dict[int, str]:
-    """Wrapper de compatibilidade — retorna apenas o book_to_shelf."""
-    shelf_map, _, _, _ = _build_shelf_data()
-    return shelf_map

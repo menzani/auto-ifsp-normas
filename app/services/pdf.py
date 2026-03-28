@@ -16,7 +16,10 @@ def extract_pages(pdf_bytes: bytes) -> Generator[tuple[int, int, str], None, Non
     Itera sobre as páginas do PDF.
     Yield: (page_number, total_pages, page_text)
     """
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception as exc:
+        raise ValueError(f"Não foi possível abrir o PDF: {exc}") from exc
     total = len(doc)
     for i, page in enumerate(doc, start=1):
         text = page.get_text("text")

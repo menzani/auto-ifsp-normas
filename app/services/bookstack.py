@@ -177,18 +177,19 @@ def create_normativo(
         "draft": True,
     })
 
-    # 4. Capítulo "2. Texto Completo"
+    # 4. Capítulo "2. Texto Completo" — uma página por capítulo do normativo (quando detectado)
     text_chapter = _api_post("/chapters", {
         "book_id": book_id,
         "name": "2. Texto Completo",
         "description": "Reprodução do texto completo para simplificação de busca e consultas específicas.",
     })
-    _api_post("/pages", {
-        "chapter_id": text_chapter["id"],
-        "name": "Texto Integral",
-        "markdown": full_text_markdown,
-        "draft": True,
-    })
+    for page_name, page_content in _split_into_chapter_pages(full_text_markdown):
+        _api_post("/pages", {
+            "chapter_id": text_chapter["id"],
+            "name": page_name,
+            "markdown": page_content,
+            "draft": True,
+        })
 
     # 5. Capítulo "3. Download" — link permanente para o PDF original
     if download_url:
@@ -502,6 +503,58 @@ def delete_book(book_id: int) -> None:
         storage.delete_pdf(pdf_key)
 
     _invalidate_drafts_cache()
+
+
+# ── Helpers internos ──────────────────────────────────────────────────────────
+
+import re as _re
+
+_CHAPTER_HEADING_RE = _re.compile(r"^#{1,2}\s+(.+)$", _re.MULTILINE)
+
+
+def _split_into_chapter_pages(markdown: str) -> list[tuple[str, str]]:
+    """
+    Divide o markdown estruturado em páginas por capítulo/título.
+
+    Retorna lista de (nome_da_página, conteúdo_markdown).
+    Se o documento não tiver headings H1/H2, retorna uma única página "Texto Integral".
+
+    Conteúdo antes do primeiro heading (ex: ementa, preâmbulo) é agrupado numa
+    página de "Preâmbulo" se for substancial (> 100 chars), ou descartado se trivial.
+    """
+    lines = markdown.splitlines()
+    sections: list[tuple[str, list[str]]] = []  # (heading_text, lines)
+    current_heading: str | None = None
+    current_lines: list[str] = []
+
+    for line in lines:
+        m = _re.match(r"^#{1,2}\s+(.+)$", line)
+        if m:
+            if current_lines or current_heading is not None:
+                sections.append((current_heading, current_lines))
+            current_heading = m.group(1).strip()
+            current_lines = []
+        else:
+            current_lines.append(line)
+
+    if current_lines or current_heading is not None:
+        sections.append((current_heading, current_lines))
+
+    if not sections or all(h is None for h, _ in sections):
+        return [("Texto Integral", markdown)]
+
+    pages: list[tuple[str, str]] = []
+    for heading, body_lines in sections:
+        body = "\n".join(body_lines).strip()
+        if heading is None:
+            # Conteúdo antes do primeiro heading (ementa/preâmbulo)
+            if len(body) > 100:
+                pages.append(("Preâmbulo", body))
+        else:
+            content = f"## {heading}\n\n{body}" if body else f"## {heading}"
+            pages.append((heading, content))
+
+    return pages if pages else [("Texto Integral", markdown)]
 
 
 # ── Helpers HTTP ──────────────────────────────────────────────────────────────

@@ -131,10 +131,10 @@ def create_normativo(
       2. Texto Completo        (capítulo com 1 página: texto integral com headings de navegação)
 
     A prateleira definitiva é escolhida pelo revisor na hora da publicação.
-    Retorna a URL do livro no Bookstack.
+    Retorna (url, book_id) do livro criado no Bookstack.
     """
     if settings.mock_bookstack:
-        return f"{settings.bookstack_base_url}/books/mock-{title[:30].lower().replace(' ', '-')}"
+        return f"{settings.bookstack_base_url}/books/mock-{title[:30].lower().replace(' ', '-')}", 0
 
     # 1. Cria o livro com tags de rastreamento
     book = _api_post("/books", {
@@ -197,7 +197,7 @@ def create_normativo(
 
     _invalidate_drafts_cache()
     _invalidate_shelf_map_cache()
-    return f"{settings.bookstack_base_url}/books/{book['slug']}"
+    return f"{settings.bookstack_base_url}/books/{book['slug']}", book_id
 
 
 def get_draft_books() -> list[dict]:

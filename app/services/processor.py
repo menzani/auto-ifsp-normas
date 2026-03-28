@@ -80,6 +80,7 @@ def _set_error(job_id: str, message: str):
 
 def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
     """Executa o pipeline completo. Bloqueia até concluir."""
+    bookstack_book_id: int | None = None
     try:
         # ── Etapa 1: Extração de PDF ─────────────────────────────────────
         _raise_if_cancelled(job_id)
@@ -127,7 +128,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         _raise_if_cancelled(job_id)
         _set_step(job_id, 4)
         download_url = storage.get_download_url(pdf_key)
-        book_url = bs.create_normativo(
+        book_url, bookstack_book_id = bs.create_normativo(
             title=title,
             full_text_markdown=markdown_text,
             faq_markdown=faq_markdown,
@@ -137,10 +138,13 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         )
 
         # ── Etapa 5: Concluído ───────────────────────────────────────────
+        _raise_if_cancelled(job_id)
         _set_done(job_id, {"book_url": book_url, "extraction_check": extraction_check})
 
     except _JobCancelled:
         storage.delete_pdf(pdf_key)
+        if bookstack_book_id:
+            bs.delete_book_from_bookstack(bookstack_book_id)
         audit.log(uploaded_by, "cancelar", title)
     except Exception as exc:
         import logging

@@ -9,7 +9,7 @@ Portal web institucional do **Instituto Federal de Educação, Ciência e Tecnol
 ## O que o sistema faz
 
 1. Um **servidor** envia o PDF do normativo pelo portal
-2. O sistema extrai o texto automaticamente e uma IA gera um FAQ sobre o documento
+2. O sistema extrai o texto automaticamente — páginas digitalizadas (imagem) passam por OCR automático — e uma IA estrutura o conteúdo e gera um FAQ sobre o documento
 3. Um rascunho estruturado é criado no [normas.ifsp.edu.br](https://normas.ifsp.edu.br) (Bookstack) com três seções: Perguntas Frequentes, Texto Completo e link de download
 4. Um **revisor** ou **administrador** analisa o rascunho e o publica na prateleira correta, ou o descarta
 5. Normativos publicados podem ser **revogados**: a IA gera um resumo estruturado e o documento é movido para a prateleira de Revogadas
@@ -47,12 +47,12 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 2. Selecione ou arraste o arquivo **PDF**
 3. Clique em **Enviar para processamento**
 4. Acompanhe o progresso pelas etapas exibidas na tela:
-   - **Extração** — o texto do PDF é lido automaticamente
-   - **Correção** — artefatos de extração (acentos, hifenizações) são corrigidos automaticamente
+   - **Extração** — o texto do PDF é lido; páginas sem texto passam por OCR automático
+   - **Estruturação / IA** — uma inteligência artificial organiza o conteúdo em seções e capítulos
    - **FAQ / IA** — uma inteligência artificial gera perguntas frequentes sobre o documento
    - **Bookstack** — o rascunho é criado no portal de normas
    - **Concluído** — link para visualizar o rascunho no Bookstack
-5. Ao final, o sistema exibe quantas páginas e caracteres foram extraídos. Um aviso em amarelo indica se o PDF pode estar no formato imagem (sem texto), o que pode comprometer a qualidade
+5. Ao final, o sistema exibe quantas páginas e caracteres foram extraídos. Um aviso em amarelo indica se a qualidade da extração pode estar comprometida (ex: PDF com layout complexo ou muitas imagens)
 
 > **Atenção:** o PDF enviado fica armazenado permanentemente, mesmo após revogação do normativo.
 
@@ -118,6 +118,7 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 - **Autenticação:** Google OAuth 2.0 — restrito ao Workspace `@ifsp.edu.br`
 - **Armazenamento:** AWS S3
 - **IA Generativa:** Amazon Bedrock (Claude Haiku)
+- **OCR:** AWS Textract (páginas digitalizadas sem texto)
 - **Wiki:** Bookstack (normas.ifsp.edu.br)
 - **Infraestrutura:** AWS EC2 + nginx + Let's Encrypt
 

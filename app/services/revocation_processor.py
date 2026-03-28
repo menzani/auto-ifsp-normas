@@ -8,12 +8,15 @@ Etapas e suas fatias de progresso:
   4. Removendo normativo original       (70–90 %)
   5. Concluído                          (100 %)
 """
+import logging
 import re
 import threading
 from datetime import datetime
 from secrets import token_urlsafe
 
 from app.services import bookstack as bs
+
+_log = logging.getLogger(__name__)
 from app.services import audit, storage
 from app.services.bedrock import generate_revocation_summary
 
@@ -161,8 +164,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
             bs.delete_book_from_bookstack(revoked_book_id)
         audit.log(revoked_by, "cancelar_revogacao", title or f"book_id={book_id}")
     except Exception as exc:
-        import logging
-        logging.getLogger(__name__).exception("Erro no pipeline de revogação job=%s", job_id)
+        _log.exception("Erro no pipeline de revogação job=%s", job_id)
         _set_error(job_id, "Erro interno na revogação. Tente novamente ou contate o administrador.")
         raise
 

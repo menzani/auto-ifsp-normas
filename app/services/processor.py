@@ -1,9 +1,7 @@
 """
 Pipeline de processamento síncrono de um normativo.
 
-Em produção (Fase 3), este código roda numa Lambda separada
-acionada por evento S3. Em dev local, é chamado em background
-via threading.Thread (daemon=True).
+Roda em background via threading.Thread (daemon=True).
 
 Etapas e suas fatias de progresso:
   1. Extraindo texto do PDF        (0–25 %)
@@ -11,9 +9,12 @@ Etapas e suas fatias de progresso:
   3. Publicando rascunho           (50–90 %)
   4. Concluído                     (100 %)
 """
+import logging
 import threading
 
 from app.services import bookstack as bs
+
+_log = logging.getLogger(__name__)
 from app.services import audit, storage
 from app.services.bedrock import generate_faq, structure_markdown
 from app.services.pdf import pdf_to_markdown
@@ -96,12 +97,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         # Carregado após _set_step para que base_status já inclua owner e pdf_key.
         base_status = storage.load_status(job_id) or {"id": job_id}
 
-        pages_done = [0]
-        pages_total = [1]
-
         def on_progress(current, total):
-            pages_done[0] = current
-            pages_total[0] = total
             pct = int(current / total * 50)  # 0–50 %
             storage.save_status(job_id, base_status | {
                 "current_step_label": f"Extraindo texto — página {current}/{total}",
@@ -154,8 +150,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
             bs.delete_book_from_bookstack(bookstack_book_id)
         audit.log(uploaded_by, "cancelar", title)
     except Exception as exc:
-        import logging
-        logging.getLogger(__name__).exception("Erro no pipeline de upload job=%s", job_id)
+        _log.exception("Erro no pipeline de upload job=%s", job_id)
         _set_error(job_id, "Erro interno no processamento. Tente novamente ou contate o administrador.")
         raise
 

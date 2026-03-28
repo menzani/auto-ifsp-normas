@@ -1,5 +1,6 @@
 import asyncio
 import secrets
+import time
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
@@ -103,7 +104,6 @@ def _validate_pdf(filename: str, content_type: str, content: bytes) -> str | Non
 _rate_limit: dict[str, list] = {}
 
 def _check_rate_limit(user_sub: str) -> None:
-    import time
     now = time.time()
     window = 3600  # 1 hora
     limit = settings.max_uploads_per_user_per_hour

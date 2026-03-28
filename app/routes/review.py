@@ -1,10 +1,11 @@
-import html as html_module
+import html
 import secrets
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
+from app.constants import REVOCATION_ID_PATTERN, REVOKE_JOB_ID_PATTERN
 from app.services.auth import get_current_user
 from app.services import bookstack as bs
 from app.services import audit, storage
@@ -59,9 +60,9 @@ async def publish_book(
     bs.publish_book(book_id, shelf_id)
     audit.log(user["email"], "publicar", title)
 
-    t = html_module.escape(title)
-    u = html_module.escape(book_url)
-    bid = html_module.escape(str(book_id))
+    t = html.escape(title)
+    u = html.escape(book_url)
+    bid = html.escape(str(book_id))
     return HTMLResponse(f"""
 <tbody id="draft-rows-{bid}" style="background:#F0FAF1;">
   <tr>
@@ -95,7 +96,6 @@ async def delete_book_route(book_id: int, request: Request, user=Depends(get_cur
     return HTMLResponse("")
 
 
-_REVOKE_JOB_ID_PATTERN = r"^rev_[a-zA-Z0-9_-]{10,50}$"
 _INTERNAL_JOB_FIELDS = {"owner"}
 
 
@@ -107,7 +107,7 @@ def _public_job(job: dict) -> dict:
 @router.get("/revoke-status/{job_id}", response_class=HTMLResponse)
 async def revoke_status(
     request: Request,
-    job_id: str = Path(..., pattern=_REVOKE_JOB_ID_PATTERN),
+    job_id: str = Path(..., pattern=REVOKE_JOB_ID_PATTERN),
     user=Depends(get_current_user),
 ):
     job = storage.load_status(job_id)
@@ -124,7 +124,7 @@ async def revoke_status(
 @router.post("/revoke-cancel/{job_id}", response_class=HTMLResponse)
 async def cancel_revoke_job(
     request: Request,
-    job_id: str = Path(..., pattern=_REVOKE_JOB_ID_PATTERN),
+    job_id: str = Path(..., pattern=REVOKE_JOB_ID_PATTERN),
     user=Depends(get_current_user),
 ):
     job = storage.load_status(job_id)
@@ -133,8 +133,8 @@ async def cancel_revoke_job(
     if job.get("owner") and job["owner"] != user["email"] and user.get("role") not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso negado.")
     if job.get("status") == "processing":
-        storage.save_status(job_id, {**job, "status": "cancelled"})
-        job = storage.load_status(job_id)
+        job = {**job, "status": "cancelled"}
+        storage.save_status(job_id, job)
     return templates.TemplateResponse(
         "partials/revoke_progress.html",
         {"request": request, "job": _public_job(job)},
@@ -160,7 +160,7 @@ async def invalidate_book_route(book_id: int, request: Request, user=Depends(get
 
     job = storage.load_status(job_id)
     inner = templates.env.get_template("partials/revoke_progress.html").render(job=job)
-    bid = html_module.escape(str(book_id))
+    bid = html.escape(str(book_id))
     return HTMLResponse(
         f'<tbody id="pub-rows-{bid}"><tr>'
         f'<td colspan="4" style="padding:1rem;">{inner}</td>'
@@ -168,13 +168,12 @@ async def invalidate_book_route(book_id: int, request: Request, user=Depends(get
     )
 
 
-_REVOCATION_ID_PATTERN = r"^[a-zA-Z0-9_-]{10,50}$"
 
 
 @router.delete("/revoked/{revocation_id}", response_class=HTMLResponse)
 async def delete_revoked(
     request: Request,
-    revocation_id: str = Path(..., pattern=_REVOCATION_ID_PATTERN),
+    revocation_id: str = Path(..., pattern=REVOCATION_ID_PATTERN),
     user=Depends(get_current_user),
 ):
     if user.get("role") != "admin":

@@ -2,19 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi.responses import RedirectResponse
 
 from app.config import get_settings
+from app.constants import JOB_ID_PATTERN
 from app.services import storage
 from app.services.auth import get_current_user
 
 settings = get_settings()
 router = APIRouter(tags=["pdf"])
 
-_JOB_ID_PATTERN = r"^[a-zA-Z0-9_-]{10,50}$"
-
 
 @router.get("/pdf/{job_id}")
 async def download_pdf(
     request: Request,
-    job_id: str = Path(..., pattern=_JOB_ID_PATTERN),
+    job_id: str = Path(..., pattern=JOB_ID_PATTERN),
 ):
     """
     Redireciona para download do PDF via URL presigned do S3.

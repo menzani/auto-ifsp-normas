@@ -7,6 +7,7 @@ MOCK_BOOKSTACK=false → conecta ao normas.ifsp.edu.br via API token.
 Referência: https://demo.bookstackapp.com/api/docs
 """
 import logging
+import re
 import time
 from datetime import datetime
 
@@ -16,7 +17,17 @@ from app.config import get_settings
 
 settings = get_settings()
 
-_MAX_PAGE_CHARS = 8_000  # limite conservador para evitar bloqueio por WAF/nginx
+_MAX_PAGE_CHARS = 50_000  # truncamento de segurança para evitar requests excessivamente grandes
+
+_RE_URL = re.compile(r"https?://\S+", re.IGNORECASE)
+_RE_EMAIL = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
+
+
+def _sanitize_for_waf(text: str) -> str:
+    """Remove URLs e e-mails que podem disparar regras de WAF."""
+    text = _RE_URL.sub("[URL]", text)
+    text = _RE_EMAIL.sub("[e-mail]", text)
+    return text
 
 # ── Dados de mock ─────────────────────────────────────────────────────────────
 
@@ -177,10 +188,16 @@ def create_normativo(
         "name": "2. Texto Completo",
         "description": "Reprodução do texto completo para simplificação de busca e consultas específicas.",
     })
+    page_text = _sanitize_for_waf(full_text_markdown)
+    if len(page_text) > _MAX_PAGE_CHARS:
+        page_text = page_text[:_MAX_PAGE_CHARS] + (
+            "\n\n---\n\n*Texto truncado: o documento excede o limite de exibição. "
+            "Consulte o PDF original via link de Download.*"
+        )
     _api_post("/pages", {
         "chapter_id": text_chapter["id"],
         "name": "Texto Integral",
-        "markdown": "teste",
+        "markdown": page_text,
         "draft": True,
     })
 

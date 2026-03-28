@@ -648,12 +648,16 @@
     html += '<button class="br-button secondary small" onclick="sections[\'' + name + '\'].goTo(' + (page-1) + ')"' + (page===1?' disabled':'') + '><i class="fas fa-chevron-left" aria-hidden="true"></i></button>';
 
     for (var p = 1; p <= totalPages; p++) {
-      var near = Math.abs(p - page) <= 1;
-      var edge = p === 1 || p === totalPages;
-      if (near || edge) {
+      if (totalPages <= 7) {
         html += '<button class="br-button ' + (p===page?'primary':'secondary') + ' small" onclick="sections[\'' + name + '\'].goTo(' + p + ')">' + p + '</button>';
-      } else if ((p === 2 && page > 4) || (p === totalPages - 1 && page < totalPages - 3)) {
-        html += '<span style="color:#aaa; line-height:2; padding:0 .1rem;">…</span>';
+      } else {
+        var near = Math.abs(p - page) <= 1;
+        var edge = p === 1 || p === totalPages;
+        if (near || edge) {
+          html += '<button class="br-button ' + (p===page?'primary':'secondary') + ' small" onclick="sections[\'' + name + '\'].goTo(' + p + ')">' + p + '</button>';
+        } else if ((p === 2 && page > 4) || (p === totalPages - 1 && page < totalPages - 3)) {
+          html += '<span style="color:#aaa; line-height:2; padding:0 .1rem;">…</span>';
+        }
       }
     }
 

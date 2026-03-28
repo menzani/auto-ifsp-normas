@@ -1,5 +1,5 @@
 """
-Extração de PDF para Markdown usando PyMuPDF.
+Extração de PDF para Markdown usando PyMuPDF. (rev. 2026-03-28)
 
 A conversão acontece página a página, permitindo atualizar o progresso
 a cada página processada. Nenhuma heurística de heading é aplicada aqui —

@@ -17,7 +17,7 @@ from app.config import get_settings
 
 settings = get_settings()
 
-_MAX_PAGE_CHARS = 7_000  # temporário: diagnosticar limite WAF
+_MAX_PAGE_CHARS = 6_000  # limite imposto pelo WAF em normas.ifsp.edu.br
 
 _RE_URL = re.compile(r"https?://\S+", re.IGNORECASE)
 _RE_EMAIL = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
@@ -194,7 +194,6 @@ def create_normativo(
             "\n\n---\n\n*Texto truncado: o documento excede o limite de exibição. "
             "Consulte o PDF original via link de Download.*"
         )
-    logging.warning("Texto integral para Bookstack (%d chars): %r", len(page_text), page_text[:500])
     _api_post("/pages", {
         "chapter_id": text_chapter["id"],
         "name": "Texto Integral",

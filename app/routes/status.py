@@ -16,18 +16,24 @@ def _public_job(job: dict) -> dict:
     return {k: v for k, v in job.items() if k not in _INTERNAL_FIELDS}
 
 
-@router.get("/{job_id}", response_class=HTMLResponse)
-async def job_status(
-    request: Request,
-    job_id: str = Path(..., pattern=JOB_ID_PATTERN),
-    user=Depends(get_current_user),
-):
+def _load_and_authorize_job(job_id: str, user: dict) -> dict:
+    """Carrega o job e verifica acesso (owner ou revisor/admin)."""
     job = storage.load_status(job_id)
     if job is None:
         raise HTTPException(404, "Job não encontrado.")
     owner = job.get("owner")
     if user.get("role") not in ("revisor", "admin") and (not owner or owner != user["email"]):
         raise HTTPException(403, "Acesso negado.")
+    return job
+
+
+@router.get("/{job_id}", response_class=HTMLResponse)
+async def job_status(
+    request: Request,
+    job_id: str = Path(..., pattern=JOB_ID_PATTERN),
+    user=Depends(get_current_user),
+):
+    job = _load_and_authorize_job(job_id, user)
     return templates.TemplateResponse(
         "partials/progress.html",
         {"request": request, "job": _public_job(job)},
@@ -40,12 +46,7 @@ async def cancel_job(
     job_id: str = Path(..., pattern=JOB_ID_PATTERN),
     user=Depends(get_current_user),
 ):
-    job = storage.load_status(job_id)
-    if job is None:
-        raise HTTPException(404, "Job não encontrado.")
-    owner = job.get("owner")
-    if user.get("role") not in ("revisor", "admin") and (not owner or owner != user["email"]):
-        raise HTTPException(403, "Acesso negado.")
+    job = _load_and_authorize_job(job_id, user)
     if job.get("status") == "processing":
         job = {**job, "status": "cancelled"}
         storage.save_status(job_id, job)

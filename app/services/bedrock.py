@@ -32,6 +32,24 @@ def _get_bedrock_client():
     return _bedrock_client
 
 
+def _invoke_bedrock_model(prompt: str, max_tokens: int) -> str:
+    """Invoca o modelo via Bedrock e retorna o texto gerado."""
+    client = _get_bedrock_client()
+    body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    response = client.invoke_model(
+        modelId=settings.bedrock_model_id,
+        body=json.dumps(body),
+        contentType="application/json",
+        accept="application/json",
+    )
+    result = json.loads(response["body"].read())
+    return result["content"][0]["text"]
+
+
 def generate_faq(markdown_text: str, title: str) -> str:
     """
     Gera FAQ em Markdown a partir do texto extraído do normativo.
@@ -40,26 +58,8 @@ def generate_faq(markdown_text: str, title: str) -> str:
     text = markdown_text[:_MAX_INPUT_CHARS]
     if len(markdown_text) > _MAX_INPUT_CHARS:
         text += "\n\n*[Texto truncado — documento excede o limite de processamento.]*"
-
-    client = _get_bedrock_client()
-
-    body = {
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 2048,
-        "messages": [
-            {"role": "user", "content": _build_prompt(title, text)},
-        ],
-    }
-
     try:
-        response = client.invoke_model(
-            modelId=settings.bedrock_model_id,
-            body=json.dumps(body),
-            contentType="application/json",
-            accept="application/json",
-        )
-        result = json.loads(response["body"].read())
-        return result["content"][0]["text"]
+        return _invoke_bedrock_model(_build_prompt(title, text), 2048)
     except Exception:
         logging.getLogger(__name__).exception("Erro ao gerar FAQ via Bedrock")
         raise RuntimeError("Não foi possível gerar o FAQ. Verifique as permissões do Bedrock e tente novamente.")
@@ -73,26 +73,8 @@ def generate_revocation_summary(markdown_text: str, title: str) -> str:
     text = markdown_text[:_MAX_INPUT_CHARS]
     if len(markdown_text) > _MAX_INPUT_CHARS:
         text += "\n\n*[Texto truncado — documento excede o limite de processamento.]*"
-
-    client = _get_bedrock_client()
-
-    body = {
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 512,
-        "messages": [
-            {"role": "user", "content": _build_revocation_prompt(title, text)},
-        ],
-    }
-
     try:
-        response = client.invoke_model(
-            modelId=settings.bedrock_model_id,
-            body=json.dumps(body),
-            contentType="application/json",
-            accept="application/json",
-        )
-        result = json.loads(response["body"].read())
-        raw = result["content"][0]["text"]
+        raw = _invoke_bedrock_model(_build_revocation_prompt(title, text), 512)
     except Exception:
         logging.getLogger(__name__).exception("Erro ao gerar resumo de revogação via Bedrock")
         raise RuntimeError("Não foi possível gerar o resumo. Verifique as permissões do Bedrock e tente novamente.")
@@ -130,7 +112,6 @@ def structure_markdown(text: str, on_progress=None) -> str:
 
 
 def _structure_chunk(chunk: str, is_continuation: bool) -> str:
-    client = _get_bedrock_client()
     continuation_note = (
         "Este é um trecho de continuação do documento — não adicione heading de título geral.\n\n"
         if is_continuation else ""
@@ -172,20 +153,8 @@ def _structure_chunk(chunk: str, is_continuation: bool) -> str:
         + chunk
         + "\n</documento>"
     )
-    body = {
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 16_384,
-        "messages": [{"role": "user", "content": prompt}],
-    }
     try:
-        response = client.invoke_model(
-            modelId=settings.bedrock_model_id,
-            body=json.dumps(body),
-            contentType="application/json",
-            accept="application/json",
-        )
-        result = json.loads(response["body"].read())
-        return result["content"][0]["text"]
+        return _invoke_bedrock_model(prompt, 16_384)
     except Exception:
         logging.getLogger(__name__).exception("Erro ao estruturar chunk via Bedrock")
         return chunk

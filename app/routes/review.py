@@ -45,11 +45,7 @@ async def publish_book(
     if user.get("role") not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso restrito a revisores.")
 
-    # Valida shelf_id: deve existir e não pode ser staging ou revogadas
-    forbidden_shelves = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
-    available_shelves = {s["id"] for s in bs.get_shelves()}
-    if shelf_id in forbidden_shelves or shelf_id not in available_shelves:
-        raise HTTPException(400, "Prateleira de destino inválida.")
+    _validate_destination_shelf(shelf_id)
 
     drafts = bs.get_draft_books()
     draft = next((d for d in drafts if d["book_id"] == book_id), None)
@@ -93,10 +89,7 @@ async def move_book_route(
     if user.get("role") not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso restrito a revisores.")
 
-    forbidden_shelves = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
-    available_shelves = {s["id"] for s in bs.get_shelves()}
-    if shelf_id in forbidden_shelves or shelf_id not in available_shelves:
-        raise HTTPException(400, "Prateleira de destino inválida.")
+    _validate_destination_shelf(shelf_id)
 
     title = bs.get_published_book_title(book_id)
     if title is None:
@@ -122,12 +115,38 @@ async def delete_book_route(book_id: int, request: Request, user=Depends(get_cur
     return HTMLResponse("")
 
 
-_INTERNAL_JOB_FIELDS = {"owner"}
+_INTERNAL_JOB_FIELDS = {"pdf_key", "owner"}
+
+
+def _validate_destination_shelf(shelf_id: int) -> None:
+    """Valida que shelf_id existe e não é staging nem revogadas."""
+    forbidden = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
+    available = {s["id"] for s in bs.get_shelves()}
+    if shelf_id in forbidden or shelf_id not in available:
+        raise HTTPException(400, "Prateleira de destino inválida.")
 
 
 def _public_job(job: dict) -> dict:
     """Remove campos internos que não devem ser expostos ao cliente via template."""
     return {k: v for k, v in job.items() if k not in _INTERNAL_JOB_FIELDS}
+
+
+def _render_revoke_progress(request, job: dict):
+    return templates.TemplateResponse(
+        "partials/revoke_progress.html",
+        {"request": request, "job": _public_job(job)},
+    )
+
+
+def _load_and_authorize_revoke_job(job_id: str, user: dict) -> dict:
+    """Carrega o job de revogação e verifica acesso (owner ou revisor/admin)."""
+    job = storage.load_status(job_id)
+    if job is None:
+        raise HTTPException(404, "Job não encontrado.")
+    owner = job.get("owner")
+    if user.get("role") not in ("revisor", "admin") and (not owner or owner != user["email"]):
+        raise HTTPException(403, "Acesso negado.")
+    return job
 
 
 @router.get("/revoke-status/{job_id}", response_class=HTMLResponse)
@@ -136,16 +155,8 @@ async def revoke_status(
     job_id: str = Path(..., pattern=REVOKE_JOB_ID_PATTERN),
     user=Depends(get_current_user),
 ):
-    job = storage.load_status(job_id)
-    if job is None:
-        raise HTTPException(404, "Job não encontrado.")
-    owner = job.get("owner")
-    if user.get("role") not in ("revisor", "admin") and (not owner or owner != user["email"]):
-        raise HTTPException(403, "Acesso negado.")
-    return templates.TemplateResponse(
-        "partials/revoke_progress.html",
-        {"request": request, "job": _public_job(job)},
-    )
+    job = _load_and_authorize_revoke_job(job_id, user)
+    return _render_revoke_progress(request, job)
 
 
 @router.post("/revoke-cancel/{job_id}", response_class=HTMLResponse)
@@ -154,19 +165,11 @@ async def cancel_revoke_job(
     job_id: str = Path(..., pattern=REVOKE_JOB_ID_PATTERN),
     user=Depends(get_current_user),
 ):
-    job = storage.load_status(job_id)
-    if job is None:
-        raise HTTPException(404, "Job não encontrado.")
-    owner = job.get("owner")
-    if user.get("role") not in ("revisor", "admin") and (not owner or owner != user["email"]):
-        raise HTTPException(403, "Acesso negado.")
+    job = _load_and_authorize_revoke_job(job_id, user)
     if job.get("status") == "processing":
         job = {**job, "status": "cancelled"}
         storage.save_status(job_id, job)
-    return templates.TemplateResponse(
-        "partials/revoke_progress.html",
-        {"request": request, "job": _public_job(job)},
-    )
+    return _render_revoke_progress(request, job)
 
 
 @router.post("/{book_id}/invalidate", response_class=HTMLResponse)

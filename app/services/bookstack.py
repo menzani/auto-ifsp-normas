@@ -162,9 +162,7 @@ def create_normativo(
     # 2. Coloca na prateleira de staging e restringe acesso ao papel Public.
     #    O livro ficará invisível ao público até ser aprovado na revisão.
     if settings.bookstack_staging_shelf_id:
-        staging = _api_get(f"/shelves/{settings.bookstack_staging_shelf_id}")
-        existing_ids = [b["id"] for b in staging.get("books", [])]
-        _api_put(f"/shelves/{settings.bookstack_staging_shelf_id}", {"books": existing_ids + [book_id]})
+        _add_book_to_shelf(settings.bookstack_staging_shelf_id, book_id)
     _restrict_book_to_authenticated(book_id)
 
     # 3. Capítulo "1. Perguntas Frequentes"
@@ -274,8 +272,7 @@ def get_all_books_overview() -> dict:
     def _fetch_uploaded_by(bid: int) -> tuple[int, str]:
         try:
             detail = _api_get(f"/books/{bid}")
-            tags = {t["name"]: t["value"] for t in detail.get("tags", [])}
-            return bid, tags.get("uploaded_by", "—")
+            return bid, _parse_tags(detail).get("uploaded_by", "—")
         except Exception:
             return bid, "—"
 
@@ -293,11 +290,7 @@ def get_all_books_overview() -> dict:
             continue  # gerenciado pela prateleira Revogadas, não aparece em publicados
 
         bookstack_url = f"{settings.bookstack_base_url}/books/{book['slug']}"
-        raw = book.get("created_at", "")
-        try:
-            created_at = datetime.fromisoformat(raw.replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
-        except Exception:
-            created_at = raw
+        created_at = _format_datetime(book.get("created_at", ""))
 
         if bid in staging_book_ids:
             drafts.append({
@@ -338,7 +331,7 @@ def get_book_for_revocation(book_id: int) -> dict:
         }
 
     book = _api_get(f"/books/{book_id}")
-    tags_dict = {t["name"]: t["value"] for t in book.get("tags", [])}
+    tags_dict = _parse_tags(book)
 
     # Busca páginas de texto para alimentar a IA (exclui FAQ e links de download)
     _SKIP_PAGE_NAMES = {"Perguntas Frequentes", "FAQ", "Link de Download", "Resumo e Download", "Download do PDF"}
@@ -405,10 +398,7 @@ def create_revoked_book_entry(
     })
 
     if settings.bookstack_revoked_shelf_id:
-        shelf = _api_get(f"/shelves/{settings.bookstack_revoked_shelf_id}")
-        existing = [b["id"] for b in shelf.get("books", [])]
-        if book_id not in existing:
-            _api_put(f"/shelves/{settings.bookstack_revoked_shelf_id}", {"books": existing + [book_id]})
+        _add_book_to_shelf(settings.bookstack_revoked_shelf_id, book_id)
 
     _invalidate_shelf_map_cache()
     return f"{settings.bookstack_base_url}/books/{book['slug']}", book_id
@@ -441,12 +431,8 @@ def _fetch_draft_books() -> list[dict]:
         book = all_books.get(bid)
         if not book:
             continue
-        tags = {t["name"]: t["value"] for t in book.get("tags", [])}
-        raw = book.get("created_at", "")
-        try:
-            created_at = datetime.fromisoformat(raw.replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
-        except Exception:
-            created_at = raw
+        tags = _parse_tags(book)
+        created_at = _format_datetime(book.get("created_at", ""))
         result.append({
             "book_id": bid,
             "title": book["name"],
@@ -476,15 +462,10 @@ def publish_book(book_id: int, shelf_id: int) -> None:
 
     # 2. Remove da staging
     if settings.bookstack_staging_shelf_id:
-        staging = _api_get(f"/shelves/{settings.bookstack_staging_shelf_id}")
-        remaining = [b["id"] for b in staging.get("books", []) if b["id"] != book_id]
-        _api_put(f"/shelves/{settings.bookstack_staging_shelf_id}", {"books": remaining})
+        _remove_book_from_shelf(settings.bookstack_staging_shelf_id, book_id)
 
     # 3. Adiciona à prateleira escolhida pelo revisor
-    target = _api_get(f"/shelves/{shelf_id}")
-    existing = [b["id"] for b in target.get("books", [])]
-    if book_id not in existing:
-        _api_put(f"/shelves/{shelf_id}", {"books": existing + [book_id]})
+    _add_book_to_shelf(shelf_id, book_id)
 
     _invalidate_drafts_cache()
     _invalidate_shelf_map_cache()
@@ -521,15 +502,10 @@ def move_book(book_id: int, new_shelf_id: int) -> None:
     current_shelf_id = name_to_id.get(current_shelf_name) if current_shelf_name else None
 
     if current_shelf_id and current_shelf_id not in forbidden and current_shelf_id != new_shelf_id:
-        detail = _api_get(f"/shelves/{current_shelf_id}")
-        remaining = [b["id"] for b in detail.get("books", []) if b["id"] != book_id]
-        _api_put(f"/shelves/{current_shelf_id}", {"books": remaining})
+        _remove_book_from_shelf(current_shelf_id, book_id)
 
     # Adiciona à nova prateleira
-    target = _api_get(f"/shelves/{new_shelf_id}")
-    existing = [b["id"] for b in target.get("books", [])]
-    if book_id not in existing:
-        _api_put(f"/shelves/{new_shelf_id}", {"books": existing + [book_id]})
+    _add_book_to_shelf(new_shelf_id, book_id)
 
     _invalidate_shelf_map_cache()
 
@@ -541,10 +517,7 @@ def delete_book(book_id: int) -> None:
 
     # Busca a chave S3 antes de deletar o livro
     book = _api_get(f"/books/{book_id}")
-    pdf_key = next(
-        (t["value"] for t in book.get("tags", []) if t["name"] == "s3_pdf_key"),
-        None,
-    )
+    pdf_key = _parse_tags(book).get("s3_pdf_key")
 
     _api_delete(f"/books/{book_id}")
 
@@ -558,6 +531,34 @@ def delete_book(book_id: int) -> None:
 # ── Helpers internos ──────────────────────────────────────────────────────────
 
 import re as _re
+
+
+def _parse_tags(obj: dict) -> dict:
+    """Converte lista de tags {name, value} de um livro/recurso em dicionário."""
+    return {t["name"]: t["value"] for t in obj.get("tags", [])}
+
+
+def _format_datetime(raw: str) -> str:
+    """Converte string ISO8601 para formato DD/MM/YYYY HH:MM."""
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return raw
+
+
+def _add_book_to_shelf(shelf_id: int, book_id: int) -> None:
+    """Adiciona um livro a uma prateleira se ainda não estiver presente."""
+    shelf = _api_get(f"/shelves/{shelf_id}")
+    books = [b["id"] for b in shelf.get("books", [])]
+    if book_id not in books:
+        _api_put(f"/shelves/{shelf_id}", {"books": books + [book_id]})
+
+
+def _remove_book_from_shelf(shelf_id: int, book_id: int) -> None:
+    """Remove um livro de uma prateleira."""
+    shelf = _api_get(f"/shelves/{shelf_id}")
+    remaining = [b["id"] for b in shelf.get("books", []) if b["id"] != book_id]
+    _api_put(f"/shelves/{shelf_id}", {"books": remaining})
 
 # Divide apenas em Títulos (H1) e Capítulos (H2) — Seções (H3) ficam dentro da página do capítulo.
 # Detecta explicitamente palavras-chave estruturais para não depender do nível de heading que a IA usou.

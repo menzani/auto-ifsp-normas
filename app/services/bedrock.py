@@ -388,9 +388,17 @@ Resposta objetiva.
 Gere o FAQ agora, sem introdução ou comentários adicionais:"""
 
 
-def _build_multimodal_prompt(n_pages: int) -> str:
+def _build_multimodal_prompt(n_pages: int, is_continuation: bool = False) -> str:
+    continuation_note = (
+        "ATENÇÃO: Este lote pode iniciar no meio de um artigo, alínea ou lista, "
+        "sem heading no início — isso é normal. "
+        "Preserve a ordem visual EXATA das páginas: todo conteúdo que aparecer ANTES de um "
+        "heading de capítulo/título deve vir ANTES desse heading no output. "
+        "NÃO agrupe nem mova texto sob um heading que aparece depois dele na página.\n\n"
+    ) if is_continuation else ""
     return (
         f"Você recebe {n_pages} página(s) de um normativo institucional brasileiro.\n\n"
+        f"{continuation_note}"
         "Extraia TODO o texto visível e formate em Markdown semântico seguindo estas regras:\n\n"
         "ESTRUTURA (headings):\n"
         "- # para: TÍTULO I, TÍTULO II…; ANEXO I, ANEXO II… (inclua título na mesma linha)\n"
@@ -418,9 +426,15 @@ def _build_multimodal_prompt(n_pages: int) -> str:
     )
 
 
-def extract_pages_multimodal(page_images: list[bytes], start_page: int = 1) -> tuple[str, dict]:
+def extract_pages_multimodal(
+    page_images: list[bytes],
+    start_page: int = 1,
+    is_continuation: bool = False,
+) -> tuple[str, dict]:
     """
     Extrai e estrutura texto de um lote de páginas PDF enviadas como imagens para Claude Vision.
+    is_continuation=True indica que o lote começa no meio do documento — adiciona instrução
+    para preservar a ordem visual exata e não agrupar conteúdo sob headings posteriores.
     Retorna (markdown_estruturado, uso_de_tokens).
     """
     content: list[dict] = []
@@ -430,7 +444,7 @@ def extract_pages_multimodal(page_images: list[bytes], start_page: int = 1) -> t
             "type": "image",
             "source": {"type": "base64", "media_type": "image/png", "data": b64},
         })
-    content.append({"type": "text", "text": _build_multimodal_prompt(len(page_images))})
+    content.append({"type": "text", "text": _build_multimodal_prompt(len(page_images), is_continuation)})
 
     client = _get_bedrock_multimodal_client()
     body = {

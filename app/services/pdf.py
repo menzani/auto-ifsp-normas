@@ -286,7 +286,7 @@ def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str,
 
     for batch_idx, batch in enumerate(batches):
         start_page = batch_idx * batch_size + 1
-        text, usage = extract_pages_multimodal(batch, start_page)
+        text, usage = extract_pages_multimodal(batch, start_page, is_continuation=batch_idx > 0)
         parts.append(text.strip())
         total_usage["input_tokens"] += usage["input_tokens"]
         total_usage["output_tokens"] += usage["output_tokens"]

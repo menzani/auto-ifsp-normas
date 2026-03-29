@@ -3,6 +3,11 @@
 
 {% block extra_head %}
 <style>
+  @keyframes toastFadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(8px); pointer-events: none; }
+  }
+  .action-toast { animation: toastFadeOut 0.4s ease 6s forwards; }
   .btn-idle { display: inline; }
   .btn-loading { display: none; }
   button.htmx-request .btn-idle { display: none; }
@@ -560,6 +565,11 @@
 
   </div>
 </div>
+
+<!-- Container para toasts de ação (publicar/revogar) — preenchido via HTMX OOB -->
+<div id="action-toast"
+     aria-live="polite"
+     style="position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999; max-width:360px;"></div>
 {% endblock %}
 
 {% block extra_scripts %}

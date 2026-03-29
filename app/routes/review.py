@@ -76,7 +76,16 @@ async def publish_book(
       </div>
     </td>
   </tr>
-</tbody>""")
+</tbody>
+<div id="action-toast" hx-swap-oob="true">
+  <div class="br-message success action-toast" role="status">
+    <div class="icon"><i class="fas fa-check-circle" aria-hidden="true"></i></div>
+    <div class="content">
+      <p class="text-medium-weight mb-1">Normativo publicado com sucesso.</p>
+      <p class="text-down-01 mb-0">Recarregue a página para ver na lista de publicados.</p>
+    </div>
+  </div>
+</div>""")
 
 
 @router.post("/{book_id}/move", response_class=HTMLResponse)
@@ -192,10 +201,20 @@ async def invalidate_book_route(book_id: int, request: Request, user=Depends(get
     job = storage.load_status(job_id)
     inner = templates.env.get_template("partials/revoke_progress.html").render(job=job)
     bid = html.escape(str(book_id))
+    toast = (
+        '<div id="action-toast" hx-swap-oob="true">'
+        '<div class="br-message warning action-toast" role="status">'
+        '<div class="icon"><i class="fas fa-ban" aria-hidden="true"></i></div>'
+        '<div class="content">'
+        '<p class="text-medium-weight mb-1">Revogação iniciada.</p>'
+        '<p class="text-down-01 mb-0">Acompanhe o progresso na linha do normativo.</p>'
+        '</div></div></div>'
+    )
     return HTMLResponse(
         f'<tbody id="pub-rows-{bid}"><tr>'
         f'<td colspan="4" style="padding:1rem;">{inner}</td>'
         f'</tr></tbody>'
+        + toast
     )
 
 

@@ -49,6 +49,10 @@
                       <span class="br-tag info text">
                         <i class="fas fa-upload mr-1" aria-hidden="true"></i> Upload
                       </span>
+                    {% elif entry.action == "processar" %}
+                      <span class="br-tag text" style="background:#5c4ec4; color:#fff;">
+                        <i class="fas fa-eye mr-1" aria-hidden="true"></i> Processamento
+                      </span>
                     {% elif entry.action == "publicar" %}
                       <span class="br-tag success text">
                         <i class="fas fa-check mr-1" aria-hidden="true"></i> Publicação
@@ -85,7 +89,21 @@
                       <span class="br-tag text">{{ entry.action }}</span>
                     {% endif %}
                   </td>
-                  <td>{{ entry.details }}</td>
+                  <td>
+                    {{ entry.details }}
+                    {% if entry.extra %}
+                    <br><span class="text-down-02" style="color:#888;">
+                      {% if entry.extra.tempo_s %}
+                        <i class="fas fa-clock mr-1" aria-hidden="true"></i>
+                        {% set t = entry.extra.tempo_s %}
+                        {% if t < 60 %}{{ t }}s{% else %}{{ (t // 60)|int }}min {{ (t % 60)|int }}s{% endif %}
+                      {% endif %}
+                      {% if entry.extra.tokens %}
+                        &nbsp;·&nbsp;<i class="fas fa-robot mr-1" aria-hidden="true"></i>{{ entry.extra.tokens }} tokens
+                      {% endif %}
+                    </span>
+                    {% endif %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>

@@ -12,6 +12,7 @@ Etapas:
 """
 import logging
 import threading
+import time
 
 from app.services import bookstack as bs
 
@@ -85,6 +86,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
     """Executa o pipeline completo. Bloqueia até concluir."""
     bookstack_book_id: int | None = None
     _private = {"owner": uploaded_by, "pdf_key": pdf_key}
+    start_time = time.monotonic()
     try:
         # ── Etapa 1: Extração ────────────────────────────────────────────
         _raise_if_cancelled(job_id)
@@ -133,6 +135,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 
         # ── Etapa 5: Concluído ───────────────────────────────────────────
         _raise_if_cancelled(job_id)
+        elapsed = round(time.monotonic() - start_time)
         bedrock_usage = {
             "model": get_settings().bedrock_model_id,
             "structure_input_tokens": structure_usage["input_tokens"],
@@ -145,7 +148,12 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
         _set_done(job_id, {
             "book_url": book_url,
             "extraction_check": extraction_check,
+            "processing_time_seconds": elapsed,
             "bedrock_usage": bedrock_usage,
+        })
+        audit.log(uploaded_by, "processar", title, extra={
+            "tempo_s": elapsed,
+            "tokens": bedrock_usage["total_input_tokens"] + bedrock_usage["total_output_tokens"],
         })
 
     except _JobCancelled:

@@ -419,7 +419,9 @@
         reviewBtn.style.borderRadius = '6px';
         reviewBtn.style.animation    = 'reviewPulse 1.5s ease-in-out infinite';
       }
-      _restoreSubmitBtn();
+      submitBtn.disabled = false;
+      submitBtn.style.pointerEvents = '';
+      submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Enviar uma nova normativa';
     } else if (isError) {
       if (hat) hat.innerHTML = '';
       setScreen('fa-exclamation-triangle', '#F47C6A', false);

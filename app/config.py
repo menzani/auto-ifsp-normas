@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     app_base_url: str = "http://localhost:8000"
 
     # Bedrock
-    bedrock_model_id: str = "anthropic.claude-haiku-4-5-20251001-v1:0"
+    bedrock_model_id: str = "us.anthropic.claude-sonnet-4-6"
 
     # Administradores iniciais (emails separados por vírgula)
     # Esses usuários recebem papel "admin" automaticamente no primeiro login.

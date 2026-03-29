@@ -236,5 +236,5 @@ async def delete_revoked(
         if entry.get("pdf_key"):
             storage.delete_pdf(entry["pdf_key"])
 
-    audit.log(user["email"], "remover_revogado", revocation_id)
+    audit.log(user["email"], "remover_revogado", entry.get("title", revocation_id) if entry else revocation_id)
     return HTMLResponse("")

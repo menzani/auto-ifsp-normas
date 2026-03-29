@@ -54,6 +54,40 @@ _ARTICLE_ID_RE = re.compile(
 )
 
 
+_TERMINAL_PUNCT_RE = re.compile(r'[.!?:;"")\]»]\s*$')
+_LIST_START_RE     = re.compile(r'^\s*([a-zA-Z]\)|[IVXivx]+\)|\d+\.|\s*[-*•])\s')
+
+
+def _merge_broken_paragraphs(text: str) -> str:
+    """Mescla parágrafos cortados no meio de uma frase pela quebra de página.
+
+    Heurística: se um parágrafo termina sem pontuação terminal e o seguinte
+    começa com letra minúscula sem ser um marcador de lista, une os dois.
+    """
+    paragraphs = re.split(r'\n{2,}', text)
+    result: list[str] = []
+    i = 0
+    while i < len(paragraphs):
+        para = paragraphs[i]
+        stripped_end = para.rstrip()
+        while i + 1 < len(paragraphs):
+            nxt = paragraphs[i + 1]
+            nxt_lstripped = nxt.lstrip()
+            if (stripped_end
+                    and not _TERMINAL_PUNCT_RE.search(stripped_end)
+                    and nxt_lstripped
+                    and nxt_lstripped[0].islower()
+                    and not _LIST_START_RE.match(nxt)):
+                i += 1
+                para = stripped_end + ' ' + nxt_lstripped
+                stripped_end = para.rstrip()
+            else:
+                break
+        result.append(para)
+        i += 1
+    return '\n\n'.join(result)
+
+
 def _bold_article_identifiers(text: str) -> str:
     """Garante negrito nos identificadores de artigo e parágrafo no início de cada linha."""
     def _replace(m: re.Match) -> str:
@@ -296,6 +330,7 @@ def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str,
     full_text = "\n\n---\n\n".join(parts)
     full_text = _remove_signature_artifacts(full_text)
     full_text = full_text.replace("\n\n---\n\n", "\n\n")  # remove batch separators — renderiam como <hr> no Bookstack
+    full_text = _merge_broken_paragraphs(full_text)
     full_text = _bold_article_identifiers(full_text)
     return full_text, total_usage
 

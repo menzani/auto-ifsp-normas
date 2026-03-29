@@ -11,6 +11,8 @@ import threading
 import time
 from datetime import datetime
 
+_log = logging.getLogger(__name__)
+
 import httpx
 
 from app.config import get_settings
@@ -418,7 +420,13 @@ def delete_book_from_bookstack(book_id: int) -> None:
     if settings.mock_bookstack:
         return
 
-    _api_delete(f"/books/{book_id}")
+    try:
+        _api_delete(f"/books/{book_id}")
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code != 404:
+            raise
+        _log.warning("delete_book_from_bookstack: livro %s não encontrado (já removido?)", book_id)
+
     _invalidate_drafts_cache()
     _invalidate_shelf_map_cache()
 
@@ -524,11 +532,22 @@ def delete_book(book_id: int) -> None:
     if settings.mock_bookstack:
         return
 
-    # Busca a chave S3 antes de deletar o livro
-    book = _api_get(f"/books/{book_id}")
-    pdf_key = _parse_tags(book).get("s3_pdf_key")
+    # Busca a chave S3 antes de deletar o livro.
+    # Se o livro já foi removido manualmente do Bookstack, ignora o 404 e prossegue.
+    pdf_key = None
+    try:
+        book = _api_get(f"/books/{book_id}")
+        pdf_key = _parse_tags(book).get("s3_pdf_key")
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code != 404:
+            raise
+        _log.warning("delete_book: livro %s não encontrado no Bookstack (já removido?)", book_id)
 
-    _api_delete(f"/books/{book_id}")
+    try:
+        _api_delete(f"/books/{book_id}")
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code != 404:
+            raise
 
     if pdf_key:
         from app.services import storage

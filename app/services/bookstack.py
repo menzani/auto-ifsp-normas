@@ -134,6 +134,7 @@ def create_normativo(
     download_url: str,
     uploaded_by: str,
     pdf_key: str = "",
+    anomalies: list[str] | None = None,
 ) -> str:
     """
     Cria um livro (normativo) com capítulos em rascunho na prateleira de staging.
@@ -184,6 +185,13 @@ def create_normativo(
         "name": "2. Texto Completo",
         "description": "Reprodução do texto completo para simplificação de busca e consultas específicas.",
     })
+    if anomalies:
+        _api_post("/pages", {
+            "chapter_id": text_chapter["id"],
+            "name": "Avisos sobre o documento",
+            "markdown": _build_anomaly_page(anomalies),
+            "draft": True,
+        })
     for page_name, page_content in _split_into_chapter_pages(full_text_markdown):
         _api_post("/pages", {
             "chapter_id": text_chapter["id"],
@@ -559,6 +567,17 @@ def _remove_book_from_shelf(shelf_id: int, book_id: int) -> None:
     shelf = _api_get(f"/shelves/{shelf_id}")
     remaining = [b["id"] for b in shelf.get("books", []) if b["id"] != book_id]
     _api_put(f"/shelves/{shelf_id}", {"books": remaining})
+
+def _build_anomaly_page(anomalies: list[str]) -> str:
+    """Gera o conteúdo Markdown da página 'Avisos sobre o documento'."""
+    items = '\n'.join(f'- {a}' for a in anomalies)
+    return (
+        "## Avisos sobre o documento original\n\n"
+        "As seguintes inconsistências foram detectadas automaticamente no documento PDF original. "
+        "O texto foi reproduzido fielmente — nenhuma correção foi aplicada.\n\n"
+        f"{items}"
+    )
+
 
 # Divide apenas em Títulos (H1) e Capítulos (H2) — Seções (H3) ficam dentro da página do capítulo.
 # Detecta explicitamente palavras-chave estruturais para não depender do nível de heading que a IA usou.

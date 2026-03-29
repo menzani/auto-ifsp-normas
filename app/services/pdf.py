@@ -206,6 +206,67 @@ def _fix_ligature_artifacts(text: str) -> str:
     return text
 
 
+def _roman_to_int(s: str) -> int:
+    vals = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
+    total, prev = 0, 0
+    for ch in reversed(s.upper()):
+        val = vals.get(ch, 0)
+        total += val if val >= prev else -val
+        prev = val
+    return total
+
+
+_INT_TO_ROMAN = [
+    (1000, 'M'), (900, 'CM'), (500, 'D'), (400, 'CD'),
+    (100, 'C'), (90, 'XC'), (50, 'L'), (40, 'XL'),
+    (10, 'X'), (9, 'IX'), (5, 'V'), (4, 'IV'), (1, 'I'),
+]
+
+
+def _int_to_roman(n: int) -> str:
+    result = ''
+    for value, numeral in _INT_TO_ROMAN:
+        while n >= value:
+            result += numeral
+            n -= value
+    return result
+
+
+def detect_structural_anomalies(text: str) -> list[str]:
+    """
+    Detecta anomalias na numeração de capítulos do documento (gaps, duplicatas, inversões).
+    Deve ser chamado após pdf_to_markdown (que já marcou os headings com ##).
+    Retorna lista de descrições legíveis (vazia se nenhuma anomalia detectada).
+    """
+    chapter_re = re.compile(r'^##\s+CAP[IÍ]TULO\s+([IVXLCDM]+)', re.IGNORECASE | re.MULTILINE)
+    chapters = chapter_re.findall(text)
+    if len(chapters) < 2:
+        return []
+
+    nums = [_roman_to_int(r) for r in chapters]
+    anomalies = []
+    for i in range(1, len(nums)):
+        gap = nums[i] - nums[i - 1]
+        if gap > 1:
+            missing = [_int_to_roman(nums[i - 1] + j) for j in range(1, gap)]
+            s = 's' if len(missing) > 1 else ''
+            missing_str = ', '.join(f'CAPÍTULO {r}' for r in missing)
+            anomalies.append(
+                f"Lacuna na numeração: após CAPÍTULO {chapters[i-1].upper()} vem "
+                f"CAPÍTULO {chapters[i].upper()} — {missing_str} não exist{'em' if len(missing) > 1 else 'e'} no documento original."
+            )
+        elif gap == 0:
+            anomalies.append(
+                f"Numeração duplicada: CAPÍTULO {chapters[i].upper()} aparece mais de uma vez no documento original."
+            )
+        elif gap < 0:
+            anomalies.append(
+                f"Numeração fora de ordem: CAPÍTULO {chapters[i-1].upper()} é seguido por "
+                f"CAPÍTULO {chapters[i].upper()} no documento original."
+            )
+    return anomalies
+
+
 def _detect_headings(text: str) -> str:
     """
     Detecta e marca headings estruturais (Títulos, Capítulos, Seções) com prefixos Markdown

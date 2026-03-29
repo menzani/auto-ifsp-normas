@@ -18,7 +18,7 @@ _log = logging.getLogger(__name__)
 from app.services import audit, storage
 from app.config import get_settings
 from app.services.bedrock import generate_faq, structure_markdown
-from app.services.pdf import pdf_to_markdown
+from app.services.pdf import pdf_to_markdown, detect_structural_anomalies
 
 class _JobCancelled(Exception):
     pass
@@ -109,6 +109,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 
         # ── Conferência de qualidade da extração ─────────────────────────
         extraction_check = _verify_extraction(markdown_text)
+        anomalies = detect_structural_anomalies(markdown_text)
 
         # ── Etapa 2: Estruturação com IA ─────────────────────────────────
         _raise_if_cancelled(job_id)
@@ -139,6 +140,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
             download_url=download_url,
             uploaded_by=uploaded_by,
             pdf_key=pdf_key,
+            anomalies=anomalies,
         )
 
         # ── Etapa 5: Concluído ───────────────────────────────────────────

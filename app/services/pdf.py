@@ -1,10 +1,10 @@
 """
 Extração de PDF para Markdown usando PyMuPDF. (rev. 2026-03-29)
 
-A conversão acontece página a página, permitindo atualizar o progresso
-a cada página processada. Headings estruturais (Título, Capítulo, Seção) são
-detectados deterministicamente antes de enviar ao AI, garantindo que a numeração
-de capítulos nunca dependa da inferência do modelo.
+Detecção de headings em duas camadas determinísticas, antes de qualquer IA:
+  1. Visual (get_text("dict")): linhas em negrito ou fonte maior que o corpo
+  2. Keyword (regex): TÍTULO/CAPÍTULO/SEÇÃO com tolerância a typos e variações
+Documentos sem nenhum heading detectado são marcados para o modo de sugestão da IA.
 """
 import re
 from collections.abc import Generator
@@ -40,19 +40,27 @@ _SIGNATURE_LINE_RE = re.compile(
 # Rodapés de paginação variáveis (ex: "Página 48 de 65") — removidos antes da etapa de IA
 _PAGE_FOOTER_RE = re.compile(r"^\s*página\s+\d+\s+de\s+\d+\s*$", re.IGNORECASE)
 
-# Headings estruturais detectáveis deterministicamente — linhas isoladas que correspondem
-# a padrões rígidos de títulos, capítulos e seções de normativos brasileiros.
-# Detectados antes de enviar ao AI para que a numeração de capítulos nunca seja inferida.
+# Headings estruturais detectáveis deterministicamente por palavras-chave.
+# Tolerância a typos comuns: sem acento (CAPITULO), sem espaço antes do numeral
+# (CAPÍTULOI), abreviação (CAP. IV), prefixo numérico (4. CAPÍTULO IV),
+# separador com dois-pontos (CAPÍTULO I: nome).
 _TITLE_HEADING_RE = re.compile(
-    r'^\s*(T[IÍ]TULO\s+[IVXLCDM]+(?:\s*[-—–]\s*.+)?)\s*$',
+    r'^\s*(?:\d+\.\s*)?'
+    r'(T[IÍ]TULO\s+[IVXLCDM]+(?:\s*[-—–:]\s*.+)?)'
+    r'\s*$',
     re.IGNORECASE,
 )
 _CHAPTER_HEADING_RE = re.compile(
-    r'^\s*(CAP[IÍ]TULO\s+[IVXLCDM]+(?:\s*[-—–]\s*.+)?)\s*$',
+    r'^\s*(?:\d+\.\s*)?'
+    r'(CAP[IÍ]TULO\s*[IVXLCDM]+(?:\s*[-—–:]\s*.+)?'
+    r'|CAP\.\s+[IVXLCDM]+(?:\s*[-—–:]\s*.+)?)'
+    r'\s*$',
     re.IGNORECASE,
 )
 _SECTION_HEADING_RE = re.compile(
-    r'^\s*(Se[çc][aã]o\s+[IVXLCDM]+(?:\s*[-—–]\s*.+)?)\s*$',
+    r'^\s*(?:\d+\.\s*)?'
+    r'(SE[CÇ][AÃ]O\s+[IVXLCDM]+(?:\s*[-—–:]\s*.+)?)'
+    r'\s*$',
     re.IGNORECASE,
 )
 
@@ -68,6 +76,93 @@ _SIGNATURE_BLOCK_RE = re.compile(
 )
 
 
+def _extract_page_text(page) -> str:
+    """
+    Extrai texto de uma página com detecção de headings visuais via get_text("dict").
+
+    Linhas com ≥80 % dos caracteres em negrito, ou com fonte ≥15 % maior que o tamanho
+    modal do corpo da página, e com no máximo 12 palavras, recebem prefixo ## como
+    heading visual — independente de seguirem palavras-chave formais como CAPÍTULO.
+
+    O terço superior da página (timbre institucional) é excluído da detecção para evitar
+    falsos positivos. Fallback para get_text("text") se o modo dict falhar.
+    """
+    try:
+        data = page.get_text("dict")
+    except Exception:
+        return page.get_text("text")
+
+    page_height = data.get("height", 842)
+    top_zone = page_height * 0.15
+    blocks = [b for b in data.get("blocks", []) if b.get("type") == 0]
+    if not blocks:
+        return ""
+
+    # Tamanho modal de fonte do corpo — ponderado por volume de caracteres para
+    # que o texto corrido domine sobre títulos isolados.
+    from collections import Counter
+    size_counter: Counter = Counter()
+    for block in blocks:
+        if block.get("bbox", (0,))[1] < top_zone:
+            continue
+        for line in block.get("lines", []):
+            for span in line.get("spans", []):
+                txt = span.get("text", "").strip()
+                sz = round(span.get("size", 0))
+                if txt and sz > 4:
+                    size_counter[sz] += len(txt)
+
+    body_size = size_counter.most_common(1)[0][0] if size_counter else 0
+    size_threshold = body_size * 1.15 if body_size else float("inf")
+
+    lines_out = []
+    for block in blocks:
+        in_top_zone = block.get("bbox", (0,))[1] < top_zone
+        for line in block.get("lines", []):
+            spans = line.get("spans", [])
+            line_text = "".join(s.get("text", "") for s in spans).strip()
+            if not line_text:
+                continue
+            if in_top_zone or line_text.lstrip().startswith("#"):
+                lines_out.append(line_text)
+                continue
+
+            char_total = sum(len(s.get("text", "").strip()) for s in spans)
+            if not char_total:
+                lines_out.append(line_text)
+                continue
+
+            bold_chars = sum(
+                len(s.get("text", "").strip())
+                for s in spans
+                if s.get("flags", 0) & 16 and s.get("text", "").strip()
+            )
+            avg_size = sum(
+                s.get("size", 0) * len(s.get("text", "").strip())
+                for s in spans if s.get("text", "").strip()
+            ) / char_total
+
+            is_large = avg_size >= size_threshold
+            is_mostly_bold = bold_chars / char_total >= 0.8
+            is_short = len(line_text.split()) <= 12
+
+            if is_short and (is_large or is_mostly_bold):
+                lines_out.append(f"## {line_text}")
+            else:
+                lines_out.append(line_text)
+        lines_out.append("")  # linha em branco entre blocos
+
+    return "\n".join(lines_out)
+
+
+def has_structure(text: str) -> bool:
+    """
+    Retorna True se o texto já contém headings Markdown detectados deterministicamente.
+    Falso indica documento plano — aciona modo de sugestão de estrutura pela IA.
+    """
+    return bool(re.search(r'^#{1,3}\s+\S', text, re.MULTILINE))
+
+
 def extract_pages(pdf_bytes: bytes) -> Generator[tuple[int, int, str], None, None]:
     """
     Itera sobre as páginas do PDF.
@@ -80,7 +175,7 @@ def extract_pages(pdf_bytes: bytes) -> Generator[tuple[int, int, str], None, Non
     total = len(doc)
     ocr_count = 0
     for i, page in enumerate(doc, start=1):
-        text = page.get_text("text")
+        text = _extract_page_text(page)
         if len(text.strip()) < 50 and not settings.mock_s3:
             if ocr_count < settings.max_ocr_pages_per_pdf:
                 # Página sem texto detectado — tenta OCR via Textract

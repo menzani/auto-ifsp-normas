@@ -140,6 +140,17 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<style>
+  @keyframes robotFloat  { 0%,100%{transform:translateY(0)}  50%{transform:translateY(-8px)} }
+  @keyframes eyeBlink    { 0%,85%,100%{transform:scaleY(1)}  92%{transform:scaleY(.1)} }
+  @keyframes armSwingL   { 0%,100%{transform:rotate(-20deg)} 50%{transform:rotate(10deg)} }
+  @keyframes armSwingR   { 0%,100%{transform:rotate(20deg)}  50%{transform:rotate(-10deg)} }
+  @keyframes legStepL    { 0%,100%{transform:translateY(0)}  50%{transform:translateY(4px)} }
+  @keyframes legStepR    { 0%,100%{transform:translateY(4px)} 50%{transform:translateY(0)} }
+  @keyframes antennaBlink{ 0%,100%{opacity:1;box-shadow:0 0 6px #E52207} 50%{opacity:.2;box-shadow:none} }
+  @keyframes screenPulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+  @keyframes armsDone    { 0%,100%{transform:rotate(-140deg)} 50%{transform:rotate(-150deg)} }
+</style>
 <script>
   const pdfInput = document.getElementById('pdf_file');
   const dropZone = document.getElementById('drop-zone');
@@ -211,6 +222,156 @@
     }
   });
 
+  // ── Robô animado ──────────────────────────────────────────────────────────
+  var ROBOT_STEPS = {
+    '1': { icon: 'fa-eye',              label: 'Lendo páginas...' },
+    '2': { icon: 'fa-search',           label: 'Verificando...'   },
+    '3': { icon: 'fa-robot',            label: 'Gerando FAQ...'   },
+    '4': { icon: 'fa-cloud-upload-alt', label: 'Publicando...'    },
+  };
+
+  var ROBOT_HTML = (
+    '<div id="robot-wrap" style="display:flex;flex-direction:column;align-items:center;' +
+        'padding:.75rem 0 .5rem;gap:2px;animation:robotFloat 2.5s ease-in-out infinite;">' +
+      // antenna
+      '<div style="width:3px;height:16px;background:#1351B4;border-radius:2px;' +
+          'position:relative;margin-bottom:-1px;">' +
+        '<div id="robot-antenna" style="width:9px;height:9px;background:#E52207;border-radius:50%;' +
+            'position:absolute;top:-5px;left:-3px;' +
+            'animation:antennaBlink 1s ease-in-out infinite;"></div>' +
+      '</div>' +
+      // head
+      '<div style="width:64px;height:50px;background:#1351B4;border-radius:10px;' +
+          'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+          'gap:6px;box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
+        '<div style="display:flex;gap:12px;">' +
+          '<div style="width:11px;height:11px;background:#fff;border-radius:50%;' +
+              'animation:eyeBlink 4s ease-in-out infinite;"></div>' +
+          '<div style="width:11px;height:11px;background:#fff;border-radius:50%;' +
+              'animation:eyeBlink 4s ease-in-out infinite .2s;"></div>' +
+        '</div>' +
+        '<div style="width:22px;height:3px;background:rgba(255,255,255,.6);border-radius:2px;"></div>' +
+      '</div>' +
+      // arms + body
+      '<div style="display:flex;align-items:flex-start;gap:4px;margin-top:3px;">' +
+        '<div id="robot-arm-l" style="width:11px;height:34px;background:#1351B4;border-radius:5px;' +
+            'transform-origin:top center;animation:armSwingL 1.4s ease-in-out infinite;' +
+            'margin-top:6px;"></div>' +
+        '<div style="width:62px;height:66px;background:#1351B4;border-radius:8px;' +
+            'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+            'gap:5px;box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
+          '<div id="robot-screen" style="width:34px;height:26px;background:#0D3D87;' +
+              'border-radius:4px;display:flex;align-items:center;justify-content:center;' +
+              'color:#7EB8F7;font-size:.85rem;animation:screenPulse 1.2s ease-in-out infinite;">' +
+            '<i class="fas fa-spinner fa-spin"></i>' +
+          '</div>' +
+          '<div style="display:flex;gap:4px;">' +
+            '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
+            '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
+            '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
+          '</div>' +
+        '</div>' +
+        '<div id="robot-arm-r" style="width:11px;height:34px;background:#1351B4;border-radius:5px;' +
+            'transform-origin:top center;animation:armSwingR 1.4s ease-in-out infinite;' +
+            'margin-top:6px;"></div>' +
+      '</div>' +
+      // legs
+      '<div style="display:flex;gap:10px;margin-top:2px;">' +
+        '<div style="width:13px;height:20px;background:#0D3D87;border-radius:0 0 5px 5px;' +
+            'animation:legStepL 1.4s ease-in-out infinite;"></div>' +
+        '<div style="width:13px;height:20px;background:#0D3D87;border-radius:0 0 5px 5px;' +
+            'animation:legStepR 1.4s ease-in-out infinite;"></div>' +
+      '</div>' +
+      // speech bubble
+      '<div id="robot-bubble" style="margin-top:.6rem;background:#EEF3FF;' +
+          'border:2px solid #1351B4;border-radius:12px;padding:.35rem .85rem;' +
+          'font-size:.78rem;color:#1351B4;font-weight:600;text-align:center;' +
+          'white-space:nowrap;position:relative;">' +
+        'Iniciando...' +
+        '<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);' +
+            'width:0;height:0;border-left:7px solid transparent;' +
+            'border-right:7px solid transparent;border-bottom:9px solid #1351B4;"></div>' +
+        '<div id="robot-bubble-inner" style="position:absolute;top:-6px;left:50%;' +
+            'transform:translateX(-50%);width:0;height:0;' +
+            'border-left:6px solid transparent;border-right:6px solid transparent;' +
+            'border-bottom:7px solid #EEF3FF;"></div>' +
+      '</div>' +
+    '</div>'
+  );
+
+  function showRobot() {
+    dropZone.innerHTML = ROBOT_HTML;
+    dropZone.style.borderStyle = 'solid';
+    dropZone.style.borderColor = '#1351B4';
+    dropZone.style.background  = '#F0F4FF';
+    dropZone.style.cursor      = 'default';
+  }
+
+  function updateRobot(step, isDone, isError, isCancelled) {
+    var screen = document.getElementById('robot-screen');
+    var bubble = document.getElementById('robot-bubble');
+    var bubbleInner = document.getElementById('robot-bubble-inner');
+    var armL   = document.getElementById('robot-arm-l');
+    var armR   = document.getElementById('robot-arm-r');
+    if (!screen || !bubble) return;
+
+    function applyState(icon, label, color, bg) {
+      screen.innerHTML = '<i class="fas ' + icon + '" style="color:' + color + ';"></i>';
+      screen.style.animation = 'none';
+      bubble.textContent   = label;
+      bubble.style.color   = color;
+      bubble.style.borderColor = color;
+      bubble.style.background  = bg;
+      if (bubbleInner) bubbleInner.style.borderBottomColor = bg;
+      // Re-append the caret divs that textContent wiped out
+      var outer = document.createElement('div');
+      outer.style.cssText = 'position:absolute;top:-9px;left:50%;transform:translateX(-50%);' +
+          'width:0;height:0;border-left:7px solid transparent;' +
+          'border-right:7px solid transparent;border-bottom:9px solid ' + color + ';';
+      var inner = document.createElement('div');
+      inner.id = 'robot-bubble-inner';
+      inner.style.cssText = 'position:absolute;top:-6px;left:50%;transform:translateX(-50%);' +
+          'width:0;height:0;border-left:6px solid transparent;' +
+          'border-right:6px solid transparent;border-bottom:7px solid ' + bg + ';';
+      bubble.appendChild(outer);
+      bubble.appendChild(inner);
+    }
+
+    if (isDone) {
+      applyState('fa-check', 'Pronto! ✓', '#168821', '#F0FAF1');
+      dropZone.style.borderColor = '#168821';
+      dropZone.style.background  = '#F0FAF1';
+      if (armL) { armL.style.animation = 'armsDone 0.6s ease-in-out infinite'; armL.style.transformOrigin = 'bottom center'; }
+      if (armR) { armR.style.animation = 'armsDone 0.6s ease-in-out infinite .1s'; armR.style.transformOrigin = 'bottom center'; }
+    } else if (isError) {
+      applyState('fa-exclamation-triangle', 'Ops, erro!', '#E52207', '#FFF0EE');
+      dropZone.style.borderColor = '#E52207';
+      dropZone.style.background  = '#FFF0EE';
+    } else if (isCancelled) {
+      applyState('fa-ban', 'Cancelado', '#555', '#f5f5f5');
+      dropZone.style.borderColor = '#888';
+      dropZone.style.background  = '#f5f5f5';
+    } else if (step && ROBOT_STEPS[step]) {
+      var s = ROBOT_STEPS[step];
+      screen.innerHTML = '<i class="fas ' + s.icon + '" style="color:#7EB8F7;"></i>';
+      screen.style.animation = 'screenPulse 1.2s ease-in-out infinite';
+      bubble.textContent = s.label;
+      // restore caret
+      var outer2 = document.createElement('div');
+      outer2.style.cssText = 'position:absolute;top:-9px;left:50%;transform:translateX(-50%);' +
+          'width:0;height:0;border-left:7px solid transparent;' +
+          'border-right:7px solid transparent;border-bottom:9px solid #1351B4;';
+      var inner2 = document.createElement('div');
+      inner2.id = 'robot-bubble-inner';
+      inner2.style.cssText = 'position:absolute;top:-6px;left:50%;transform:translateX(-50%);' +
+          'width:0;height:0;border-left:6px solid transparent;' +
+          'border-right:6px solid transparent;border-bottom:7px solid #EEF3FF;';
+      bubble.appendChild(outer2);
+      bubble.appendChild(inner2);
+    }
+  }
+  // ── fim do robô ───────────────────────────────────────────────────────────
+
   const submitBtn = document.getElementById('submit-btn');
   const uploadForm = document.getElementById('upload-form');
 
@@ -258,6 +419,7 @@
     }
     submitBtn.style.pointerEvents = 'none';
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
+    showRobot();
   }, true);
 
   uploadForm.addEventListener('htmx:beforeRequest', function() {
@@ -294,6 +456,14 @@
         sessionStorage.removeItem('ifsp_step_start');
         sessionStorage.removeItem('ifsp_last_step');
         if (_interval) { clearInterval(_interval); _interval = null; }
+        // Detecta estado final para o robô
+        var area = document.getElementById('progress-area');
+        if (area) {
+          var isDone      = !!area.querySelector('.br-message.success');
+          var isError     = !!area.querySelector('.br-message.danger');
+          var isCancelled = !isDone && !isError;
+          updateRobot(null, isDone, isError, isCancelled);
+        }
         return;
       }
       var step = div.dataset.step;
@@ -303,6 +473,7 @@
       }
       if (!_interval) _interval = setInterval(tick, 1000);
       tick(); // preenche imediatamente após o swap, sem esperar o próximo intervalo
+      updateRobot(step, false, false, false);
     });
   }());
 </script>

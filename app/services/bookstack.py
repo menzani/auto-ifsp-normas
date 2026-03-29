@@ -552,6 +552,8 @@ def delete_book(book_id: int) -> None:
     if pdf_key:
         from app.services import storage
         storage.delete_pdf(pdf_key)
+        job_id = pdf_key.removeprefix("pdfs/").removesuffix(".pdf")
+        storage.unregister_pdf_checksum_by_job_id(job_id)
 
     _invalidate_drafts_cache()
 

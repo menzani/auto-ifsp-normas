@@ -228,6 +228,8 @@ async def delete_revoked(
             bs.delete_book_from_bookstack(entry["bookstack_book_id"])
         if entry.get("pdf_key"):
             storage.delete_pdf(entry["pdf_key"])
+            job_id = entry["pdf_key"].removeprefix("pdfs/").removesuffix(".pdf")
+            storage.unregister_pdf_checksum_by_job_id(job_id)
 
     audit.log(user["email"], "remover_revogado", entry.get("title", revocation_id) if entry else revocation_id)
     return HTMLResponse("")

@@ -166,6 +166,77 @@ def get_download_url(key: str) -> str:
     return f"{settings.app_base_url}/pdf/{job_id}"
 
 
+_CHECKSUMS_KEY = "registry/pdf_checksums.json"
+_checksums_lock = __import__("threading").Lock()
+
+
+def find_pdf_by_checksum(checksum: str) -> dict | None:
+    """Retorna os metadados do upload anterior com o mesmo checksum, ou None."""
+    return _load_checksum_registry().get(checksum)
+
+
+def register_pdf_checksum(checksum: str, job_id: str, title: str, uploaded_by: str) -> None:
+    """Registra o checksum SHA-256 de um PDF recém-enviado."""
+    from datetime import datetime, timezone
+    with _checksums_lock:
+        registry = _load_checksum_registry()
+        registry[checksum] = {
+            "job_id": job_id,
+            "title": title,
+            "uploaded_by": uploaded_by,
+            "uploaded_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
+        }
+        _save_checksum_registry(registry)
+
+
+def unregister_pdf_checksum_by_job_id(job_id: str) -> None:
+    """Remove do registro o checksum associado ao job_id (cancelamento, erro ou exclusão)."""
+    with _checksums_lock:
+        registry = _load_checksum_registry()
+        to_remove = [k for k, v in registry.items() if v.get("job_id") == job_id]
+        if not to_remove:
+            return
+        for k in to_remove:
+            del registry[k]
+        _save_checksum_registry(registry)
+
+
+def _load_checksum_registry() -> dict:
+    if settings.mock_s3:
+        p = _local_path(_CHECKSUMS_KEY)
+        if not p.exists():
+            return {}
+        try:
+            return json.loads(p.read_text())
+        except Exception:
+            return {}
+
+    from botocore.exceptions import ClientError
+    s3 = _get_s3_client()
+    try:
+        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_CHECKSUMS_KEY)
+        return json.loads(obj["Body"].read())
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            return {}
+        raise
+
+
+def _save_checksum_registry(registry: dict) -> None:
+    content = json.dumps(registry, ensure_ascii=False, indent=2).encode()
+    if settings.mock_s3:
+        _local_path(_CHECKSUMS_KEY).write_bytes(content)
+        return
+
+    s3 = _get_s3_client()
+    s3.put_object(
+        Bucket=settings.s3_bucket_name,
+        Key=_CHECKSUMS_KEY,
+        Body=content,
+        ContentType="application/json",
+    )
+
+
 _REVOKED_REGISTRY_KEY = "registry/revoked_books.json"
 
 

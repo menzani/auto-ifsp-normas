@@ -51,6 +51,9 @@
                       {% if entry.extra.tokens %}
                         &nbsp;·&nbsp;<i class="fas fa-robot mr-1" aria-hidden="true"></i>{{ entry.extra.tokens }} tokens
                       {% endif %}
+                      {% if entry.extra.checksum %}
+                        &nbsp;·&nbsp;<i class="fas fa-fingerprint mr-1" aria-hidden="true"></i><code style="font-size:.8em;">{{ entry.extra.checksum }}</code>
+                      {% endif %}
                     </span>
                     {% endif %}
                   </td>

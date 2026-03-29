@@ -82,7 +82,7 @@ def _set_error(job_id: str, message: str):
     })
 
 
-def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
+def run(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str = ""):
     """Executa o pipeline completo. Bloqueia até concluir."""
     bookstack_book_id: int | None = None
     _private = {"owner": uploaded_by, "pdf_key": pdf_key}
@@ -151,18 +151,25 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
             "processing_time_seconds": elapsed,
             "bedrock_usage": bedrock_usage,
         })
-        audit.log(uploaded_by, "processar", title, extra={
+        extra: dict = {
             "tempo_s": elapsed,
             "tokens": bedrock_usage["total_input_tokens"] + bedrock_usage["total_output_tokens"],
-        })
+        }
+        if checksum:
+            extra["checksum"] = checksum[:12]
+        audit.log(uploaded_by, "processar", title, extra=extra)
 
     except _JobCancelled:
         storage.delete_pdf(pdf_key)
+        if checksum:
+            storage.unregister_pdf_checksum_by_job_id(job_id)
         if bookstack_book_id:
             bs.delete_book_from_bookstack(bookstack_book_id)
         audit.log(uploaded_by, "cancelar", title)
-    except Exception as exc:
+    except Exception:
         _log.exception("Erro no pipeline de upload job=%s", job_id)
+        if checksum:
+            storage.unregister_pdf_checksum_by_job_id(job_id)
         _set_error(job_id, "Erro interno no processamento. Tente novamente ou contate o administrador.")
         raise
 
@@ -205,11 +212,11 @@ def _verify_extraction(markdown_text: str) -> dict:
     }
 
 
-def run_in_background(job_id: str, pdf_key: str, title: str, uploaded_by: str):
+def run_in_background(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str = ""):
     """Dispara o pipeline numa thread separada (dev local)."""
     t = threading.Thread(
         target=run,
-        args=(job_id, pdf_key, title, uploaded_by),
+        args=(job_id, pdf_key, title, uploaded_by, checksum),
         daemon=True,
     )
     t.start()

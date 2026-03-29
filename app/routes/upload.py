@@ -1,3 +1,5 @@
+import hashlib
+import html
 import secrets
 import time
 
@@ -59,9 +61,24 @@ async def upload_pdf(
             status_code=200,
         )
 
+    # ── Checksum e detecção de duplicado ─────────────────────────────────
+    checksum = hashlib.sha256(content).hexdigest()
+    existing = storage.find_pdf_by_checksum(checksum)
+    if existing:
+        return HTMLResponse(
+            f'<div class="br-message warning" role="alert">'
+            f'<div class="icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>'
+            f'<div class="content">Este arquivo já foi enviado anteriormente'
+            f' como <strong>{html.escape(existing["title"])}</strong>'
+            f' em {html.escape(existing["uploaded_at"])}.</div>'
+            f'</div>',
+            status_code=200,
+        )
+
     # ── Armazena e dispara processamento ─────────────────────────────────
     job_id = secrets.token_urlsafe(16)
     pdf_key = storage.save_pdf(job_id, content)
+    storage.register_pdf_checksum(checksum, job_id, title.strip(), user["email"])
     initial_status = {
         "id": job_id,
         "status": "processing",
@@ -74,12 +91,13 @@ async def upload_pdf(
     }
     storage.save_status(job_id, initial_status)
 
-    audit.log(user["email"], "upload", title.strip())
+    audit.log(user["email"], "upload", title.strip(), extra={"checksum": checksum[:12]})
     run_in_background(
         job_id=job_id,
         pdf_key=pdf_key,
         title=title.strip(),
         uploaded_by=user["email"],
+        checksum=checksum,
     )
 
     return templates.TemplateResponse(

@@ -14,6 +14,18 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# Ligaduras Unicode explícitas (U+FB00–FB06) — glifos tipográficos que PDFs mal
+# codificados expõem como caracteres literais em vez de sequências de letras.
+_LIGATURE_MAP = {
+    '\uFB00': 'ff',
+    '\uFB01': 'fi',
+    '\uFB02': 'fl',
+    '\uFB03': 'ffi',
+    '\uFB04': 'ffl',
+    '\uFB05': 'st',
+    '\uFB06': 'st',
+}
+
 # Padrões de linhas de assinatura digital em documentos governamentais brasileiros
 _SIGNATURE_LINE_RE = re.compile(
     r"assinado\s+(de\s+forma\s+)?digitalmente|"
@@ -81,7 +93,8 @@ def pdf_to_markdown(pdf_bytes: bytes, on_progress=None) -> str:
 
     pages_text = _remove_running_headers(pages_text)
     full_text = "\n\n---\n\n".join(pages_text)
-    return _remove_signature_artifacts(full_text)
+    full_text = _remove_signature_artifacts(full_text)
+    return _fix_ligature_artifacts(full_text)
 
 
 def _remove_running_headers(pages: list[str]) -> list[str]:
@@ -153,6 +166,26 @@ def _page_to_text(page_num: int, raw_text: str) -> str:
     lines = [line.strip() for line in text.splitlines() if not _PAGE_FOOTER_RE.match(line.strip())]
     cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
     return cleaned
+
+
+def _fix_ligature_artifacts(text: str) -> str:
+    """
+    Corrige artefatos de ligadura tipográfica comuns em PDFs governamentais brasileiros.
+
+    Dois tipos de artefato:
+    1. Ligaduras Unicode explícitas (U+FB00–FB06): glifos como ﬁ, ﬂ, ﬀ que PDFs mal
+       codificados expõem como caracteres literais — sempre substituídos.
+    2. Aspas tipográficas usadas como substitutos de ligaduras: o encoder do PDF mapeia
+       combinações como 'ti' ou 'fi' para aspas curvas (U+201C, U+2019). Detectadas
+       apenas quando aparecem entre letras, para não afetar aspas legítimas.
+    """
+    for char, replacement in _LIGATURE_MAP.items():
+        text = text.replace(char, replacement)
+    # U+201C (") entre letras → 'ti'  ex: Ins"tui → Institui
+    text = re.sub(r'(?<=\w)\u201c(?=\w)', 'ti', text)
+    # U+2019 (') entre letras → 'fi'  ex: o'cial → oficial
+    text = re.sub(r'(?<=\w)\u2019(?=\w)', 'fi', text)
+    return text
 
 
 def _remove_signature_artifacts(text: str) -> str:

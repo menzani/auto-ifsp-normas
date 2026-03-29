@@ -80,9 +80,13 @@ def _extract_page_text(page) -> str:
     """
     Extrai texto de uma página com detecção de headings visuais via get_text("dict").
 
-    Linhas com ≥80 % dos caracteres em negrito, ou com fonte ≥15 % maior que o tamanho
-    modal do corpo da página, e com no máximo 12 palavras, recebem prefixo ## como
-    heading visual — independente de seguirem palavras-chave formais como CAPÍTULO.
+    Linhas com ≥80 % dos caracteres em negrito (somente quando negrito é usado com
+    parcimônia na página), ou com fonte ≥15 % maior que o tamanho modal do corpo,
+    e com no máximo 12 palavras, recebem prefixo ## como heading visual.
+
+    Documentos onde >30 % do texto da página está em negrito (ex: portarias com preâmbulo
+    em negrito) desabilitam a detecção por negrito — apenas diferença de tamanho de fonte
+    vale, evitando que "CONSIDERANDO", "O REITOR DO INSTITUTO..." sejam marcados como headings.
 
     O terço superior da página (timbre institucional) é excluído da detecção para evitar
     falsos positivos. Fallback para get_text("text") se o modo dict falhar.
@@ -102,6 +106,8 @@ def _extract_page_text(page) -> str:
     # que o texto corrido domine sobre títulos isolados.
     from collections import Counter
     size_counter: Counter = Counter()
+    total_body_chars = 0
+    bold_body_chars = 0
     for block in blocks:
         if block.get("bbox", (0,))[1] < top_zone:
             continue
@@ -111,9 +117,16 @@ def _extract_page_text(page) -> str:
                 sz = round(span.get("size", 0))
                 if txt and sz > 4:
                     size_counter[sz] += len(txt)
+                    total_body_chars += len(txt)
+                    if span.get("flags", 0) & 16:
+                        bold_body_chars += len(txt)
 
     body_size = size_counter.most_common(1)[0][0] if size_counter else 0
     size_threshold = body_size * 1.15 if body_size else float("inf")
+    # Se >30 % do texto é negrito, negrito é estilo do documento (ex: preâmbulo de portaria)
+    # e não serve como indicador de heading — somente tamanho de fonte é critério.
+    bold_fraction = bold_body_chars / total_body_chars if total_body_chars else 0
+    bold_as_heading = bold_fraction < 0.30
 
     lines_out = []
     for block in blocks:
@@ -146,7 +159,7 @@ def _extract_page_text(page) -> str:
             is_mostly_bold = bold_chars / char_total >= 0.8
             is_short = len(line_text.split()) <= 12
 
-            if is_short and (is_large or is_mostly_bold):
+            if is_short and (is_large or (is_mostly_bold and bold_as_heading)):
                 lines_out.append(f"## {line_text}")
             else:
                 lines_out.append(line_text)

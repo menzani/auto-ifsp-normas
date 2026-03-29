@@ -10,6 +10,7 @@ import logging
 import re
 
 import boto3
+from botocore.config import Config
 
 from app.config import get_settings
 
@@ -20,6 +21,7 @@ settings = get_settings()
 _MAX_INPUT_CHARS = 80_000
 
 _bedrock_client = None
+_bedrock_multimodal_client = None
 _bedrock_client_lock = __import__("threading").Lock()
 
 
@@ -31,6 +33,21 @@ def _get_bedrock_client():
         if _bedrock_client is None:
             _bedrock_client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
     return _bedrock_client
+
+
+def _get_bedrock_multimodal_client():
+    """Cliente com read_timeout estendido para chamadas com imagens (lotes de páginas PDF)."""
+    global _bedrock_multimodal_client
+    if _bedrock_multimodal_client is not None:
+        return _bedrock_multimodal_client
+    with _bedrock_client_lock:
+        if _bedrock_multimodal_client is None:
+            _bedrock_multimodal_client = boto3.client(
+                "bedrock-runtime",
+                region_name=settings.aws_region,
+                config=Config(read_timeout=300),  # 5 min — lotes de imagens podem ser lentos
+            )
+    return _bedrock_multimodal_client
 
 
 def _invoke_bedrock_model(prompt: str, max_tokens: int) -> tuple[str, dict]:
@@ -412,7 +429,7 @@ def extract_pages_multimodal(page_images: list[bytes], start_page: int = 1) -> t
         })
     content.append({"type": "text", "text": _build_multimodal_prompt(len(page_images))})
 
-    client = _get_bedrock_client()
+    client = _get_bedrock_multimodal_client()
     body = {
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 8_192,

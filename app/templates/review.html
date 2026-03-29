@@ -632,6 +632,32 @@
     }
   }
 
+  // ── Indicador de aguardando API (publicar / mover) ───────────────────────
+  function _showApiWaiting(tbody) {
+    tbody.innerHTML =
+      '<tr><td colspan="99">' +
+      '<div class="d-flex align-items-center px-2 py-3" style="gap:.75rem;">' +
+      '<div class="br-loading small" role="status" aria-label="Aguardando">' +
+      '<div class="br-loading-icon"><svg viewBox="25 25 50 50" class="br-loading-icon-path">' +
+      '<circle cx="50" cy="50" r="20" fill="none"></circle></svg></div></div>' +
+      '<div>' +
+      '<p class="mb-0 text-medium-weight" style="color:#1351B4;">Aguardando normas.ifsp.edu.br…</p>' +
+      '<p class="text-down-01 mb-0" style="color:#888;">A API do Bookstack pode levar alguns segundos.</p>' +
+      '</div></div></td></tr>';
+  }
+
+  document.body.addEventListener('htmx:beforeRequest', function(evt) {
+    var id = evt.target && evt.target.id || '';
+    var m;
+    if ((m = id.match(/^confirm-btn-(\d+)$/))) {
+      var t = document.getElementById('draft-rows-' + m[1]);
+      if (t) _showApiWaiting(t);
+    } else if ((m = id.match(/^move-confirm-btn-(\d+)$/))) {
+      var t2 = document.getElementById('pub-rows-' + m[1]);
+      if (t2) _showApiWaiting(t2);
+    }
+  });
+
   // ── Copiar URL ───────────────────────────────────────────────────────────
   function copyUrl(btn) {
     var url = btn.dataset.url;

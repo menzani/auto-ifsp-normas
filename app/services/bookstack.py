@@ -604,7 +604,7 @@ def _build_anomaly_page(anomalies: list[str], structure_mode: str = "validate") 
 # Divide apenas em Títulos (H1) e Capítulos (H2) — Seções (H3) ficam dentro da página do capítulo.
 # Detecta explicitamente palavras-chave estruturais para não depender do nível de heading que a IA usou.
 _CHAPTER_SPLIT_RE = _re.compile(
-    r"^#{1,3}\s+((?:TÍTULO|CAPÍTULO|CHAPTER)\b.*)$",
+    r"^#{1,3}\s+((?:TÍTULO|CAPÍTULO|CHAPTER|ANEXO)\b.*)$",
     _re.IGNORECASE | _re.MULTILINE,
 )
 

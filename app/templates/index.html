@@ -61,8 +61,7 @@
                    accept=".pdf,application/pdf"
                    required
                    style="display:none;" />
-            <div id="file-name-display" class="text-down-01 mt-2 d-flex align-items-center" style="color:#555; gap:.5rem;"></div>
-            <span id="error-pdf_file" class="text-down-01" style="display:none; color:#E52207;">
+            <span id="error-pdf_file" class="text-down-01 mt-1" style="display:none; color:#E52207;">
               <i class="fas fa-exclamation-circle mr-1"></i>Selecione o arquivo PDF antes de enviar.
             </span>
           </div>
@@ -143,9 +142,9 @@
 
 {% block extra_scripts %}
 <script>
-  // Exibe o nome do arquivo selecionado
   const pdfInput = document.getElementById('pdf_file');
   const dropZone = document.getElementById('drop-zone');
+  const originalDropZoneHTML = dropZone.innerHTML;
 
   pdfInput.addEventListener('change', function() {
     showFile(this.files[0]);
@@ -153,22 +152,35 @@
 
   function showFile(file) {
     if (!file) return;
-    const display = document.getElementById('file-name-display');
     const size = (file.size / 1024 / 1024).toFixed(2);
-    display.innerHTML =
-      '<i class="fas fa-file-pdf mr-1" style="color:#E52207;"></i>' +
-      '<strong>' + file.name + '</strong> (' + size + ' MB)' +
-      '<button type="button" id="remove-file-btn" title="Remover arquivo" ' +
-        'style="background:none; border:none; cursor:pointer; color:#888; padding:0 .25rem;" ' +
+    dropZone.innerHTML =
+      '<i class="fas fa-file-pdf fa-3x mb-2" style="color:#E52207;" aria-hidden="true"></i>' +
+      '<span style="font-weight:600; color:#1B1B1B; max-width:90%; overflow:hidden; ' +
+        'text-overflow:ellipsis; white-space:nowrap; display:block;" title="' + file.name + '">' +
+        file.name +
+      '</span>' +
+      '<span class="text-down-01 mt-1" style="color:#555;">' + size + ' MB</span>' +
+      '<button type="button" id="remove-file-btn" ' +
+        'class="br-button secondary small mt-3" ' +
         'aria-label="Remover arquivo selecionado">' +
-        '<i class="fas fa-times-circle"></i>' +
+        '<i class="fas fa-times mr-1" aria-hidden="true"></i>Remover' +
       '</button>';
-    document.getElementById('remove-file-btn').addEventListener('click', clearFile);
+    dropZone.style.borderStyle = 'solid';
+    dropZone.style.borderColor = '#168821';
+    dropZone.style.background = '#F0FFF4';
+    document.getElementById('remove-file-btn').addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      clearFile();
+    });
   }
 
   function clearFile() {
     pdfInput.value = '';
-    document.getElementById('file-name-display').innerHTML = '';
+    dropZone.innerHTML = originalDropZoneHTML;
+    dropZone.style.borderStyle = 'dashed';
+    dropZone.style.borderColor = '#1351B4';
+    dropZone.style.background = '#F8FAFF';
     document.getElementById('error-pdf_file').style.display = 'none';
   }
 

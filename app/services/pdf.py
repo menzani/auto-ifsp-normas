@@ -50,26 +50,26 @@ _PAGE_FOOTER_RE = re.compile(r"^\s*página\s+\d+\s+de\s+\d+\s*$", re.IGNORECASE)
 # Nível # (igual a TÍTULO) — marca limite entre o corpo da portaria e seus anexos.
 _ANNEX_HEADING_RE = re.compile(
     r'^\s*'
-    r'(ANEXO\s+(?:[IVXLCDM]+|\d+)(?:\s*[-—–:]\s*.+)?)'
+    r'(ANEXO\s+(?:[IVXLCDM]+|\d+)(?:\s*[-—–:]?\s*.+)?)'
     r'\s*$',
     re.IGNORECASE,
 )
 _TITLE_HEADING_RE = re.compile(
     r'^\s*(?:\d+\.\s*)?'
-    r'(T[IÍ]TULO\s+[IVXLCDM]+(?:\s*[-—–:]\s*.+)?)'
+    r'(T[IÍ]TULO\s+[IVXLCDM]+(?:\s*[-—–:]?\s*.+)?)'
     r'\s*$',
     re.IGNORECASE,
 )
 _CHAPTER_HEADING_RE = re.compile(
     r'^\s*(?:\d+\.\s*)?'
-    r'(CAP[IÍ]TULO\s*[IVXLCDM]+(?:\s*[-—–:]\s*.+)?'
-    r'|CAP\.\s+[IVXLCDM]+(?:\s*[-—–:]\s*.+)?)'
+    r'(CAP[IÍ]TULO\s*[IVXLCDM]+(?:\s*[-—–:]?\s*.+)?'
+    r'|CAP\.\s+[IVXLCDM]+(?:\s*[-—–:]?\s*.+)?)'
     r'\s*$',
     re.IGNORECASE,
 )
 _SECTION_HEADING_RE = re.compile(
     r'^\s*(?:\d+\.\s*)?'
-    r'(SE[CÇ][AÃ]O\s+[IVXLCDM]+(?:\s*[-—–:]\s*.+)?)'
+    r'(SE[CÇ][AÃ]O\s+[IVXLCDM]+(?:\s*[-—–:]?\s*.+)?)'
     r'\s*$',
     re.IGNORECASE,
 )

@@ -17,6 +17,7 @@ from secrets import token_urlsafe
 from app.services import bookstack as bs
 
 _log = logging.getLogger(__name__)
+from app.config import get_settings
 from app.services import audit, storage
 from app.services.bedrock import generate_revocation_summary
 
@@ -105,7 +106,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         # ── Etapa 2: Resumo com IA ────────────────────────────────────────
         _raise_if_cancelled(job_id)
         _set_step(job_id, 2, _private)
-        summary_markdown = generate_revocation_summary(page_markdown, title)
+        summary_markdown, summary_usage = generate_revocation_summary(page_markdown, title)
 
         # Compõe o título com dados extraídos pela IA: "Tipo nº X/YYYY, de DD/MM/YYYY"
         tipo = _extract_field(summary_markdown, "Tipo")
@@ -157,6 +158,11 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
             "title": title,
             "revoked_book_url": revoked_book_url,
             "pdf_url": pdf_url,
+            "bedrock_usage": {
+                "model": get_settings().bedrock_model_id,
+                "total_input_tokens": summary_usage["input_tokens"],
+                "total_output_tokens": summary_usage["output_tokens"],
+            },
         })
 
     except _JobCancelled:

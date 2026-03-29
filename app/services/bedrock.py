@@ -32,8 +32,8 @@ def _get_bedrock_client():
     return _bedrock_client
 
 
-def _invoke_bedrock_model(prompt: str, max_tokens: int) -> str:
-    """Invoca o modelo via Bedrock e retorna o texto gerado."""
+def _invoke_bedrock_model(prompt: str, max_tokens: int) -> tuple[str, dict]:
+    """Invoca o modelo via Bedrock e retorna (texto_gerado, uso_de_tokens)."""
     client = _get_bedrock_client()
     body = {
         "anthropic_version": "bedrock-2023-05-31",
@@ -47,13 +47,14 @@ def _invoke_bedrock_model(prompt: str, max_tokens: int) -> str:
         accept="application/json",
     )
     result = json.loads(response["body"].read())
-    return result["content"][0]["text"]
+    usage = result.get("usage", {"input_tokens": 0, "output_tokens": 0})
+    return result["content"][0]["text"], usage
 
 
-def generate_faq(markdown_text: str, title: str) -> str:
+def generate_faq(markdown_text: str, title: str) -> tuple[str, dict]:
     """
     Gera FAQ em Markdown a partir do texto extraído do normativo.
-    Retorna uma string Markdown pronta para ser salva como página no Bookstack.
+    Retorna (faq_markdown, uso_de_tokens).
     """
     text = markdown_text[:_MAX_INPUT_CHARS]
     if len(markdown_text) > _MAX_INPUT_CHARS:
@@ -65,25 +66,25 @@ def generate_faq(markdown_text: str, title: str) -> str:
         raise RuntimeError("Não foi possível gerar o FAQ. Verifique as permissões do Bedrock e tente novamente.")
 
 
-def generate_revocation_summary(markdown_text: str, title: str) -> str:
+def generate_revocation_summary(markdown_text: str, title: str) -> tuple[str, dict]:
     """
     Gera um resumo estruturado de um normativo para a página de revogados.
-    Retorna Markdown com tipo, número, data de publicação e objetivo.
+    Retorna (summary_markdown, uso_de_tokens).
     """
     text = markdown_text[:_MAX_INPUT_CHARS]
     if len(markdown_text) > _MAX_INPUT_CHARS:
         text += "\n\n*[Texto truncado — documento excede o limite de processamento.]*"
     try:
-        raw = _invoke_bedrock_model(_build_revocation_prompt(title, text), 512)
+        raw, usage = _invoke_bedrock_model(_build_revocation_prompt(title, text), 512)
     except Exception:
         logging.getLogger(__name__).exception("Erro ao gerar resumo de revogação via Bedrock")
         raise RuntimeError("Não foi possível gerar o resumo. Verifique as permissões do Bedrock e tente novamente.")
     # Garante linha em branco entre campos **Field:** para renderização correta em Markdown
     raw = re.sub(r'(\*\*[^:\n]+:\*\*[^\n]+)\n(\*\*)', r'\1\n\n\2', raw)
-    return raw
+    return raw, usage
 
 
-def structure_markdown(text: str, on_progress=None) -> str:
+def structure_markdown(text: str, on_progress=None) -> tuple[str, dict]:
     """
     Corrige artefatos de extração de PDF e estrutura o texto em Markdown semântico
     em uma única etapa de IA.
@@ -93,25 +94,29 @@ def structure_markdown(text: str, on_progress=None) -> str:
     (capítulos, artigos, seções) — linhas de atribuição como "O REITOR" e timbres
     institucionais não recebem heading.
 
-    Processa em chunks de 8.000 chars. Retorna o texto original em caso de falha.
+    Processa em chunks de 12.000 chars. Retorna (texto_estruturado, uso_de_tokens_acumulado).
     on_progress(current, total) é chamado após cada chunk processado.
     """
     _CHUNK = 12_000
     source = text[:_MAX_INPUT_CHARS]
     chunks = [source[i:i+_CHUNK] for i in range(0, len(source), _CHUNK)]
     structured = []
+    total_usage = {"input_tokens": 0, "output_tokens": 0}
     total = len(chunks)
     for i, chunk in enumerate(chunks, start=1):
         is_continuation = i > 1
-        structured.append(_structure_chunk(chunk, is_continuation))
+        chunk_text, usage = _structure_chunk(chunk, is_continuation)
+        structured.append(chunk_text)
+        total_usage["input_tokens"] += usage["input_tokens"]
+        total_usage["output_tokens"] += usage["output_tokens"]
         if on_progress:
             on_progress(i, total)
     if len(text) > _MAX_INPUT_CHARS:
         structured.append(text[_MAX_INPUT_CHARS:])
-    return "".join(structured)
+    return "".join(structured), total_usage
 
 
-def _structure_chunk(chunk: str, is_continuation: bool) -> str:
+def _structure_chunk(chunk: str, is_continuation: bool) -> tuple[str, dict]:
     continuation_note = (
         "Este é um trecho de continuação do documento — não adicione heading de título geral.\n\n"
         if is_continuation else ""
@@ -157,7 +162,7 @@ def _structure_chunk(chunk: str, is_continuation: bool) -> str:
         return _invoke_bedrock_model(prompt, 16_384)
     except Exception:
         logging.getLogger(__name__).exception("Erro ao estruturar chunk via Bedrock")
-        return chunk
+        return chunk, {"input_tokens": 0, "output_tokens": 0}
 
 
 def _build_revocation_prompt(title: str, text: str) -> str:

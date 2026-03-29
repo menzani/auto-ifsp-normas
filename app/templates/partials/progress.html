@@ -111,6 +111,13 @@
   <p class="text-down-01 mt-2 mb-0" style="color:#888;">
     <i class="fas fa-file-alt mr-1" aria-hidden="true"></i>
     {{ job.result.extraction_check.pages }} página(s) · {{ job.result.extraction_check.total_chars }} caracteres extraídos
+    {% if job.result.bedrock_usage %}
+    &nbsp;·&nbsp;
+    <i class="fas fa-robot mr-1" aria-hidden="true"></i>
+    {{ job.result.bedrock_usage.total_input_tokens }} tokens entrada · {{ job.result.bedrock_usage.total_output_tokens }} tokens saída
+    <span title="Estruturação: {{ job.result.bedrock_usage.structure_input_tokens }}↑ {{ job.result.bedrock_usage.structure_output_tokens }}↓ · FAQ: {{ job.result.bedrock_usage.faq_input_tokens }}↑ {{ job.result.bedrock_usage.faq_output_tokens }}↓"
+          style="cursor:help; border-bottom:1px dotted #aaa;">({{ job.result.bedrock_usage.model }})</span>
+    {% endif %}
   </p>
   <div class="mt-3">
     <a href="/" class="br-button primary">

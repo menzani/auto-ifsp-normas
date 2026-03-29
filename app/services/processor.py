@@ -16,6 +16,7 @@ from app.services import bookstack as bs
 
 _log = logging.getLogger(__name__)
 from app.services import audit, storage
+from app.config import get_settings
 from app.services.bedrock import generate_faq, structure_markdown
 from app.services.pdf import pdf_to_markdown
 
@@ -120,12 +121,12 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
                 "progress_pct": pct,
             })
 
-        markdown_text = structure_markdown(markdown_text, on_progress=on_structure_progress)
+        markdown_text, structure_usage = structure_markdown(markdown_text, on_progress=on_structure_progress)
 
         # ── Etapa 3: FAQ com IA ──────────────────────────────────────────
         _raise_if_cancelled(job_id)
         _set_step(job_id, 3, _private)
-        faq_markdown = generate_faq(markdown_text, title)
+        faq_markdown, faq_usage = generate_faq(markdown_text, title)
 
         # ── Etapa 4: Bookstack ───────────────────────────────────────────
         _raise_if_cancelled(job_id)
@@ -142,7 +143,20 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 
         # ── Etapa 5: Concluído ───────────────────────────────────────────
         _raise_if_cancelled(job_id)
-        _set_done(job_id, {"book_url": book_url, "extraction_check": extraction_check})
+        bedrock_usage = {
+            "model": get_settings().bedrock_model_id,
+            "structure_input_tokens": structure_usage["input_tokens"],
+            "structure_output_tokens": structure_usage["output_tokens"],
+            "faq_input_tokens": faq_usage["input_tokens"],
+            "faq_output_tokens": faq_usage["output_tokens"],
+            "total_input_tokens": structure_usage["input_tokens"] + faq_usage["input_tokens"],
+            "total_output_tokens": structure_usage["output_tokens"] + faq_usage["output_tokens"],
+        }
+        _set_done(job_id, {
+            "book_url": book_url,
+            "extraction_check": extraction_check,
+            "bedrock_usage": bedrock_usage,
+        })
 
     except _JobCancelled:
         storage.delete_pdf(pdf_key)

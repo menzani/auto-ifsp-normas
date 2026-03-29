@@ -97,6 +97,13 @@
       </p>
     </div>
   </div>
+  {% if job.result.bedrock_usage %}
+  <p class="text-down-01 mt-2 mb-0" style="color:#888;">
+    <i class="fas fa-robot mr-1" aria-hidden="true"></i>
+    {{ job.result.bedrock_usage.total_input_tokens }} tokens entrada · {{ job.result.bedrock_usage.total_output_tokens }} tokens saída
+    ({{ job.result.bedrock_usage.model }})
+  </p>
+  {% endif %}
   {% endif %}
 
 </div>

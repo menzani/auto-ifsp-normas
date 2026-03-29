@@ -170,7 +170,6 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 def _verify_extraction(markdown_text: str) -> dict:
     """
     Confere a qualidade do texto extraído do PDF.
-    Páginas são separadas por '\\n\\n---\\n\\n' pelo pdf_to_markdown.
     Retorna estatísticas e um aviso (warning) se detectar problemas.
     """
     pages = markdown_text.split("\n\n---\n\n")

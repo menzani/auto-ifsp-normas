@@ -4,7 +4,6 @@ MOCK_S3=true  → salva em ./data/ localmente.
 MOCK_S3=false → usa AWS S3.
 """
 import json
-import shutil
 from pathlib import Path
 
 from app.config import get_settings

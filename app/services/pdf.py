@@ -7,7 +7,6 @@ Detecção de headings em duas camadas determinísticas, antes de qualquer IA:
 Documentos sem nenhum heading detectado são marcados para o modo de sugestão da IA.
 """
 import re
-from collections.abc import Generator
 
 import fitz  # PyMuPDF
 
@@ -235,61 +234,6 @@ def _extract_page_text(page) -> str:
     return "\n".join(lines_out)
 
 
-def has_structure(text: str) -> bool:
-    """
-    Retorna True se o texto já contém headings Markdown detectados deterministicamente.
-    Falso indica documento plano — aciona modo de sugestão de estrutura pela IA.
-    """
-    return bool(re.search(r'^#{1,3}\s+\S', text, re.MULTILINE))
-
-
-def extract_pages(pdf_bytes: bytes) -> Generator[tuple[int, int, str], None, None]:
-    """
-    Itera sobre as páginas do PDF.
-    Yield: (page_number, total_pages, page_text)
-    """
-    try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    except Exception as exc:
-        raise ValueError(f"Não foi possível abrir o PDF: {exc}") from exc
-    total = len(doc)
-    ocr_count = 0
-    for i, page in enumerate(doc, start=1):
-        text = _extract_page_text(page)
-        if len(text.strip()) < 50 and not settings.mock_s3:
-            if ocr_count < settings.max_ocr_pages_per_pdf:
-                # Página sem texto detectado — tenta OCR via Textract
-                from app.services.textract import ocr_page_image
-                image_bytes = page.get_pixmap(dpi=200).tobytes("png")
-                ocr_text = ocr_page_image(image_bytes)
-                if ocr_text.strip():
-                    text = ocr_text
-                ocr_count += 1
-            else:
-                text = f"*[Página {i} sem texto — limite de OCR atingido ({settings.max_ocr_pages_per_pdf} páginas)]*"
-        yield i, total, text
-    doc.close()
-
-
-def pdf_to_markdown(pdf_bytes: bytes, on_progress=None) -> str:
-    """
-    Converte PDF para texto limpo (sem headings heurísticos).
-    A estruturação Markdown é feita posteriormente pela etapa de IA.
-    on_progress(current, total): callback opcional chamado a cada página.
-    """
-    pages_text = []
-    for page_num, total, text in extract_pages(pdf_bytes):
-        pages_text.append(_page_to_text(page_num, text))
-        if on_progress:
-            on_progress(page_num, total)
-
-    pages_text = _remove_running_headers(pages_text)
-    full_text = "\n\n---\n\n".join(pages_text)
-    full_text = _remove_signature_artifacts(full_text)
-    full_text = _fix_ligature_artifacts(full_text)
-    return _detect_headings(full_text)
-
-
 def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str, dict]:
     """
     Extrai e estrutura o PDF enviando cada lote de páginas como imagens para Claude Vision via Bedrock.
@@ -455,7 +399,6 @@ def _int_to_roman(n: int) -> str:
 def detect_structural_anomalies(text: str) -> list[str]:
     """
     Detecta anomalias na numeração de capítulos do documento (gaps, duplicatas, inversões).
-    Deve ser chamado após pdf_to_markdown (que já marcou os headings com ##).
     Retorna lista de descrições legíveis (vazia se nenhuma anomalia detectada).
     """
     chapter_re = re.compile(r'^##\s+CAP[IÍ]TULO\s+([IVXLCDM]+)', re.IGNORECASE | re.MULTILINE)

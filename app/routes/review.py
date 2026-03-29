@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
 from app.constants import REVOCATION_ID_PATTERN, REVOKE_JOB_ID_PATTERN
+from app.routes.status import _public_job
 from app.services.auth import get_current_user
 from app.services import bookstack as bs
 from app.services import audit, storage
@@ -124,20 +125,12 @@ async def delete_book_route(book_id: int, request: Request, user=Depends(get_cur
     return HTMLResponse("")
 
 
-_INTERNAL_JOB_FIELDS = {"pdf_key", "owner"}
-
-
 def _validate_destination_shelf(shelf_id: int) -> None:
     """Valida que shelf_id existe e não é staging nem revogadas."""
     forbidden = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
     available = {s["id"] for s in bs.get_shelves()}
     if shelf_id in forbidden or shelf_id not in available:
         raise HTTPException(400, "Prateleira de destino inválida.")
-
-
-def _public_job(job: dict) -> dict:
-    """Remove campos internos que não devem ser expostos ao cliente via template."""
-    return {k: v for k, v in job.items() if k not in _INTERNAL_JOB_FIELDS}
 
 
 def _render_revoke_progress(request, job: dict):

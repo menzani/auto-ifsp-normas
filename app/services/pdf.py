@@ -44,6 +44,16 @@ _PAGE_FOOTER_RE = re.compile(r"^\s*página\s+\d+\s+de\s+\d+\s*$", re.IGNORECASE)
 # Tolerância a typos comuns: sem acento (CAPITULO), sem espaço antes do numeral
 # (CAPÍTULOI), abreviação (CAP. IV), prefixo numérico (4. CAPÍTULO IV),
 # separador com dois-pontos (CAPÍTULO I: nome).
+#
+# ANEXO: marcadores de anexo (romano ou arábico), com título opcional na mesma linha.
+# Ex: "ANEXO I", "ANEXO II - REGIMENTO INTERNO", "ANEXO 1 – FORMULÁRIO".
+# Nível # (igual a TÍTULO) — marca limite entre o corpo da portaria e seus anexos.
+_ANNEX_HEADING_RE = re.compile(
+    r'^\s*'
+    r'(ANEXO\s+(?:[IVXLCDM]+|\d+)(?:\s*[-—–:]\s*.+)?)'
+    r'\s*$',
+    re.IGNORECASE,
+)
 _TITLE_HEADING_RE = re.compile(
     r'^\s*(?:\d+\.\s*)?'
     r'(T[IÍ]TULO\s+[IVXLCDM]+(?:\s*[-—–:]\s*.+)?)'
@@ -377,12 +387,16 @@ def detect_structural_anomalies(text: str) -> list[str]:
 
 def _detect_headings(text: str) -> str:
     """
-    Detecta e marca headings estruturais (Títulos, Capítulos, Seções) com prefixos Markdown
-    antes do processamento por IA.
+    Detecta e marca headings estruturais (Anexos, Títulos, Capítulos, Seções) com prefixos
+    Markdown antes do processamento por IA.
 
-    Linhas que correspondem a padrões rígidos de estrutura normativa (ex: "CAPÍTULO IV — ...")
-    recebem o prefixo # / ## / ### adequado. Isso garante que a numeração de capítulos
-    nunca dependa da inferência do modelo de IA — evita renumeração ou omissão de capítulos.
+    Linhas que correspondem a padrões rígidos de estrutura normativa recebem o prefixo
+    adequado. Isso garante que a estrutura nunca dependa da inferência do modelo de IA.
+
+    Hierarquia:
+      # → ANEXO, TÍTULO
+      ## → CAPÍTULO
+      ### → SEÇÃO
 
     Só processa linhas que ainda não têm prefixo # para não duplicar headings já presentes.
     """
@@ -391,6 +405,8 @@ def _detect_headings(text: str) -> str:
     for line in lines:
         if line.lstrip().startswith('#'):
             result.append(line)
+        elif _ANNEX_HEADING_RE.match(line):
+            result.append('# ' + line.strip())
         elif _TITLE_HEADING_RE.match(line):
             result.append('# ' + line.strip())
         elif _CHAPTER_HEADING_RE.match(line):

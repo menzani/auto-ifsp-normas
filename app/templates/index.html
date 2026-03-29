@@ -47,13 +47,24 @@
                      border:2px dashed #1351B4; border-radius:8px; padding:2rem 1rem;
                      cursor:pointer; text-align:center; transition:background .2s;
                      background:#F8FAFF;">
-              <i class="fas fa-file-pdf fa-3x mb-3" style="color:#1351B4;" aria-hidden="true"></i>
-              <span class="text-medium-weight" style="color:#1351B4;">
-                Clique para selecionar ou arraste o arquivo PDF aqui
-              </span>
-              <span class="text-down-01 mt-1" style="color:#888;">
-                Somente PDF — máximo {{ max_size_mb }} MB
-              </span>
+              <!-- Francis — cabeça do robô assistente (estado inicial) -->
+              <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:.25rem 0 .5rem;">
+                <div style="width:3px;height:16px;background:#1351B4;border-radius:2px;position:relative;margin-bottom:-1px;">
+                  <div style="width:9px;height:9px;background:#E52207;border-radius:50%;position:absolute;top:-5px;left:-3px;animation:antennaBlink 1s ease-in-out infinite;"></div>
+                </div>
+                <div style="width:64px;height:50px;background:#1351B4;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 8px rgba(19,81,180,.35);">
+                  <div style="display:flex;gap:12px;">
+                    <div style="width:11px;height:11px;background:#fff;border-radius:50%;animation:eyeBlink 4s ease-in-out infinite;"></div>
+                    <div style="width:11px;height:11px;background:#fff;border-radius:50%;animation:eyeBlink 4s ease-in-out infinite .2s;"></div>
+                  </div>
+                  <div style="width:20px;height:8px;border:3px solid rgba(255,255,255,.75);border-top:none;border-radius:0 0 12px 12px;background:transparent;"></div>
+                </div>
+                <div style="margin-top:.75rem;background:#EEF3FF;border:2px solid #1351B4;border-radius:12px;padding:.6rem 1rem;font-size:.8rem;color:#333;text-align:center;max-width:300px;position:relative;line-height:1.55;">
+                  <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:9px solid #1351B4;"></div>
+                  <div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:7px solid #EEF3FF;"></div>
+                  <strong style="color:#1351B4;">Oi! Eu sou o Francis</strong> e vou te ajudar a publicar essa normativa. Coloque o título completo com o ano da normativa no campo acima, e depois arraste ou use o botão abaixo para fazer upload do arquivo.
+                </div>
+              </div>
             </label>
             <input type="file"
                    id="pdf_file"
@@ -139,7 +150,7 @@
 </div>
 {% endblock %}
 
-{% block extra_scripts %}
+{% block extra_head %}
 <style>
   @keyframes robotFloat  { 0%,100%{transform:translateY(0)}  50%{transform:translateY(-8px)} }
   @keyframes eyeBlink    { 0%,85%,100%{transform:scaleY(1)}  92%{transform:scaleY(.1)} }
@@ -151,7 +162,11 @@
   @keyframes screenPulse { 0%,100%{opacity:1} 50%{opacity:.55} }
   @keyframes armsDone    { 0%,100%{transform:rotate(-140deg)} 50%{transform:rotate(-150deg)} }
   @keyframes scanLine    { 0%,100%{top:1px} 50%{top:calc(100% - 3px)} }
+  @keyframes reviewPulse { 0%,100%{box-shadow:0 0 0 2px #168821,0 0 8px rgba(22,136,33,.4)} 50%{box-shadow:0 0 0 4px #168821,0 0 18px rgba(22,136,33,.7)} }
 </style>
+{% endblock %}
+
+{% block extra_scripts %}
 <script>
   const pdfInput = document.getElementById('pdf_file');
   const dropZone = document.getElementById('drop-zone');
@@ -395,11 +410,18 @@
     if (isDone) {
       if (hat) hat.innerHTML = HAT_HTML['done'];
       setScreen('fa-gift', '#5DBA6D', false);
-      setBubble('Entregue! ✓', '#168821', '#F0FAF1');
+      bubble.style.whiteSpace = 'normal';
+      bubble.style.maxWidth   = '280px';
+      setBubble('Normativa submetida para avaliação! Acompanhe o processo clicando em "Revisão" acima e acesse o rascunho pelo link disponibilizado abaixo.', '#168821', '#F0FAF1');
       dropZone.style.borderColor = '#168821';
       dropZone.style.background  = '#F0FAF1';
       if (armL) { armL.style.animation = 'armsDone 0.6s ease-in-out infinite'; armL.style.transformOrigin = 'bottom center'; }
       if (armR) { armR.style.animation = 'armsDone 0.6s ease-in-out infinite .1s'; armR.style.transformOrigin = 'bottom center'; }
+      var reviewBtn = document.querySelector('a[href="/review"]');
+      if (reviewBtn) {
+        reviewBtn.style.borderRadius = '6px';
+        reviewBtn.style.animation    = 'reviewPulse 1.5s ease-in-out infinite';
+      }
     } else if (isError) {
       if (hat) hat.innerHTML = '';
       setScreen('fa-exclamation-triangle', '#F47C6A', false);

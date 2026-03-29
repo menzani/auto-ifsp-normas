@@ -233,6 +233,48 @@ def pdf_to_markdown(pdf_bytes: bytes, on_progress=None) -> str:
     return _detect_headings(full_text)
 
 
+def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str, dict]:
+    """
+    Extrai e estrutura o PDF enviando cada lote de páginas como imagens para Claude Vision via Bedrock.
+    Substitui tanto a extração por PyMuPDF quanto a etapa de estruturação por IA.
+    Retorna (markdown_estruturado, uso_de_tokens_acumulado).
+    on_progress(batch_atual, total_batches): callback opcional por lote processado.
+    """
+    from app.services.bedrock import extract_pages_multimodal
+
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception as exc:
+        raise ValueError(f"Não foi possível abrir o PDF: {exc}") from exc
+
+    total_pages = len(doc)
+    batch_size = settings.multimodal_batch_pages
+
+    page_images: list[bytes] = []
+    for page in doc:
+        pix = page.get_pixmap(dpi=settings.multimodal_dpi)
+        page_images.append(pix.tobytes("png"))
+    doc.close()
+
+    batches = [page_images[i:i + batch_size] for i in range(0, total_pages, batch_size)]
+    total_batches = len(batches)
+    parts: list[str] = []
+    total_usage = {"input_tokens": 0, "output_tokens": 0}
+
+    for batch_idx, batch in enumerate(batches):
+        start_page = batch_idx * batch_size + 1
+        text, usage = extract_pages_multimodal(batch, start_page)
+        parts.append(text.strip())
+        total_usage["input_tokens"] += usage["input_tokens"]
+        total_usage["output_tokens"] += usage["output_tokens"]
+        if on_progress:
+            on_progress(batch_idx + 1, total_batches)
+
+    full_text = "\n\n---\n\n".join(parts)
+    full_text = _remove_signature_artifacts(full_text)
+    return full_text, total_usage
+
+
 def _remove_running_headers(pages: list[str]) -> list[str]:
     """
     Remove cabeçalhos de página recorrentes (ex: timbre institucional) que aparecem

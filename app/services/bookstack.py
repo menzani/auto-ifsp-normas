@@ -573,6 +573,13 @@ def _build_anomaly_page(anomalies: list[str], structure_mode: str = "validate") 
     """Gera o conteúdo Markdown da página 'Avisos sobre o documento'."""
     parts = []
 
+    if structure_mode == "multimodal":
+        parts.append(
+            "## Extraído via visão computacional\n\n"
+            "O texto foi extraído diretamente das imagens das páginas do PDF pelo modelo Claude Vision, "
+            "sem processamento intermediário por PyMuPDF. A estrutura de headings foi detectada visualmente pelo modelo."
+        )
+
     if structure_mode == "suggest":
         parts.append(
             "## Estrutura sugerida pela IA\n\n"

@@ -18,7 +18,7 @@ _log = logging.getLogger(__name__)
 from app.services import audit, storage
 from app.config import get_settings
 from app.services.bedrock import generate_faq, structure_markdown
-from app.services.pdf import pdf_to_markdown, detect_structural_anomalies, has_structure
+from app.services.pdf import pdf_to_markdown, pdf_to_markdown_multimodal, detect_structural_anomalies, has_structure
 
 class _JobCancelled(Exception):
     pass
@@ -83,49 +83,64 @@ def _set_error(job_id: str, message: str):
 def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
     """Executa o pipeline completo. Bloqueia até concluir."""
     bookstack_book_id: int | None = None
-    # Campos internos que devem persistir em todos os status saves do pipeline.
-    # _set_step reescreve o dict completo, então esses campos precisam ser incluídos
-    # explicitamente para que as verificações de ownership continuem funcionando.
     _private = {"owner": uploaded_by, "pdf_key": pdf_key}
     try:
-        # ── Etapa 1: Extração de PDF ─────────────────────────────────────
+        # ── Etapa 1: Extração ────────────────────────────────────────────
         _raise_if_cancelled(job_id)
         _set_step(job_id, 1, _private)
         pdf_bytes = storage.get_pdf(pdf_key)
 
-        # Captura o status base uma vez — reutilizado nas callbacks para evitar
-        # um load_status por página (poderia gerar 100+ leituras S3 num PDF grande).
-        # Carregado após _set_step para que base_status já inclua owner e pdf_key.
         base_status = storage.load_status(job_id) or {"id": job_id}
 
-        def on_progress(current, total):
-            pct = int(current / total * 50)  # 0–50 %
-            storage.save_status(job_id, base_status | {
-                "current_step_label": f"Extraindo texto — página {current}/{total}",
-                "progress_pct": pct,
-            })
+        if get_settings().multimodal_extraction:
+            # ── Modo multimodal: Claude Vision extrai e estrutura em um passo ──
+            def on_multimodal_progress(current, total):
+                pct = int(current / total * 40)  # 0–40 %
+                storage.save_status(job_id, base_status | {
+                    "current_step_label": f"Extraindo via visão — lote {current}/{total}",
+                    "progress_pct": pct,
+                })
 
-        markdown_text = pdf_to_markdown(pdf_bytes, on_progress=on_progress)
+            markdown_text, structure_usage = pdf_to_markdown_multimodal(
+                pdf_bytes, on_progress=on_multimodal_progress
+            )
+            extraction_check = _verify_extraction(markdown_text)
+            anomalies = detect_structural_anomalies(markdown_text)
+            structure_mode = "multimodal"
 
-        # ── Conferência de qualidade da extração ─────────────────────────
-        extraction_check = _verify_extraction(markdown_text)
-        anomalies = detect_structural_anomalies(markdown_text)
-        structure_mode = "validate" if has_structure(markdown_text) else "suggest"
+            # Etapa 2 não processa nada — extração e estruturação já foram feitas
+            _raise_if_cancelled(job_id)
+            _set_step(job_id, 2, _private)
 
-        # ── Etapa 2: Estruturação com IA ─────────────────────────────────
-        _raise_if_cancelled(job_id)
-        _set_step(job_id, 2, _private)
+        else:
+            # ── Modo texto: PyMuPDF + structure_markdown (fluxo original) ────
+            def on_progress(current, total):
+                pct = int(current / total * 50)  # 0–50 %
+                storage.save_status(job_id, base_status | {
+                    "current_step_label": f"Extraindo texto — página {current}/{total}",
+                    "progress_pct": pct,
+                })
 
-        def on_structure_progress(current, total):
-            pct = int(20 + current / total * 20)  # 20–40 %
-            storage.save_status(job_id, base_status | {
-                "current_step_label": f"Estruturando texto — parte {current}/{total}",
-                "progress_pct": pct,
-            })
+            markdown_text = pdf_to_markdown(pdf_bytes, on_progress=on_progress)
 
-        markdown_text, structure_usage = structure_markdown(
-            markdown_text, mode=structure_mode, on_progress=on_structure_progress
-        )
+            extraction_check = _verify_extraction(markdown_text)
+            anomalies = detect_structural_anomalies(markdown_text)
+            structure_mode = "validate" if has_structure(markdown_text) else "suggest"
+
+            # ── Etapa 2: Estruturação com IA ─────────────────────────────
+            _raise_if_cancelled(job_id)
+            _set_step(job_id, 2, _private)
+
+            def on_structure_progress(current, total):
+                pct = int(20 + current / total * 20)  # 20–40 %
+                storage.save_status(job_id, base_status | {
+                    "current_step_label": f"Estruturando texto — parte {current}/{total}",
+                    "progress_pct": pct,
+                })
+
+            markdown_text, structure_usage = structure_markdown(
+                markdown_text, mode=structure_mode, on_progress=on_structure_progress
+            )
 
         # ── Etapa 3: FAQ com IA ──────────────────────────────────────────
         _raise_if_cancelled(job_id)

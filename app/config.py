@@ -64,6 +64,11 @@ class Settings(BaseSettings):
     # Máximo de páginas submetidas ao Textract por PDF (controle de custo)
     max_ocr_pages_per_pdf: int = 15
 
+    # Extração multimodal: envia páginas como imagem para Claude Vision (substitui PyMuPDF + structure_markdown)
+    multimodal_extraction: bool = False
+    multimodal_dpi: int = 100        # DPI de renderização das páginas (100 = boa qualidade, tamanho moderado)
+    multimodal_batch_pages: int = 8  # Páginas por chamada Bedrock
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

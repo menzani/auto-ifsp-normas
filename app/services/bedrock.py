@@ -4,6 +4,7 @@ Geração de FAQ via Amazon Bedrock (Claude Haiku).
 Documentação da API:
   https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
 """
+import base64
 import json
 import logging
 import re
@@ -368,3 +369,67 @@ Resposta objetiva.
 </documento>
 
 Gere o FAQ agora, sem introdução ou comentários adicionais:"""
+
+
+def _build_multimodal_prompt(n_pages: int) -> str:
+    return (
+        f"Você recebe {n_pages} página(s) de um normativo institucional brasileiro.\n\n"
+        "Extraia TODO o texto visível e formate em Markdown semântico seguindo estas regras:\n\n"
+        "ESTRUTURA (headings):\n"
+        "- # para: TÍTULO I, TÍTULO II…; ANEXO I, ANEXO II… (inclua título na mesma linha)\n"
+        "  ex: # ANEXO I — REGIMENTO INTERNO\n"
+        "- ## para: CAPÍTULO I, CAPÍTULO II… — inclua sempre o nome na mesma linha\n"
+        "  ex: ## CAPÍTULO I — DO OBJETIVO\n"
+        "  Se o nome estiver na linha abaixo, junte: ## CAPÍTULO II — DOS CONCEITOS\n"
+        "- ### para: SEÇÃO I, SEÇÃO II… — inclua o nome na mesma linha\n\n"
+        "SEM heading (texto normal):\n"
+        "- Artigos (Art. 1º…), parágrafos (§ 1º, Parágrafo único), RESOLVE:, CONSIDERANDO\n"
+        "- Timbres institucionais, assinaturas, datas, locais\n"
+        "- Atribuições do emissor (O REITOR, O DIRETOR…)\n"
+        "- Títulos decorativos de capa (nome do regulamento/política em página de capa)\n\n"
+        "LISTAS:\n"
+        "- Incisos (I -, II -…): - **I** — texto\n"
+        "- Alíneas (a), b)…): subitem indentado:   - **a)** texto\n"
+        "- Se incisos/alíneas estiverem concatenados num parágrafo, separe-os\n\n"
+        "IGNORE completamente:\n"
+        "- Cabeçalhos e rodapés repetitivos (timbre, 'Página X de Y')\n"
+        "- Blocos de assinatura eletrônica (SUAP, ICP-Brasil, QRCode, 'Assinado digitalmente')\n\n"
+        "Retorne APENAS o Markdown extraído, sem introdução, sem comentários adicionais."
+    )
+
+
+def extract_pages_multimodal(page_images: list[bytes], start_page: int = 1) -> tuple[str, dict]:
+    """
+    Extrai e estrutura texto de um lote de páginas PDF enviadas como imagens para Claude Vision.
+    Retorna (markdown_estruturado, uso_de_tokens).
+    """
+    content: list[dict] = []
+    for img_bytes in page_images:
+        b64 = base64.b64encode(img_bytes).decode()
+        content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": b64},
+        })
+    content.append({"type": "text", "text": _build_multimodal_prompt(len(page_images))})
+
+    client = _get_bedrock_client()
+    body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 8_192,
+        "messages": [{"role": "user", "content": content}],
+    }
+    try:
+        response = client.invoke_model(
+            modelId=settings.bedrock_model_id,
+            body=json.dumps(body),
+            contentType="application/json",
+            accept="application/json",
+        )
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Erro na extração multimodal via Bedrock (lote começando na página %d)", start_page
+        )
+        raise RuntimeError("Falha na extração multimodal. Verifique as permissões do Bedrock e o modelo configurado.")
+    result = json.loads(response["body"].read())
+    usage = result.get("usage", {"input_tokens": 0, "output_tokens": 0})
+    return result["content"][0]["text"], usage

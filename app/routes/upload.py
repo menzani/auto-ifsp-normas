@@ -4,7 +4,7 @@ import secrets
 import time
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import get_settings
 from app.services.auth import get_current_user
@@ -19,8 +19,13 @@ PDF_MAGIC = b"%PDF"
 MAX_BYTES = settings.max_upload_size_mb * 1024 * 1024
 
 
+_UPLOAD_ROLES = ("uploader", "revisor", "admin")
+
+
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, user=Depends(get_current_user)):
+    if user.get("role") not in _UPLOAD_ROLES:
+        return RedirectResponse("/review", status_code=302)
     return templates.TemplateResponse("index.html", {
         "request": request,
         "user": user,
@@ -36,6 +41,9 @@ async def upload_pdf(
     pdf_file: UploadFile = File(...),
     title: str = Form(..., min_length=3, max_length=255),
 ):
+    if user.get("role") not in _UPLOAD_ROLES:
+        raise HTTPException(403, "Acesso restrito a uploaders, revisores e administradores.")
+
     # ── Rate limit simples por usuário ───────────────────────────────────
     _check_rate_limit(user["sub"])
 

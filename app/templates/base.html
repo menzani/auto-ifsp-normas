@@ -80,6 +80,7 @@
         </div>
         <nav aria-label="Menu principal" id="header-navigation">
           <ul class="d-flex list-unstyled mb-0" style="gap:0.5rem; list-style:none; padding:0;">
+            {% if request.session.user.role in ('uploader', 'revisor', 'admin') %}
             <li>
               <a href="/"
                  class="br-button {% if request.url.path == '/' %}primary{% else %}secondary{% endif %} small"
@@ -88,7 +89,7 @@
                 <span class="d-none d-md-inline ml-1">Enviar Normativo</span>
               </a>
             </li>
-            {% if request.session.user.role in ('revisor', 'admin') %}
+            {% endif %}
             <li>
               <a href="/review"
                  class="br-button {% if '/review' in request.url.path %}primary{% else %}secondary{% endif %} small"
@@ -97,8 +98,6 @@
                 <span class="d-none d-md-inline ml-1">Revisão</span>
               </a>
             </li>
-            {% endif %}
-            {% if request.session.user.role == 'admin' %}
             <li>
               <a href="/log"
                  class="br-button {% if request.url.path == '/log' %}primary{% else %}secondary{% endif %} small"
@@ -107,6 +106,7 @@
                 <span class="d-none d-md-inline ml-1">Log</span>
               </a>
             </li>
+            {% if request.session.user.role == 'admin' %}
             <li>
               <a href="/admin/users"
                  class="br-button {% if '/admin' in request.url.path %}primary{% else %}secondary{% endif %} small"

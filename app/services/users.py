@@ -5,9 +5,10 @@ MOCK_S3=true  → armazenado em data/users.json (local)
 MOCK_S3=false → armazenado em s3://<bucket>/meta/users.json
 
 Papéis válidos:
-  servidor  — pode enviar normativos (padrão)
-  revisor   — pode enviar + revisar/publicar/remover rascunhos
-  admin     — acesso total + gerenciar usuários + ver logs
+  servidor  — visualização geral (revisão somente leitura, log); padrão
+  uploader  — servidor + pode enviar normativos
+  revisor   — uploader + pode publicar/revogar normativos
+  admin     — revisor + pode excluir rascunhos/revogados, gerenciar usuários
 """
 import json
 import threading
@@ -19,7 +20,7 @@ from app.config import get_settings
 
 settings = get_settings()
 
-VALID_ROLES = ("servidor", "revisor", "admin")
+VALID_ROLES = ("servidor", "uploader", "revisor", "admin")
 
 _s3_client = None
 _s3_client_lock = threading.Lock()

@@ -150,6 +150,7 @@
   @keyframes antennaBlink{ 0%,100%{opacity:1;box-shadow:0 0 6px #E52207} 50%{opacity:.2;box-shadow:none} }
   @keyframes screenPulse { 0%,100%{opacity:1} 50%{opacity:.55} }
   @keyframes armsDone    { 0%,100%{transform:rotate(-140deg)} 50%{transform:rotate(-150deg)} }
+  @keyframes scanLine    { 0%,100%{top:1px} 50%{top:calc(100% - 3px)} }
 </style>
 <script>
   const pdfInput = document.getElementById('pdf_file');
@@ -353,8 +354,21 @@
       dropZone.style.background  = '#f5f5f5';
     } else if (step && ROBOT_STEPS[step]) {
       var s = ROBOT_STEPS[step];
-      screen.innerHTML = '<i class="fas ' + s.icon + '" style="color:#7EB8F7;"></i>';
-      screen.style.animation = 'screenPulse 1.2s ease-in-out infinite';
+      if (step === '1') {
+        // Robô "lendo" o PDF: ícone do documento com linha de scan varrendo
+        screen.style.position = 'relative';
+        screen.style.overflow = 'hidden';
+        screen.style.animation = 'none';
+        screen.innerHTML =
+          '<i class="fas fa-file-pdf" style="color:#E52207;font-size:.9rem;" aria-hidden="true"></i>' +
+          '<div style="position:absolute;top:1px;left:0;right:0;height:2px;border-radius:1px;' +
+               'background:rgba(126,184,247,.9);animation:scanLine 1.4s ease-in-out infinite;"></div>';
+      } else {
+        screen.style.position = '';
+        screen.style.overflow = '';
+        screen.innerHTML = '<i class="fas ' + s.icon + '" style="color:#7EB8F7;"></i>';
+        screen.style.animation = 'screenPulse 1.2s ease-in-out infinite';
+      }
       bubble.textContent = s.label;
       // restore caret
       var outer2 = document.createElement('div');

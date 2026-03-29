@@ -225,10 +225,53 @@
 
   // ── Robô animado ──────────────────────────────────────────────────────────
   var ROBOT_STEPS = {
-    '1': { icon: 'fa-eye',              label: 'Lendo páginas...' },
-    '2': { icon: 'fa-search',           label: 'Verificando...'   },
-    '3': { icon: 'fa-robot',            label: 'Gerando FAQ...'   },
-    '4': { icon: 'fa-cloud-upload-alt', label: 'Publicando...'    },
+    '1': { label: 'Lendo páginas...' },
+    '2': { label: 'Verificando...'   },
+    '3': { label: 'Escrevendo FAQ...' },
+    '4': { label: 'Publicando...'    },
+  };
+
+  // Chapéus CSS — cada etapa tem um "profissional" diferente
+  var HAT_HTML = {
+    // Etapa 1: Detetive / pesquisador (fedora escuro)
+    '1':
+      '<div style="width:48px;height:13px;background:#2a2a2a;border-radius:4px 4px 0 0;"></div>' +
+      '<div style="width:66px;height:5px;background:#1a1a1a;border-radius:2px;margin-bottom:-2px;"></div>',
+    // Etapa 2: Inspetor de qualidade (capacete amarelo)
+    '2':
+      '<div style="width:52px;height:17px;background:#FFB800;border-radius:26px 26px 0 0;' +
+          'position:relative;overflow:hidden;">' +
+        '<div style="position:absolute;bottom:0;left:4px;right:4px;height:4px;background:#CC9200;"></div>' +
+      '</div>' +
+      '<div style="width:68px;height:5px;background:#E5A000;border-radius:2px;margin-bottom:-2px;"></div>',
+    // Etapa 3: Escritor / autor (boina roxa inclinada)
+    '3':
+      '<div style="position:relative;width:64px;height:22px;">' +
+        '<div style="position:absolute;bottom:0;left:2px;right:2px;height:15px;' +
+            'background:#7B3FA0;border-radius:30px 30px 2px 2px;' +
+            'transform:rotate(-6deg);transform-origin:bottom center;"></div>' +
+        '<div style="position:absolute;top:0;right:12px;width:8px;height:8px;' +
+            'background:#5A2D80;border-radius:50%;"></div>' +
+      '</div>',
+    // Etapa 4: Bibliotecário / graduado (capelo de formatura)
+    '4':
+      '<div style="width:66px;height:7px;background:#1a1a1a;border-radius:2px;"></div>' +
+      '<div style="width:10px;height:8px;background:#2a2a2a;margin:0 auto;margin-bottom:-2px;"></div>',
+    // Concluído: chapéu de festa (entregando o documento!)
+    'done':
+      '<div style="position:relative;width:40px;height:34px;margin:0 auto;">' +
+        '<div style="position:absolute;bottom:0;left:0;right:0;height:0;' +
+            'border-left:20px solid transparent;border-right:20px solid transparent;' +
+            'border-bottom:34px solid #E52207;"></div>' +
+        '<div style="position:absolute;top:6px;left:9px;width:4px;height:4px;' +
+            'background:#FFD700;border-radius:50%;"></div>' +
+        '<div style="position:absolute;top:15px;left:14px;width:3px;height:3px;' +
+            'background:#fff;border-radius:50%;"></div>' +
+        '<div style="position:absolute;top:10px;right:8px;width:3px;height:3px;' +
+            'background:#4AE54A;border-radius:50%;"></div>' +
+      '</div>' +
+      '<div style="width:42px;height:4px;background:#B01500;border-radius:2px;' +
+          'margin:0 auto;margin-bottom:-2px;"></div>',
   };
 
   var ROBOT_HTML = (
@@ -241,6 +284,7 @@
             'position:absolute;top:-5px;left:-3px;' +
             'animation:antennaBlink 1s ease-in-out infinite;"></div>' +
       '</div>' +
+      '<div id="robot-hat" style="display:flex;flex-direction:column;align-items:center;"></div>' +
       // head
       '<div style="width:64px;height:50px;background:#1351B4;border-radius:10px;' +
           'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
@@ -311,26 +355,21 @@
   function updateRobot(step, isDone, isError, isCancelled) {
     var screen = document.getElementById('robot-screen');
     var bubble = document.getElementById('robot-bubble');
-    var bubbleInner = document.getElementById('robot-bubble-inner');
+    var hat    = document.getElementById('robot-hat');
     var armL   = document.getElementById('robot-arm-l');
     var armR   = document.getElementById('robot-arm-r');
     if (!screen || !bubble) return;
 
-    function applyState(icon, label, color, bg) {
-      screen.innerHTML = '<i class="fas ' + icon + '" style="color:' + color + ';"></i>';
-      screen.style.animation = 'none';
-      bubble.textContent   = label;
-      bubble.style.color   = color;
+    function setBubble(label, color, bg) {
+      bubble.textContent  = label;
+      bubble.style.color  = color;
       bubble.style.borderColor = color;
       bubble.style.background  = bg;
-      if (bubbleInner) bubbleInner.style.borderBottomColor = bg;
-      // Re-append the caret divs that textContent wiped out
       var outer = document.createElement('div');
       outer.style.cssText = 'position:absolute;top:-9px;left:50%;transform:translateX(-50%);' +
           'width:0;height:0;border-left:7px solid transparent;' +
           'border-right:7px solid transparent;border-bottom:9px solid ' + color + ';';
       var inner = document.createElement('div');
-      inner.id = 'robot-bubble-inner';
       inner.style.cssText = 'position:absolute;top:-6px;left:50%;transform:translateX(-50%);' +
           'width:0;height:0;border-left:6px solid transparent;' +
           'border-right:6px solid transparent;border-bottom:7px solid ' + bg + ';';
@@ -338,24 +377,39 @@
       bubble.appendChild(inner);
     }
 
+    function setScreen(icon, color, pulse) {
+      screen.style.position = '';
+      screen.style.overflow = '';
+      screen.innerHTML = '<i class="fas ' + icon + '" style="color:' + color + ';"></i>';
+      screen.style.animation = pulse ? 'screenPulse 1.2s ease-in-out infinite' : 'none';
+    }
+
     if (isDone) {
-      applyState('fa-check', 'Pronto! ✓', '#168821', '#F0FAF1');
+      if (hat) hat.innerHTML = HAT_HTML['done'];
+      setScreen('fa-gift', '#5DBA6D', false);
+      setBubble('Entregue! ✓', '#168821', '#F0FAF1');
       dropZone.style.borderColor = '#168821';
       dropZone.style.background  = '#F0FAF1';
       if (armL) { armL.style.animation = 'armsDone 0.6s ease-in-out infinite'; armL.style.transformOrigin = 'bottom center'; }
       if (armR) { armR.style.animation = 'armsDone 0.6s ease-in-out infinite .1s'; armR.style.transformOrigin = 'bottom center'; }
     } else if (isError) {
-      applyState('fa-exclamation-triangle', 'Ops, erro!', '#E52207', '#FFF0EE');
+      if (hat) hat.innerHTML = '';
+      setScreen('fa-exclamation-triangle', '#F47C6A', false);
+      setBubble('Ops, erro!', '#E52207', '#FFF0EE');
       dropZone.style.borderColor = '#E52207';
       dropZone.style.background  = '#FFF0EE';
     } else if (isCancelled) {
-      applyState('fa-ban', 'Cancelado', '#555', '#f5f5f5');
+      if (hat) hat.innerHTML = '';
+      setScreen('fa-ban', '#aaa', false);
+      setBubble('Cancelado', '#555', '#f5f5f5');
       dropZone.style.borderColor = '#888';
       dropZone.style.background  = '#f5f5f5';
     } else if (step && ROBOT_STEPS[step]) {
       var s = ROBOT_STEPS[step];
+      if (hat) hat.innerHTML = HAT_HTML[step] || '';
+
       if (step === '1') {
-        // Robô "lendo" o PDF: ícone do documento com linha de scan varrendo
+        // Detetive lendo o PDF: scan line varrendo o ícone de documento
         screen.style.position = 'relative';
         screen.style.overflow = 'hidden';
         screen.style.animation = 'none';
@@ -363,25 +417,18 @@
           '<i class="fas fa-file-pdf" style="color:#E52207;font-size:.9rem;" aria-hidden="true"></i>' +
           '<div style="position:absolute;top:1px;left:0;right:0;height:2px;border-radius:1px;' +
                'background:rgba(126,184,247,.9);animation:scanLine 1.4s ease-in-out infinite;"></div>';
-      } else {
-        screen.style.position = '';
-        screen.style.overflow = '';
-        screen.innerHTML = '<i class="fas ' + s.icon + '" style="color:#7EB8F7;"></i>';
-        screen.style.animation = 'screenPulse 1.2s ease-in-out infinite';
+      } else if (step === '2') {
+        // Inspetor verificando: lupa com pulso
+        setScreen('fa-search', '#7EB8F7', true);
+      } else if (step === '3') {
+        // Escritor redigindo o FAQ: caneta pulsando
+        setScreen('fa-pen', '#C99AF7', true);
+      } else if (step === '4') {
+        // Bibliotecário publicando: livro aberto pulsando
+        setScreen('fa-book-open', '#7EB8F7', true);
       }
-      bubble.textContent = s.label;
-      // restore caret
-      var outer2 = document.createElement('div');
-      outer2.style.cssText = 'position:absolute;top:-9px;left:50%;transform:translateX(-50%);' +
-          'width:0;height:0;border-left:7px solid transparent;' +
-          'border-right:7px solid transparent;border-bottom:9px solid #1351B4;';
-      var inner2 = document.createElement('div');
-      inner2.id = 'robot-bubble-inner';
-      inner2.style.cssText = 'position:absolute;top:-6px;left:50%;transform:translateX(-50%);' +
-          'width:0;height:0;border-left:6px solid transparent;' +
-          'border-right:6px solid transparent;border-bottom:7px solid #EEF3FF;';
-      bubble.appendChild(outer2);
-      bubble.appendChild(inner2);
+
+      setBubble(s.label, '#1351B4', '#EEF3FF');
     }
   }
   // ── fim do robô ───────────────────────────────────────────────────────────

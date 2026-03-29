@@ -15,6 +15,7 @@
        hx-trigger="every 2s"
        hx-target="#progress-area"
        hx-swap="innerHTML"
+       data-step="{{ job.current_step }}"
        {% endif %}>
 
     <div class="br-card">
@@ -32,7 +33,7 @@
           </div>
             <div>
               <p class="text-medium-weight mb-0">Processando normativo...</p>
-              <p class="text-down-01 mb-0" style="color:#555;">{{ job.current_step_label }}</p>
+              <p class="text-down-01 mb-0" style="color:#555;">{{ job.current_step_label }} <span id="step-elapsed" style="color:#888;"></span></p>
             </div>
           </div>
           <button class="br-button secondary small"
@@ -45,9 +46,23 @@
         </div>
 
         <!-- Barra de progresso -->
+        <style>
+          @keyframes progress-stripe {
+            from { background-position: 40px 0; }
+            to   { background-position: 0 0; }
+          }
+        </style>
         <div style="background:#DAE3F0; border-radius:4px; height:10px; overflow:hidden;">
-          <div style="background:#1351B4; height:100%; width:{{ job.progress_pct }}%;
-                      transition: width 0.5s ease; border-radius:4px;"></div>
+          <div style="
+            background: repeating-linear-gradient(
+              45deg,
+              #1351B4 0px, #1351B4 10px,
+              #1769D4 10px, #1769D4 20px
+            );
+            background-size: 40px 40px;
+            animation: progress-stripe 0.6s linear infinite;
+            height:100%; width:{{ job.progress_pct }}%;
+            transition: width 0.5s ease; border-radius:4px;"></div>
         </div>
         <div class="d-flex justify-content-between mt-1">
           <span class="text-down-01" style="color:#555;">Etapa {{ job.current_step }} de {{ job.total_steps }}</span>

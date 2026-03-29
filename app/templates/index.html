@@ -270,5 +270,40 @@
     submitBtn.style.pointerEvents = '';
     submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Enviar para processamento';
   });
+
+  // Contador de tempo decorrido na etapa atual
+  (function () {
+    var _interval = null;
+
+    function fmt(secs) {
+      if (secs < 60) return 'há ' + secs + 's';
+      return 'há ' + Math.floor(secs / 60) + 'min ' + (secs % 60) + 's';
+    }
+
+    function tick() {
+      var span = document.getElementById('step-elapsed');
+      if (!span) { clearInterval(_interval); _interval = null; return; }
+      var start = parseInt(sessionStorage.getItem('ifsp_step_start') || '0', 10);
+      if (!start) return;
+      var secs = Math.floor((Date.now() - start) / 1000);
+      span.textContent = secs >= 5 ? '· ' + fmt(secs) : '';
+    }
+
+    document.addEventListener('htmx:afterSettle', function () {
+      var div = document.querySelector('[data-step]');
+      if (!div) {
+        sessionStorage.removeItem('ifsp_step_start');
+        sessionStorage.removeItem('ifsp_last_step');
+        if (_interval) { clearInterval(_interval); _interval = null; }
+        return;
+      }
+      var step = div.dataset.step;
+      if (step !== sessionStorage.getItem('ifsp_last_step')) {
+        sessionStorage.setItem('ifsp_last_step', step);
+        sessionStorage.setItem('ifsp_step_start', Date.now().toString());
+      }
+      if (!_interval) _interval = setInterval(tick, 1000);
+    });
+  }());
 </script>
 {% endblock %}

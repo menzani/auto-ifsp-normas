@@ -91,10 +91,6 @@
                   </td>
                   <td>
                     {{ entry.details }}
-                    {% set year = entry.ts_display[6:10] if entry.ts_display|length >= 10 else '' %}
-                    {% if year and year not in entry.details %}
-                      <span class="text-down-02 ml-1" style="color:#888;">({{ year }})</span>
-                    {% endif %}
                     {% if entry.extra %}
                     <br><span class="text-down-02" style="color:#888;">
                       {% if entry.extra.tempo_s %}

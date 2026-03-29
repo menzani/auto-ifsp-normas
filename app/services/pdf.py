@@ -1,9 +1,10 @@
 """
-Extração de PDF para Markdown usando PyMuPDF. (rev. 2026-03-28)
+Extração de PDF para Markdown usando PyMuPDF. (rev. 2026-03-29)
 
 A conversão acontece página a página, permitindo atualizar o progresso
-a cada página processada. Nenhuma heurística de heading é aplicada aqui —
-a estruturação semântica fica a cargo da etapa de IA no pipeline.
+a cada página processada. Headings estruturais (Título, Capítulo, Seção) são
+detectados deterministicamente antes de enviar ao AI, garantindo que a numeração
+de capítulos nunca dependa da inferência do modelo.
 """
 import re
 from collections.abc import Generator
@@ -38,6 +39,22 @@ _SIGNATURE_LINE_RE = re.compile(
 
 # Rodapés de paginação variáveis (ex: "Página 48 de 65") — removidos antes da etapa de IA
 _PAGE_FOOTER_RE = re.compile(r"^\s*página\s+\d+\s+de\s+\d+\s*$", re.IGNORECASE)
+
+# Headings estruturais detectáveis deterministicamente — linhas isoladas que correspondem
+# a padrões rígidos de títulos, capítulos e seções de normativos brasileiros.
+# Detectados antes de enviar ao AI para que a numeração de capítulos nunca seja inferida.
+_TITLE_HEADING_RE = re.compile(
+    r'^\s*(T[IÍ]TULO\s+[IVXLCDM]+(?:\s*[-—–]\s*.+)?)\s*$',
+    re.IGNORECASE,
+)
+_CHAPTER_HEADING_RE = re.compile(
+    r'^\s*(CAP[IÍ]TULO\s+[IVXLCDM]+(?:\s*[-—–]\s*.+)?)\s*$',
+    re.IGNORECASE,
+)
+_SECTION_HEADING_RE = re.compile(
+    r'^\s*(Se[çc][aã]o\s+[IVXLCDM]+(?:\s*[-—–]\s*.+)?)\s*$',
+    re.IGNORECASE,
+)
 
 # Marcadores de início de bloco de assinatura eletrônica SUAP/Gov.br
 # Tudo a partir dessa linha até o fim do documento é removido.
@@ -94,7 +111,8 @@ def pdf_to_markdown(pdf_bytes: bytes, on_progress=None) -> str:
     pages_text = _remove_running_headers(pages_text)
     full_text = "\n\n---\n\n".join(pages_text)
     full_text = _remove_signature_artifacts(full_text)
-    return _fix_ligature_artifacts(full_text)
+    full_text = _fix_ligature_artifacts(full_text)
+    return _detect_headings(full_text)
 
 
 def _remove_running_headers(pages: list[str]) -> list[str]:
@@ -186,6 +204,33 @@ def _fix_ligature_artifacts(text: str) -> str:
     # U+2019 (') entre letras → 'fi'  ex: o'cial → oficial
     text = re.sub(r'(?<=\w)\u2019(?=\w)', 'fi', text)
     return text
+
+
+def _detect_headings(text: str) -> str:
+    """
+    Detecta e marca headings estruturais (Títulos, Capítulos, Seções) com prefixos Markdown
+    antes do processamento por IA.
+
+    Linhas que correspondem a padrões rígidos de estrutura normativa (ex: "CAPÍTULO IV — ...")
+    recebem o prefixo # / ## / ### adequado. Isso garante que a numeração de capítulos
+    nunca dependa da inferência do modelo de IA — evita renumeração ou omissão de capítulos.
+
+    Só processa linhas que ainda não têm prefixo # para não duplicar headings já presentes.
+    """
+    lines = text.splitlines()
+    result = []
+    for line in lines:
+        if line.lstrip().startswith('#'):
+            result.append(line)
+        elif _TITLE_HEADING_RE.match(line):
+            result.append('# ' + line.strip())
+        elif _CHAPTER_HEADING_RE.match(line):
+            result.append('## ' + line.strip())
+        elif _SECTION_HEADING_RE.match(line):
+            result.append('### ' + line.strip())
+        else:
+            result.append(line)
+    return '\n'.join(result)
 
 
 def _remove_signature_artifacts(text: str) -> str:

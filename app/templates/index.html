@@ -149,17 +149,13 @@
 
 {% block extra_head %}
 <style>
-  @keyframes robotFloat  { 0%,100%{transform:translateY(0)}  50%{transform:translateY(-8px)} }
-  @keyframes eyeBlink    { 0%,85%,100%{transform:scaleY(1)}  92%{transform:scaleY(.1)} }
-  @keyframes armSwingL   { 0%,100%{transform:rotate(-20deg)} 50%{transform:rotate(10deg)} }
-  @keyframes armSwingR   { 0%,100%{transform:rotate(20deg)}  50%{transform:rotate(-10deg)} }
-  @keyframes legStepL    { 0%,100%{transform:translateY(0)}  50%{transform:translateY(4px)} }
-  @keyframes legStepR    { 0%,100%{transform:translateY(4px)} 50%{transform:translateY(0)} }
-  @keyframes antennaBlink{ 0%,100%{opacity:1;box-shadow:0 0 6px #E52207} 50%{opacity:.2;box-shadow:none} }
-  @keyframes screenPulse { 0%,100%{opacity:1} 50%{opacity:.55} }
-  @keyframes armsDoneL   { 0%,100%{transform:rotate(-120deg)} 50%{transform:rotate(-130deg)} }
-  @keyframes armsDoneR   { 0%,100%{transform:rotate(120deg)}  50%{transform:rotate(130deg)} }
-  @keyframes scanLine    { 0%,100%{top:1px} 50%{top:calc(100% - 3px)} }
+  @keyframes robotFloat  { 0%,100%{transform:translateY(0)}   50%{transform:translateY(-8px)} }
+  @keyframes eyeBlink    { 0%,85%,100%{transform:scaleY(1)}   92%{transform:scaleY(.1)} }
+  @keyframes screenPulse { 0%,100%{opacity:1}                 50%{opacity:.55} }
+  @keyframes scanLine    { 0%,100%{top:1px}                   50%{top:calc(100% - 3px)} }
+  @keyframes penWrite    { 0%,100%{transform:rotate(-12deg) translateX(0)} 50%{transform:rotate(-7deg) translateX(5px)} }
+  @keyframes bookPageL   { 0%,100%{transform:perspective(200px) rotateY(-30deg)} 50%{transform:perspective(200px) rotateY(-5deg)} }
+  @keyframes bookPageR   { 0%,100%{transform:perspective(200px) rotateY(30deg)}  50%{transform:perspective(200px) rotateY(5deg)} }
   @keyframes reviewPulse { 0%,100%{box-shadow:0 0 0 2px #168821,0 0 8px rgba(22,136,33,.4)} 50%{box-shadow:0 0 0 4px #168821,0 0 18px rgba(22,136,33,.7)} }
 </style>
 {% endblock %}
@@ -244,150 +240,134 @@
     '4': { label: 'Publicando...'    },
   };
 
-  // Objetos segurados pelo Francis em cada etapa
+  // Ícones por etapa — interagem com a cabeça do Francis lado a lado
   var HAT_HTML = {
-    // Etapa 1: Documento (leitura do PDF)
+    // Etapa 1: Documento com scan varrendo a partir dos olhos
     '1':
-      '<div style="width:34px;height:42px;background:#fff;' +
-          'border:2.5px solid #1351B4;border-radius:2px 10px 2px 2px;' +
-          'position:relative;box-shadow:0 2px 6px rgba(19,81,180,.2);' +
-          'display:flex;flex-direction:column;align-items:center;' +
-          'justify-content:center;gap:5px;margin-bottom:4px;">' +
-        '<div style="position:absolute;top:-1px;right:-1px;' +
-            'width:12px;height:12px;background:#1351B4;border-radius:0 0 0 4px;"></div>' +
-        '<div style="width:18px;height:2px;background:#1351B4;border-radius:1px;opacity:.5;margin-top:6px;"></div>' +
-        '<div style="width:18px;height:2px;background:#1351B4;border-radius:1px;opacity:.5;"></div>' +
-        '<div style="width:13px;height:2px;background:#1351B4;border-radius:1px;opacity:.5;"></div>' +
+      '<div style="position:relative;width:44px;height:54px;background:#fff;' +
+          'border:2.5px solid #1351B4;border-radius:3px 10px 3px 3px;' +
+          'overflow:hidden;box-shadow:0 2px 6px rgba(19,81,180,.2);">' +
+        '<div style="position:absolute;top:-1px;right:-1px;width:13px;height:13px;' +
+            'background:#1351B4;border-radius:0 0 0 5px;"></div>' +
+        '<div style="position:absolute;top:20px;left:7px;right:7px;' +
+            'display:flex;flex-direction:column;gap:6px;">' +
+          '<div style="height:2px;background:#1351B4;border-radius:1px;opacity:.35;"></div>' +
+          '<div style="height:2px;background:#1351B4;border-radius:1px;opacity:.35;"></div>' +
+          '<div style="height:2px;width:70%;background:#1351B4;border-radius:1px;opacity:.35;"></div>' +
+        '</div>' +
+        '<div style="position:absolute;left:0;right:0;height:2px;' +
+            'background:rgba(126,184,247,.9);border-radius:1px;' +
+            'animation:scanLine 1.4s ease-in-out infinite;"></div>' +
       '</div>',
-    // Etapa 2: Lupa (correção e ajustes)
+    // Etapa 2: Lupa entre a cabeça e o documento
     '2':
-      '<div style="position:relative;width:42px;height:42px;margin-bottom:4px;">' +
-        '<div style="position:absolute;top:0;left:0;width:27px;height:27px;' +
-            'border:4px solid #1351B4;border-radius:50%;' +
-            'background:rgba(19,81,180,.08);"></div>' +
-        '<div style="position:absolute;bottom:1px;right:2px;width:5px;height:20px;' +
-            'background:#1351B4;border-radius:3px;' +
-            'transform:rotate(42deg);transform-origin:top center;"></div>' +
+      '<div style="display:flex;align-items:flex-end;gap:8px;">' +
+        '<div style="position:relative;width:38px;height:38px;">' +
+          '<div style="position:absolute;top:0;left:0;width:25px;height:25px;' +
+              'border:4px solid #1351B4;border-radius:50%;' +
+              'background:rgba(19,81,180,.1);' +
+              'animation:screenPulse 1.2s ease-in-out infinite;"></div>' +
+          '<div style="position:absolute;bottom:1px;right:1px;width:5px;height:18px;' +
+              'background:#1351B4;border-radius:3px;' +
+              'transform:rotate(42deg);transform-origin:top center;"></div>' +
+        '</div>' +
+        '<div style="position:relative;width:36px;height:44px;background:#fff;' +
+            'border:2px solid #1351B4;border-radius:2px 8px 2px 2px;' +
+            'box-shadow:0 1px 4px rgba(19,81,180,.15);overflow:hidden;">' +
+          '<div style="position:absolute;top:-1px;right:-1px;width:10px;height:10px;' +
+              'background:#1351B4;border-radius:0 0 0 4px;"></div>' +
+          '<div style="position:absolute;top:16px;left:5px;right:5px;' +
+              'display:flex;flex-direction:column;gap:5px;">' +
+            '<div style="height:2px;background:#1351B4;border-radius:1px;opacity:.35;"></div>' +
+            '<div style="height:2px;background:#1351B4;border-radius:1px;opacity:.35;"></div>' +
+            '<div style="height:2px;width:65%;background:#1351B4;border-radius:1px;opacity:.35;"></div>' +
+          '</div>' +
+        '</div>' +
       '</div>',
-    // Etapa 3: Caneta (redação do FAQ)
+    // Etapa 3: Caneta escrevendo (FAQ)
     '3':
-      '<div style="position:relative;width:14px;height:40px;' +
-          'margin-bottom:4px;transform:rotate(-15deg);">' +
-        '<div style="width:14px;height:10px;background:#3D2F8A;' +
-            'border-radius:4px 4px 0 0;"></div>' +
-        '<div style="position:absolute;top:2px;right:1px;width:2px;height:14px;' +
-            'background:#2A1E70;border-radius:1px;"></div>' +
-        '<div style="width:14px;height:22px;background:#5c4ec4;"></div>' +
-        '<div style="width:0;height:0;border-left:7px solid transparent;' +
-            'border-right:7px solid transparent;border-top:8px solid #5c4ec4;"></div>' +
-      '</div>',
-    // Etapa 4: Livro fechado verde (publicação no Bookstack)
+      '<div style="width:10px;height:46px;' +
+          'background:linear-gradient(to bottom,#3D2F8A 22%,#5c4ec4 22%,#5c4ec4 80%,#FFD700 80%);' +
+          'border-radius:3px 3px 0 0;' +
+          'animation:penWrite .9s ease-in-out infinite;"></div>',
+    // Etapa 4: Livro abrindo e fechando (publicação)
     '4':
-      '<div style="display:flex;height:40px;' +
-          'margin-bottom:4px;box-shadow:0 2px 5px rgba(0,0,0,.18);">' +
-        '<div style="width:8px;background:#0D5A15;border-radius:3px 0 0 3px;"></div>' +
-        '<div style="width:24px;background:#168821;border-radius:0 3px 3px 0;' +
-            'display:flex;flex-direction:column;align-items:center;' +
-            'padding-top:10px;gap:3px;">' +
-          '<div style="width:14px;height:2px;background:rgba(255,255,255,.55);border-radius:1px;"></div>' +
-          '<div style="width:14px;height:2px;background:rgba(255,255,255,.55);border-radius:1px;"></div>' +
-          '<div style="width:9px;height:2px;background:rgba(255,255,255,.55);border-radius:1px;"></div>' +
+      '<div style="display:flex;align-items:center;">' +
+        '<div style="width:20px;height:34px;background:#168821;border-radius:3px 0 0 3px;' +
+            'transform-origin:right center;' +
+            'animation:bookPageL 2s ease-in-out infinite;"></div>' +
+        '<div style="width:5px;height:38px;background:#0D5A15;border-radius:1px;flex-shrink:0;"></div>' +
+        '<div style="width:20px;height:34px;background:#168821;border-radius:0 3px 3px 0;' +
+            'transform-origin:left center;' +
+            'animation:bookPageR 2s ease-in-out infinite .05s;">' +
+          '<div style="padding:7px 3px;display:flex;flex-direction:column;gap:5px;">' +
+            '<div style="height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
+            '<div style="height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
+            '<div style="height:2px;width:65%;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
+          '</div>' +
         '</div>' +
       '</div>',
   };
 
-  // Prateleira com livro verde — estado concluído
+  // Prateleira — estado concluído (proporcional à cabeça)
   var SHELF_HTML = (
-    '<div style="width:65px;height:128px;background:#1351B4;border-radius:6px;' +
-        'padding:5px;box-sizing:border-box;' +
+    '<div style="width:64px;height:72px;background:#1351B4;border-radius:5px;' +
+        'padding:4px;box-sizing:border-box;' +
         'display:flex;flex-direction:column;justify-content:space-between;' +
         'box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
-      '<div style="height:5px;background:#0D3D87;border-radius:2px;"></div>' +
-      '<div style="flex:1;"></div>' +
-      '<div style="height:5px;background:#0D3D87;border-radius:2px;"></div>' +
-      '<div style="flex:1;display:flex;align-items:flex-end;padding:0 5px;">' +
-        '<div style="display:flex;height:32px;">' +
-          '<div style="width:7px;background:#0D5A15;border-radius:2px 0 0 2px;"></div>' +
-          '<div style="width:20px;background:#168821;border-radius:0 2px 2px 0;' +
-              'display:flex;flex-direction:column;align-items:center;' +
-              'padding-top:7px;gap:3px;">' +
-            '<div style="width:12px;height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
-            '<div style="width:12px;height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
-            '<div style="width:8px;height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
+      '<div style="height:4px;background:#0D3D87;border-radius:2px;"></div>' +
+      '<div style="flex:1;display:flex;align-items:flex-end;padding:0 5px 2px;">' +
+        '<div style="display:flex;height:28px;">' +
+          '<div style="width:6px;background:#0D5A15;border-radius:2px 0 0 2px;"></div>' +
+          '<div style="width:17px;background:#168821;border-radius:0 2px 2px 0;' +
+              'display:flex;flex-direction:column;align-items:center;padding-top:6px;gap:3px;">' +
+            '<div style="width:10px;height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
+            '<div style="width:10px;height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
+            '<div style="width:7px;height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
           '</div>' +
         '</div>' +
       '</div>' +
-      '<div style="height:5px;background:#0D3D87;border-radius:2px;"></div>' +
+      '<div style="height:4px;background:#0D3D87;border-radius:2px;"></div>' +
     '</div>'
   );
 
+  // ROBOT_HTML — apenas cabeça + ícone lado a lado
   var ROBOT_HTML = (
-    // wrapper row: robot-body-col + robot-right (prateleira no concluído)
-    '<div id="robot-wrap" style="display:inline-flex;flex-direction:row;' +
-        'align-items:flex-end;gap:10px;padding:.75rem 0 .5rem;">' +
-      '<div id="robot-body-col" style="display:flex;flex-direction:column;align-items:center;' +
-          'gap:2px;animation:robotFloat 2.5s ease-in-out infinite;">' +
-        '<div id="robot-hat" style="display:flex;flex-direction:column;align-items:center;"></div>' +
-        // head
-        '<div style="width:64px;height:50px;background:#1351B4;border-radius:10px;' +
-            'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-            'gap:6px;box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
+    '<div id="robot-wrap" style="display:inline-flex;flex-direction:column;' +
+        'align-items:center;gap:10px;padding:.75rem 0 .5rem;' +
+        'animation:robotFloat 2.5s ease-in-out infinite;">' +
+      '<div id="robot-scene" style="display:flex;flex-direction:row;' +
+          'align-items:flex-end;gap:14px;">' +
+        '<div id="robot-head" style="width:64px;height:50px;background:#1351B4;' +
+            'border-radius:10px;display:flex;flex-direction:column;' +
+            'align-items:center;justify-content:center;gap:6px;' +
+            'box-shadow:0 2px 8px rgba(19,81,180,.35);flex-shrink:0;">' +
           '<div style="display:flex;gap:12px;">' +
-            '<div style="width:11px;height:11px;background:#fff;border-radius:50%;' +
-                'animation:eyeBlink 4s ease-in-out infinite;"></div>' +
-            '<div style="width:11px;height:11px;background:#fff;border-radius:50%;' +
-                'animation:eyeBlink 4s ease-in-out infinite .2s;"></div>' +
+            '<div id="robot-eye-l" style="width:11px;height:11px;background:#fff;' +
+                'border-radius:50%;animation:eyeBlink 4s ease-in-out infinite;"></div>' +
+            '<div id="robot-eye-r" style="width:11px;height:11px;background:#fff;' +
+                'border-radius:50%;animation:eyeBlink 4s ease-in-out infinite .2s;"></div>' +
           '</div>' +
-          '<div style="width:20px;height:8px;border:3px solid rgba(255,255,255,.75);' +
-              'border-top:none;border-radius:0 0 12px 12px;background:transparent;"></div>' +
+          '<div id="robot-mouth" style="width:20px;height:8px;' +
+              'border:3px solid rgba(255,255,255,.75);border-top:none;' +
+              'border-radius:0 0 12px 12px;background:transparent;"></div>' +
         '</div>' +
-        // arms + body
-        '<div style="display:flex;align-items:flex-start;gap:4px;margin-top:3px;">' +
-          '<div id="robot-arm-l" style="width:11px;height:34px;background:#1351B4;border-radius:5px;' +
-              'transform-origin:top center;animation:armSwingL 1.4s ease-in-out infinite;' +
-              'margin-top:6px;"></div>' +
-          '<div style="width:62px;height:66px;background:#1351B4;border-radius:8px;' +
-              'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-              'gap:5px;box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
-            '<div id="robot-screen" style="width:34px;height:26px;background:#0D3D87;' +
-                'border-radius:4px;display:flex;align-items:center;justify-content:center;' +
-                'color:#7EB8F7;font-size:.85rem;animation:screenPulse 1.2s ease-in-out infinite;">' +
-              '<i class="fas fa-spinner fa-spin"></i>' +
-            '</div>' +
-            '<div style="display:flex;gap:4px;">' +
-              '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
-              '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
-              '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
-            '</div>' +
-          '</div>' +
-          '<div id="robot-arm-r" style="width:11px;height:34px;background:#1351B4;border-radius:5px;' +
-              'transform-origin:top center;animation:armSwingR 1.4s ease-in-out infinite;' +
-              'margin-top:6px;"></div>' +
-        '</div>' +
-        // legs
-        '<div style="display:flex;gap:10px;margin-top:2px;">' +
-          '<div style="width:13px;height:20px;background:#0D3D87;border-radius:0 0 5px 5px;' +
-              'animation:legStepL 1.4s ease-in-out infinite;"></div>' +
-          '<div style="width:13px;height:20px;background:#0D3D87;border-radius:0 0 5px 5px;' +
-              'animation:legStepR 1.4s ease-in-out infinite;"></div>' +
-        '</div>' +
-        // speech bubble
-        '<div id="robot-bubble" style="margin-top:.6rem;background:#EEF3FF;' +
-            'border:2px solid #1351B4;border-radius:12px;padding:.35rem .85rem;' +
-            'font-size:.78rem;color:#1351B4;font-weight:600;text-align:center;' +
-            'white-space:nowrap;position:relative;">' +
-          'Iniciando...' +
-          '<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);' +
-              'width:0;height:0;border-left:7px solid transparent;' +
-              'border-right:7px solid transparent;border-bottom:9px solid #1351B4;"></div>' +
-          '<div id="robot-bubble-inner" style="position:absolute;top:-6px;left:50%;' +
-              'transform:translateX(-50%);width:0;height:0;' +
-              'border-left:6px solid transparent;border-right:6px solid transparent;' +
-              'border-bottom:7px solid #EEF3FF;"></div>' +
-        '</div>' +
+        '<div id="robot-icon" style="display:flex;align-items:flex-end;' +
+            'justify-content:center;"></div>' +
       '</div>' +
-      // placeholder para prateleira no estado concluído
-      '<div id="robot-right" style="display:none;"></div>' +
+      '<div id="robot-bubble" style="background:#EEF3FF;' +
+          'border:2px solid #1351B4;border-radius:12px;padding:.35rem .85rem;' +
+          'font-size:.78rem;color:#1351B4;font-weight:600;text-align:center;' +
+          'white-space:nowrap;position:relative;">' +
+        'Iniciando...' +
+        '<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);' +
+            'width:0;height:0;border-left:7px solid transparent;' +
+            'border-right:7px solid transparent;border-bottom:9px solid #1351B4;"></div>' +
+        '<div id="robot-bubble-inner" style="position:absolute;top:-6px;left:50%;' +
+            'transform:translateX(-50%);width:0;height:0;' +
+            'border-left:6px solid transparent;border-right:6px solid transparent;' +
+            'border-bottom:7px solid #EEF3FF;"></div>' +
+      '</div>' +
     '</div>'
   );
 
@@ -400,12 +380,12 @@
   }
 
   function updateRobot(step, isDone, isError, isCancelled) {
-    var screen = document.getElementById('robot-screen');
+    var icon   = document.getElementById('robot-icon');
     var bubble = document.getElementById('robot-bubble');
-    var hat    = document.getElementById('robot-hat');
-    var armL   = document.getElementById('robot-arm-l');
-    var armR   = document.getElementById('robot-arm-r');
-    if (!screen || !bubble) return;
+    var mouth  = document.getElementById('robot-mouth');
+    var eyeL   = document.getElementById('robot-eye-l');
+    var eyeR   = document.getElementById('robot-eye-r');
+    if (!icon || !bubble) return;
 
     function setBubble(label, color, bg) {
       bubble.textContent  = label;
@@ -424,13 +404,6 @@
       bubble.appendChild(inner);
     }
 
-    function setScreen(icon, color, pulse) {
-      screen.style.position = '';
-      screen.style.overflow = '';
-      screen.innerHTML = '<i class="fas ' + icon + '" style="color:' + color + ';"></i>';
-      screen.style.animation = pulse ? 'screenPulse 1.2s ease-in-out infinite' : 'none';
-    }
-
     function _restoreSubmitBtn() {
       submitBtn.disabled = false;
       submitBtn.style.pointerEvents = '';
@@ -438,17 +411,24 @@
     }
 
     if (isDone) {
-      if (hat) hat.innerHTML = '';
-      var rightDiv = document.getElementById('robot-right');
-      if (rightDiv) { rightDiv.style.display = 'flex'; rightDiv.innerHTML = SHELF_HTML; }
-      setScreen('fa-gift', '#5DBA6D', false);
+      // sorriso aberto
+      if (mouth) {
+        mouth.style.width          = '28px';
+        mouth.style.height         = '13px';
+        mouth.style.borderRadius   = '0 0 18px 18px';
+        mouth.style.background     = 'rgba(0,0,0,.22)';
+        mouth.style.borderColor    = 'rgba(255,255,255,.9)';
+      }
+      // olhos iluminados
+      if (eyeL) { eyeL.style.background = '#7EB8F7'; eyeL.style.boxShadow = '0 0 6px rgba(126,184,247,.8)'; }
+      if (eyeR) { eyeR.style.background = '#7EB8F7'; eyeR.style.boxShadow = '0 0 6px rgba(126,184,247,.8)'; }
+      // prateleira ao lado
+      icon.innerHTML = SHELF_HTML;
       bubble.style.whiteSpace = 'normal';
       bubble.style.maxWidth   = '280px';
       setBubble('Normativa submetida para avaliação! Acompanhe o processo clicando em "Revisão" acima e acesse o rascunho pelo link disponibilizado abaixo.', '#168821', '#F0FAF1');
       dropZone.style.borderColor = '#168821';
       dropZone.style.background  = '#F0FAF1';
-      if (armL) { armL.style.transformOrigin = 'top center'; armL.style.animation = 'armsDoneL 0.6s ease-in-out infinite'; }
-      if (armR) { armR.style.transformOrigin = 'top center'; armR.style.animation = 'armsDoneR 0.6s ease-in-out infinite .1s'; }
       var reviewBtn = document.querySelector('a[href="/review"]');
       if (reviewBtn) {
         reviewBtn.style.borderRadius = '6px';
@@ -458,43 +438,28 @@
       submitBtn.style.pointerEvents = '';
       submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i> Enviar uma nova normativa';
     } else if (isError) {
-      if (hat) hat.innerHTML = '';
-      setScreen('fa-exclamation-triangle', '#F47C6A', false);
+      icon.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#F47C6A;font-size:2rem;"></i>';
       setBubble('Ops, erro!', '#E52207', '#FFF0EE');
       dropZone.style.borderColor = '#E52207';
       dropZone.style.background  = '#FFF0EE';
       _restoreSubmitBtn();
     } else if (isCancelled) {
-      if (hat) hat.innerHTML = '';
-      setScreen('fa-ban', '#aaa', false);
+      icon.innerHTML = '<i class="fas fa-ban" style="color:#aaa;font-size:2rem;"></i>';
       setBubble('Cancelado', '#555', '#f5f5f5');
       dropZone.style.borderColor = '#888';
       dropZone.style.background  = '#f5f5f5';
       _restoreSubmitBtn();
     } else if (step && ROBOT_STEPS[step]) {
       var s = ROBOT_STEPS[step];
-      if (hat) hat.innerHTML = HAT_HTML[step] || '';
-
+      icon.innerHTML = HAT_HTML[step] || '';
+      // olhos brilhando no scan (etapa 1)
       if (step === '1') {
-        // Detetive lendo o PDF: scan line varrendo o ícone de documento
-        screen.style.position = 'relative';
-        screen.style.overflow = 'hidden';
-        screen.style.animation = 'none';
-        screen.innerHTML =
-          '<i class="fas fa-file-pdf" style="color:#E52207;font-size:.9rem;" aria-hidden="true"></i>' +
-          '<div style="position:absolute;top:1px;left:0;right:0;height:2px;border-radius:1px;' +
-               'background:rgba(126,184,247,.9);animation:scanLine 1.4s ease-in-out infinite;"></div>';
-      } else if (step === '2') {
-        // Inspetor verificando: lupa com pulso
-        setScreen('fa-search', '#7EB8F7', true);
-      } else if (step === '3') {
-        // Escritor redigindo o FAQ: caneta pulsando
-        setScreen('fa-pen', '#C99AF7', true);
-      } else if (step === '4') {
-        // Bibliotecário publicando: livro aberto pulsando
-        setScreen('fa-book-open', '#7EB8F7', true);
+        if (eyeL) { eyeL.style.background = '#7EB8F7'; eyeL.style.animation = 'eyeBlink 4s ease-in-out infinite,screenPulse 1.4s ease-in-out infinite'; }
+        if (eyeR) { eyeR.style.background = '#7EB8F7'; eyeR.style.animation = 'eyeBlink 4s ease-in-out infinite .2s,screenPulse 1.4s ease-in-out infinite'; }
+      } else {
+        if (eyeL) { eyeL.style.background = '#fff'; eyeL.style.boxShadow = ''; eyeL.style.animation = 'eyeBlink 4s ease-in-out infinite'; }
+        if (eyeR) { eyeR.style.background = '#fff'; eyeR.style.boxShadow = ''; eyeR.style.animation = 'eyeBlink 4s ease-in-out infinite .2s'; }
       }
-
       setBubble(s.label, '#1351B4', '#EEF3FF');
     }
   }

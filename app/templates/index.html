@@ -244,117 +244,150 @@
     '4': { label: 'Publicando...'    },
   };
 
-  // Chapéus CSS — cada etapa tem um "profissional" diferente
+  // Objetos segurados pelo Francis em cada etapa
   var HAT_HTML = {
-    // Etapa 1: Detetive / pesquisador (fedora escuro)
+    // Etapa 1: Documento (leitura do PDF)
     '1':
-      '<div style="width:48px;height:13px;background:#2a2a2a;border-radius:4px 4px 0 0;"></div>' +
-      '<div style="width:66px;height:5px;background:#1a1a1a;border-radius:2px;margin-bottom:-2px;"></div>',
-    // Etapa 2: Inspetor de qualidade (capacete amarelo)
+      '<div style="width:34px;height:42px;background:#fff;' +
+          'border:2.5px solid #1351B4;border-radius:2px 10px 2px 2px;' +
+          'position:relative;box-shadow:0 2px 6px rgba(19,81,180,.2);' +
+          'display:flex;flex-direction:column;align-items:center;' +
+          'justify-content:center;gap:5px;margin-bottom:4px;">' +
+        '<div style="position:absolute;top:-1px;right:-1px;' +
+            'width:12px;height:12px;background:#1351B4;border-radius:0 0 0 4px;"></div>' +
+        '<div style="width:18px;height:2px;background:#1351B4;border-radius:1px;opacity:.5;margin-top:6px;"></div>' +
+        '<div style="width:18px;height:2px;background:#1351B4;border-radius:1px;opacity:.5;"></div>' +
+        '<div style="width:13px;height:2px;background:#1351B4;border-radius:1px;opacity:.5;"></div>' +
+      '</div>',
+    // Etapa 2: Lupa (correção e ajustes)
     '2':
-      '<div style="width:52px;height:17px;background:#FFB800;border-radius:26px 26px 0 0;' +
-          'position:relative;overflow:hidden;">' +
-        '<div style="position:absolute;bottom:0;left:4px;right:4px;height:4px;background:#CC9200;"></div>' +
-      '</div>' +
-      '<div style="width:68px;height:5px;background:#E5A000;border-radius:2px;margin-bottom:-2px;"></div>',
-    // Etapa 3: Escritor / autor (boina roxa inclinada)
+      '<div style="position:relative;width:42px;height:42px;margin-bottom:4px;">' +
+        '<div style="position:absolute;top:0;left:0;width:27px;height:27px;' +
+            'border:4px solid #1351B4;border-radius:50%;' +
+            'background:rgba(19,81,180,.08);"></div>' +
+        '<div style="position:absolute;bottom:1px;right:2px;width:5px;height:20px;' +
+            'background:#1351B4;border-radius:3px;' +
+            'transform:rotate(42deg);transform-origin:top center;"></div>' +
+      '</div>',
+    // Etapa 3: Caneta (redação do FAQ)
     '3':
-      '<div style="position:relative;width:64px;height:22px;">' +
-        '<div style="position:absolute;bottom:0;left:2px;right:2px;height:15px;' +
-            'background:#7B3FA0;border-radius:30px 30px 2px 2px;' +
-            'transform:rotate(-6deg);transform-origin:bottom center;"></div>' +
-        '<div style="position:absolute;top:0;right:12px;width:8px;height:8px;' +
-            'background:#5A2D80;border-radius:50%;"></div>' +
+      '<div style="position:relative;width:14px;height:40px;' +
+          'margin-bottom:4px;transform:rotate(-15deg);">' +
+        '<div style="width:14px;height:10px;background:#3D2F8A;' +
+            'border-radius:4px 4px 0 0;"></div>' +
+        '<div style="position:absolute;top:2px;right:1px;width:2px;height:14px;' +
+            'background:#2A1E70;border-radius:1px;"></div>' +
+        '<div style="width:14px;height:22px;background:#5c4ec4;"></div>' +
+        '<div style="width:0;height:0;border-left:7px solid transparent;' +
+            'border-right:7px solid transparent;border-top:8px solid #5c4ec4;"></div>' +
       '</div>',
-    // Etapa 4: Quepe de carteiro/publicador (entrega o documento ao Bookstack)
+    // Etapa 4: Livro fechado verde (publicação no Bookstack)
     '4':
-      '<div style="display:flex;flex-direction:column;align-items:center;">' +
-        '<div style="width:50px;height:20px;background:#168821;border-radius:10px 10px 2px 2px;' +
-            'position:relative;">' +
-          '<div style="position:absolute;top:7px;left:7px;right:7px;height:2px;' +
-              'background:rgba(255,255,255,.35);border-radius:1px;"></div>' +
+      '<div style="display:flex;height:40px;' +
+          'margin-bottom:4px;box-shadow:0 2px 5px rgba(0,0,0,.18);">' +
+        '<div style="width:8px;background:#0D5A15;border-radius:3px 0 0 3px;"></div>' +
+        '<div style="width:24px;background:#168821;border-radius:0 3px 3px 0;' +
+            'display:flex;flex-direction:column;align-items:center;' +
+            'padding-top:10px;gap:3px;">' +
+          '<div style="width:14px;height:2px;background:rgba(255,255,255,.55);border-radius:1px;"></div>' +
+          '<div style="width:14px;height:2px;background:rgba(255,255,255,.55);border-radius:1px;"></div>' +
+          '<div style="width:9px;height:2px;background:rgba(255,255,255,.55);border-radius:1px;"></div>' +
         '</div>' +
-        '<div style="width:68px;height:6px;background:#0D5A15;border-radius:3px;' +
-            'margin-bottom:-2px;"></div>' +
       '</div>',
-    // Concluído: chapéu de festa (entregando o documento!)
-    'done':
-      '<div style="position:relative;width:40px;height:34px;margin:0 auto;">' +
-        '<div style="position:absolute;bottom:0;left:0;right:0;height:0;' +
-            'border-left:20px solid transparent;border-right:20px solid transparent;' +
-            'border-bottom:34px solid #E52207;"></div>' +
-        '<div style="position:absolute;top:6px;left:9px;width:4px;height:4px;' +
-            'background:#FFD700;border-radius:50%;"></div>' +
-        '<div style="position:absolute;top:15px;left:14px;width:3px;height:3px;' +
-            'background:#fff;border-radius:50%;"></div>' +
-        '<div style="position:absolute;top:10px;right:8px;width:3px;height:3px;' +
-            'background:#4AE54A;border-radius:50%;"></div>' +
-      '</div>' +
-      '<div style="width:42px;height:4px;background:#B01500;border-radius:2px;' +
-          'margin:0 auto;margin-bottom:-2px;"></div>',
   };
 
+  // Prateleira com livro verde — estado concluído
+  var SHELF_HTML = (
+    '<div style="width:65px;height:128px;background:#1351B4;border-radius:6px;' +
+        'padding:5px;box-sizing:border-box;' +
+        'display:flex;flex-direction:column;justify-content:space-between;' +
+        'box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
+      '<div style="height:5px;background:#0D3D87;border-radius:2px;"></div>' +
+      '<div style="flex:1;"></div>' +
+      '<div style="height:5px;background:#0D3D87;border-radius:2px;"></div>' +
+      '<div style="flex:1;display:flex;align-items:flex-end;padding:0 5px;">' +
+        '<div style="display:flex;height:32px;">' +
+          '<div style="width:7px;background:#0D5A15;border-radius:2px 0 0 2px;"></div>' +
+          '<div style="width:20px;background:#168821;border-radius:0 2px 2px 0;' +
+              'display:flex;flex-direction:column;align-items:center;' +
+              'padding-top:7px;gap:3px;">' +
+            '<div style="width:12px;height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
+            '<div style="width:12px;height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
+            '<div style="width:8px;height:2px;background:rgba(255,255,255,.5);border-radius:1px;"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="height:5px;background:#0D3D87;border-radius:2px;"></div>' +
+    '</div>'
+  );
+
   var ROBOT_HTML = (
-    '<div id="robot-wrap" style="display:flex;flex-direction:column;align-items:center;' +
-        'padding:.75rem 0 .5rem;gap:2px;animation:robotFloat 2.5s ease-in-out infinite;">' +
-      '<div id="robot-hat" style="display:flex;flex-direction:column;align-items:center;"></div>' +
-      // head
-      '<div style="width:64px;height:50px;background:#1351B4;border-radius:10px;' +
-          'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-          'gap:6px;box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
-        '<div style="display:flex;gap:12px;">' +
-          '<div style="width:11px;height:11px;background:#fff;border-radius:50%;' +
-              'animation:eyeBlink 4s ease-in-out infinite;"></div>' +
-          '<div style="width:11px;height:11px;background:#fff;border-radius:50%;' +
-              'animation:eyeBlink 4s ease-in-out infinite .2s;"></div>' +
-        '</div>' +
-        '<div style="width:20px;height:8px;border:3px solid rgba(255,255,255,.75);' +
-            'border-top:none;border-radius:0 0 12px 12px;background:transparent;"></div>' +
-      '</div>' +
-      // arms + body
-      '<div style="display:flex;align-items:flex-start;gap:4px;margin-top:3px;">' +
-        '<div id="robot-arm-l" style="width:11px;height:34px;background:#1351B4;border-radius:5px;' +
-            'transform-origin:top center;animation:armSwingL 1.4s ease-in-out infinite;' +
-            'margin-top:6px;"></div>' +
-        '<div style="width:62px;height:66px;background:#1351B4;border-radius:8px;' +
+    // wrapper row: robot-body-col + robot-right (prateleira no concluído)
+    '<div id="robot-wrap" style="display:inline-flex;flex-direction:row;' +
+        'align-items:flex-end;gap:10px;padding:.75rem 0 .5rem;">' +
+      '<div id="robot-body-col" style="display:flex;flex-direction:column;align-items:center;' +
+          'gap:2px;animation:robotFloat 2.5s ease-in-out infinite;">' +
+        '<div id="robot-hat" style="display:flex;flex-direction:column;align-items:center;"></div>' +
+        // head
+        '<div style="width:64px;height:50px;background:#1351B4;border-radius:10px;' +
             'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-            'gap:5px;box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
-          '<div id="robot-screen" style="width:34px;height:26px;background:#0D3D87;' +
-              'border-radius:4px;display:flex;align-items:center;justify-content:center;' +
-              'color:#7EB8F7;font-size:.85rem;animation:screenPulse 1.2s ease-in-out infinite;">' +
-            '<i class="fas fa-spinner fa-spin"></i>' +
+            'gap:6px;box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
+          '<div style="display:flex;gap:12px;">' +
+            '<div style="width:11px;height:11px;background:#fff;border-radius:50%;' +
+                'animation:eyeBlink 4s ease-in-out infinite;"></div>' +
+            '<div style="width:11px;height:11px;background:#fff;border-radius:50%;' +
+                'animation:eyeBlink 4s ease-in-out infinite .2s;"></div>' +
           '</div>' +
-          '<div style="display:flex;gap:4px;">' +
-            '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
-            '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
-            '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
-          '</div>' +
+          '<div style="width:20px;height:8px;border:3px solid rgba(255,255,255,.75);' +
+              'border-top:none;border-radius:0 0 12px 12px;background:transparent;"></div>' +
         '</div>' +
-        '<div id="robot-arm-r" style="width:11px;height:34px;background:#1351B4;border-radius:5px;' +
-            'transform-origin:top center;animation:armSwingR 1.4s ease-in-out infinite;' +
-            'margin-top:6px;"></div>' +
+        // arms + body
+        '<div style="display:flex;align-items:flex-start;gap:4px;margin-top:3px;">' +
+          '<div id="robot-arm-l" style="width:11px;height:34px;background:#1351B4;border-radius:5px;' +
+              'transform-origin:top center;animation:armSwingL 1.4s ease-in-out infinite;' +
+              'margin-top:6px;"></div>' +
+          '<div style="width:62px;height:66px;background:#1351B4;border-radius:8px;' +
+              'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+              'gap:5px;box-shadow:0 2px 8px rgba(19,81,180,.35);">' +
+            '<div id="robot-screen" style="width:34px;height:26px;background:#0D3D87;' +
+                'border-radius:4px;display:flex;align-items:center;justify-content:center;' +
+                'color:#7EB8F7;font-size:.85rem;animation:screenPulse 1.2s ease-in-out infinite;">' +
+              '<i class="fas fa-spinner fa-spin"></i>' +
+            '</div>' +
+            '<div style="display:flex;gap:4px;">' +
+              '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
+              '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
+              '<div style="width:6px;height:6px;background:#4A90D9;border-radius:50%;"></div>' +
+            '</div>' +
+          '</div>' +
+          '<div id="robot-arm-r" style="width:11px;height:34px;background:#1351B4;border-radius:5px;' +
+              'transform-origin:top center;animation:armSwingR 1.4s ease-in-out infinite;' +
+              'margin-top:6px;"></div>' +
+        '</div>' +
+        // legs
+        '<div style="display:flex;gap:10px;margin-top:2px;">' +
+          '<div style="width:13px;height:20px;background:#0D3D87;border-radius:0 0 5px 5px;' +
+              'animation:legStepL 1.4s ease-in-out infinite;"></div>' +
+          '<div style="width:13px;height:20px;background:#0D3D87;border-radius:0 0 5px 5px;' +
+              'animation:legStepR 1.4s ease-in-out infinite;"></div>' +
+        '</div>' +
+        // speech bubble
+        '<div id="robot-bubble" style="margin-top:.6rem;background:#EEF3FF;' +
+            'border:2px solid #1351B4;border-radius:12px;padding:.35rem .85rem;' +
+            'font-size:.78rem;color:#1351B4;font-weight:600;text-align:center;' +
+            'white-space:nowrap;position:relative;">' +
+          'Iniciando...' +
+          '<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);' +
+              'width:0;height:0;border-left:7px solid transparent;' +
+              'border-right:7px solid transparent;border-bottom:9px solid #1351B4;"></div>' +
+          '<div id="robot-bubble-inner" style="position:absolute;top:-6px;left:50%;' +
+              'transform:translateX(-50%);width:0;height:0;' +
+              'border-left:6px solid transparent;border-right:6px solid transparent;' +
+              'border-bottom:7px solid #EEF3FF;"></div>' +
+        '</div>' +
       '</div>' +
-      // legs
-      '<div style="display:flex;gap:10px;margin-top:2px;">' +
-        '<div style="width:13px;height:20px;background:#0D3D87;border-radius:0 0 5px 5px;' +
-            'animation:legStepL 1.4s ease-in-out infinite;"></div>' +
-        '<div style="width:13px;height:20px;background:#0D3D87;border-radius:0 0 5px 5px;' +
-            'animation:legStepR 1.4s ease-in-out infinite;"></div>' +
-      '</div>' +
-      // speech bubble
-      '<div id="robot-bubble" style="margin-top:.6rem;background:#EEF3FF;' +
-          'border:2px solid #1351B4;border-radius:12px;padding:.35rem .85rem;' +
-          'font-size:.78rem;color:#1351B4;font-weight:600;text-align:center;' +
-          'white-space:nowrap;position:relative;">' +
-        'Iniciando...' +
-        '<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);' +
-            'width:0;height:0;border-left:7px solid transparent;' +
-            'border-right:7px solid transparent;border-bottom:9px solid #1351B4;"></div>' +
-        '<div id="robot-bubble-inner" style="position:absolute;top:-6px;left:50%;' +
-            'transform:translateX(-50%);width:0;height:0;' +
-            'border-left:6px solid transparent;border-right:6px solid transparent;' +
-            'border-bottom:7px solid #EEF3FF;"></div>' +
-      '</div>' +
+      // placeholder para prateleira no estado concluído
+      '<div id="robot-right" style="display:none;"></div>' +
     '</div>'
   );
 
@@ -405,7 +438,9 @@
     }
 
     if (isDone) {
-      if (hat) hat.innerHTML = HAT_HTML['done'];
+      if (hat) hat.innerHTML = '';
+      var rightDiv = document.getElementById('robot-right');
+      if (rightDiv) { rightDiv.style.display = 'flex'; rightDiv.innerHTML = SHELF_HTML; }
       setScreen('fa-gift', '#5DBA6D', false);
       bubble.style.whiteSpace = 'normal';
       bubble.style.maxWidth   = '280px';

@@ -157,7 +157,8 @@
   @keyframes legStepR    { 0%,100%{transform:translateY(4px)} 50%{transform:translateY(0)} }
   @keyframes antennaBlink{ 0%,100%{opacity:1;box-shadow:0 0 6px #E52207} 50%{opacity:.2;box-shadow:none} }
   @keyframes screenPulse { 0%,100%{opacity:1} 50%{opacity:.55} }
-  @keyframes armsDone    { 0%,100%{transform:rotate(-140deg)} 50%{transform:rotate(-150deg)} }
+  @keyframes armsDoneL   { 0%,100%{transform:rotate(-65deg)} 50%{transform:rotate(-75deg)} }
+  @keyframes armsDoneR   { 0%,100%{transform:rotate(65deg)}  50%{transform:rotate(75deg)} }
   @keyframes scanLine    { 0%,100%{top:1px} 50%{top:calc(100% - 3px)} }
   @keyframes reviewPulse { 0%,100%{box-shadow:0 0 0 2px #168821,0 0 8px rgba(22,136,33,.4)} 50%{box-shadow:0 0 0 4px #168821,0 0 18px rgba(22,136,33,.7)} }
 </style>
@@ -405,8 +406,8 @@
       setBubble('Normativa submetida para avaliação! Acompanhe o processo clicando em "Revisão" acima e acesse o rascunho pelo link disponibilizado abaixo.', '#168821', '#F0FAF1');
       dropZone.style.borderColor = '#168821';
       dropZone.style.background  = '#F0FAF1';
-      if (armL) { armL.style.animation = 'armsDone 0.6s ease-in-out infinite'; armL.style.transformOrigin = 'bottom center'; }
-      if (armR) { armR.style.animation = 'armsDone 0.6s ease-in-out infinite .1s'; armR.style.transformOrigin = 'bottom center'; }
+      if (armL) { armL.style.transformOrigin = 'top center'; armL.style.animation = 'armsDoneL 0.6s ease-in-out infinite'; }
+      if (armR) { armR.style.transformOrigin = 'top center'; armR.style.animation = 'armsDoneR 0.6s ease-in-out infinite .1s'; }
       var reviewBtn = document.querySelector('a[href="/review"]');
       if (reviewBtn) {
         reviewBtn.style.borderRadius = '6px';

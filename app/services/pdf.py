@@ -295,6 +295,7 @@ def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str,
 
     full_text = "\n\n---\n\n".join(parts)
     full_text = _remove_signature_artifacts(full_text)
+    full_text = full_text.replace("\n\n---\n\n", "\n\n")  # remove batch separators — renderiam como <hr> no Bookstack
     full_text = _bold_article_identifiers(full_text)
     return full_text, total_usage
 

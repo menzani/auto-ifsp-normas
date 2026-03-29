@@ -193,28 +193,12 @@ def create_normativo(
             "markdown": _build_anomaly_page(anomalies or [], structure_mode),
             "draft": True,
         })
-    preamble_page: dict | None = None
-    annex_pages: list[dict] = []
     for page_name, page_content in _split_into_chapter_pages(full_text_markdown):
-        page = _api_post("/pages", {
+        _api_post("/pages", {
             "chapter_id": text_chapter["id"],
             "name": page_name,
             "markdown": page_content,
             "draft": True,
-        })
-        if page_name == "Preâmbulo":
-            preamble_page = {"id": page["id"], "content": page_content}
-        elif _re.match(r"^ANEXO\b", page_name, _re.IGNORECASE):
-            annex_pages.append({"name": page_name, "url": page.get("url", "")})
-
-    # Se há preâmbulo e pelo menos um anexo, adiciona índice de anexos ao preâmbulo
-    if preamble_page and annex_pages:
-        index_md = "\n\n---\n\n### Anexos\n\n" + "\n".join(
-            f"- [{a['name']}]({a['url']})" for a in annex_pages
-        )
-        _api_put(f"/pages/{preamble_page['id']}", {
-            "name": "Preâmbulo",
-            "markdown": preamble_page["content"] + index_md,
         })
 
     # 5. Capítulo "3. Download" — link permanente para o PDF original

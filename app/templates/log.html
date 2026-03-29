@@ -32,18 +32,33 @@
                 <tr>
                   <th scope="col">Data/Hora</th>
                   <th scope="col">Usuário</th>
-                  <th scope="col">Ação</th>
                   <th scope="col">Normativo</th>
+                  <th scope="col">Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {% for entry in entries %}
                 <tr>
-                  <td class="text-down-01" style="white-space:nowrap;">{{ entry.ts_display }}</td>
+                  <td class="text-down-01" style="white-space:nowrap;">
+                    {{ entry.ts_display }}
+                    {% if entry.extra %}
+                    <br><span class="text-down-02" style="color:#888;">
+                      {% if entry.extra.tempo_s %}
+                        <i class="fas fa-clock mr-1" aria-hidden="true"></i>
+                        {% set t = entry.extra.tempo_s %}
+                        {% if t < 60 %}{{ t }}s{% else %}{{ (t // 60)|int }}min {{ (t % 60)|int }}s{% endif %}
+                      {% endif %}
+                      {% if entry.extra.tokens %}
+                        &nbsp;·&nbsp;<i class="fas fa-robot mr-1" aria-hidden="true"></i>{{ entry.extra.tokens }} tokens
+                      {% endif %}
+                    </span>
+                    {% endif %}
+                  </td>
                   <td>
                     <i class="fas fa-user mr-1" style="color:#888;" aria-hidden="true"></i>
                     {{ entry.user }}
                   </td>
+                  <td>{{ entry.details }}</td>
                   <td>
                     {% if entry.action == "upload" %}
                       <span class="br-tag info text">
@@ -87,21 +102,6 @@
                       </span>
                     {% else %}
                       <span class="br-tag text">{{ entry.action }}</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {{ entry.details }}
-                    {% if entry.extra %}
-                    <br><span class="text-down-02" style="color:#888;">
-                      {% if entry.extra.tempo_s %}
-                        <i class="fas fa-clock mr-1" aria-hidden="true"></i>
-                        {% set t = entry.extra.tempo_s %}
-                        {% if t < 60 %}{{ t }}s{% else %}{{ (t // 60)|int }}min {{ (t % 60)|int }}s{% endif %}
-                      {% endif %}
-                      {% if entry.extra.tokens %}
-                        &nbsp;·&nbsp;<i class="fas fa-robot mr-1" aria-hidden="true"></i>{{ entry.extra.tokens }} tokens
-                      {% endif %}
-                    </span>
                     {% endif %}
                   </td>
                 </tr>

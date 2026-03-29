@@ -303,6 +303,7 @@
         sessionStorage.setItem('ifsp_step_start', Date.now().toString());
       }
       if (!_interval) _interval = setInterval(tick, 1000);
+      tick(); // preenche imediatamente após o swap, sem esperar o próximo intervalo
     });
   }());
 </script>

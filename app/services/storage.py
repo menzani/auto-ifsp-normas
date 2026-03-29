@@ -4,6 +4,7 @@ MOCK_S3=true  → salva em ./data/ localmente.
 MOCK_S3=false → usa AWS S3.
 """
 import json
+import threading
 from pathlib import Path
 
 from app.config import get_settings
@@ -13,7 +14,7 @@ settings = get_settings()
 LOCAL_DATA = Path("data")
 
 _s3_client = None
-_s3_client_lock = __import__("threading").Lock()
+_s3_client_lock = threading.Lock()
 
 
 def _get_s3_client():
@@ -167,7 +168,7 @@ def get_download_url(key: str) -> str:
 
 
 _CHECKSUMS_KEY = "registry/pdf_checksums.json"
-_checksums_lock = __import__("threading").Lock()
+_checksums_lock = threading.Lock()
 
 
 def find_pdf_by_checksum(checksum: str) -> dict | None:

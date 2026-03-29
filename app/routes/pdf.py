@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, HTTPException, Path, Request
 from fastapi.responses import RedirectResponse
 
 from app.config import get_settings

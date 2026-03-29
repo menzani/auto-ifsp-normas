@@ -40,6 +40,29 @@ _SIGNATURE_LINE_RE = re.compile(
 # Rodapés de paginação variáveis (ex: "Página 48 de 65") — removidos antes da etapa de IA
 _PAGE_FOOTER_RE = re.compile(r"^\s*página\s+\d+\s+de\s+\d+\s*$", re.IGNORECASE)
 
+# Identificadores de artigo e parágrafo que devem ser negritados no início de linha.
+# Captura apenas o marcador (Art. 1º, § 2º, Parágrafo único…), não o texto do artigo.
+_ARTICLE_ID_RE = re.compile(
+    r'^(?P<indent>[ \t]*)'
+    r'(?P<id>'
+    r'Art(?:igo)?\.?\s*\d+[ºo°]?\.?'
+    r'|§\s*(?:\d+[ºo°]?|[Úú]nico)'
+    r'|Par[aá]grafo\s+(?:\d+[ºo°]?|[Úú]nico)'
+    r'|Par\.\s*\d+[ºo°]?'
+    r')(?=[\s\.,;:]|$)',
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _bold_article_identifiers(text: str) -> str:
+    """Garante negrito nos identificadores de artigo e parágrafo no início de cada linha."""
+    def _replace(m: re.Match) -> str:
+        pos = m.start('id')
+        if pos >= 2 and text[pos - 2:pos] == '**':
+            return m.group(0)  # já está negritado
+        return m.group('indent') + '**' + m.group('id') + '**'
+    return _ARTICLE_ID_RE.sub(_replace, text)
+
 # Headings estruturais detectáveis deterministicamente por palavras-chave.
 # Tolerância a typos comuns: sem acento (CAPITULO), sem espaço antes do numeral
 # (CAPÍTULOI), abreviação (CAP. IV), prefixo numérico (4. CAPÍTULO IV),
@@ -272,6 +295,7 @@ def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str,
 
     full_text = "\n\n---\n\n".join(parts)
     full_text = _remove_signature_artifacts(full_text)
+    full_text = _bold_article_identifiers(full_text)
     return full_text, total_usage
 
 

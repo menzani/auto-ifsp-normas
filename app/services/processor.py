@@ -3,11 +3,12 @@ Pipeline de processamento síncrono de um normativo.
 
 Roda em background via threading.Thread (daemon=True).
 
-Etapas e suas fatias de progresso:
-  1. Extraindo texto do PDF        (0–25 %)
-  2. Gerando FAQ com IA            (25–50 %)
-  3. Publicando rascunho           (50–90 %)
-  4. Concluído                     (100 %)
+Etapas:
+  1. Extração via visão (Claude Vision — lotes de páginas)
+  2. Verificando extração
+  3. Gerando FAQ com IA
+  4. Publicando rascunho no Bookstack
+  5. Concluído
 """
 import logging
 import threading
@@ -17,8 +18,8 @@ from app.services import bookstack as bs
 _log = logging.getLogger(__name__)
 from app.services import audit, storage
 from app.config import get_settings
-from app.services.bedrock import generate_faq, structure_markdown
-from app.services.pdf import pdf_to_markdown, pdf_to_markdown_multimodal, detect_structural_anomalies, has_structure
+from app.services.bedrock import generate_faq
+from app.services.pdf import pdf_to_markdown_multimodal, detect_structural_anomalies
 
 class _JobCancelled(Exception):
     pass
@@ -32,7 +33,7 @@ def _raise_if_cancelled(job_id: str) -> None:
 
 STEPS = [
     (1, "Extraindo texto do PDF"),
-    (2, "Estruturando texto com IA"),
+    (2, "Verificando extração"),
     (3, "Gerando FAQ com IA"),
     (4, "Publicando rascunho no Bookstack"),
     (5, "Concluído"),
@@ -92,55 +93,23 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str):
 
         base_status = storage.load_status(job_id) or {"id": job_id}
 
-        if get_settings().multimodal_extraction:
-            # ── Modo multimodal: Claude Vision extrai e estrutura em um passo ──
-            def on_multimodal_progress(current, total):
-                pct = int(current / total * 40)  # 0–40 %
-                storage.save_status(job_id, base_status | {
-                    "current_step_label": f"Extraindo via visão — lote {current}/{total}",
-                    "progress_pct": pct,
-                })
+        def on_multimodal_progress(current, total):
+            pct = int(current / total * 40)  # 0–40 %
+            storage.save_status(job_id, base_status | {
+                "current_step_label": f"Extraindo via visão — lote {current}/{total}",
+                "progress_pct": pct,
+            })
 
-            markdown_text, structure_usage = pdf_to_markdown_multimodal(
-                pdf_bytes, on_progress=on_multimodal_progress
-            )
-            extraction_check = _verify_extraction(markdown_text)
-            anomalies = detect_structural_anomalies(markdown_text)
-            structure_mode = "multimodal"
+        markdown_text, structure_usage = pdf_to_markdown_multimodal(
+            pdf_bytes, on_progress=on_multimodal_progress
+        )
+        extraction_check = _verify_extraction(markdown_text)
+        anomalies = detect_structural_anomalies(markdown_text)
+        structure_mode = "multimodal"
 
-            # Etapa 2 não processa nada — extração e estruturação já foram feitas
-            _raise_if_cancelled(job_id)
-            _set_step(job_id, 2, _private)
-
-        else:
-            # ── Modo texto: PyMuPDF + structure_markdown (fluxo original) ────
-            def on_progress(current, total):
-                pct = int(current / total * 50)  # 0–50 %
-                storage.save_status(job_id, base_status | {
-                    "current_step_label": f"Extraindo texto — página {current}/{total}",
-                    "progress_pct": pct,
-                })
-
-            markdown_text = pdf_to_markdown(pdf_bytes, on_progress=on_progress)
-
-            extraction_check = _verify_extraction(markdown_text)
-            anomalies = detect_structural_anomalies(markdown_text)
-            structure_mode = "validate" if has_structure(markdown_text) else "suggest"
-
-            # ── Etapa 2: Estruturação com IA ─────────────────────────────
-            _raise_if_cancelled(job_id)
-            _set_step(job_id, 2, _private)
-
-            def on_structure_progress(current, total):
-                pct = int(20 + current / total * 20)  # 20–40 %
-                storage.save_status(job_id, base_status | {
-                    "current_step_label": f"Estruturando texto — parte {current}/{total}",
-                    "progress_pct": pct,
-                })
-
-            markdown_text, structure_usage = structure_markdown(
-                markdown_text, mode=structure_mode, on_progress=on_structure_progress
-            )
+        # ── Etapa 2: Verificação da extração ────────────────────────────
+        _raise_if_cancelled(job_id)
+        _set_step(job_id, 2, _private)
 
         # ── Etapa 3: FAQ com IA ──────────────────────────────────────────
         _raise_if_cancelled(job_id)

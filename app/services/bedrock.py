@@ -8,6 +8,7 @@ import base64
 import json
 import logging
 import re
+import threading
 
 import boto3
 from botocore.config import Config
@@ -22,7 +23,7 @@ _MAX_INPUT_CHARS = 80_000
 
 _bedrock_client = None
 _bedrock_multimodal_client = None
-_bedrock_client_lock = __import__("threading").Lock()
+_bedrock_client_lock = threading.Lock()
 
 
 def _get_bedrock_client():

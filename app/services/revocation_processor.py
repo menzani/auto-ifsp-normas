@@ -175,11 +175,19 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         raise
 
 
-def run_in_background(job_id: str, book_id: int, revoked_by: str) -> None:
-    """Dispara o pipeline numa thread separada (dev local)."""
-    t = threading.Thread(
-        target=run,
-        args=(job_id, book_id, revoked_by),
-        daemon=True,
-    )
-    t.start()
+_semaphore = threading.Semaphore(2)  # máx 2 revogações simultâneas
+
+
+def run_in_background(job_id: str, book_id: int, revoked_by: str) -> bool:
+    """Dispara o pipeline numa thread separada. Retorna False se o limite de jobs simultâneos for atingido."""
+    if not _semaphore.acquire(blocking=False):
+        return False
+
+    def _target():
+        try:
+            run(job_id, book_id, revoked_by)
+        finally:
+            _semaphore.release()
+
+    threading.Thread(target=_target, daemon=True).start()
+    return True

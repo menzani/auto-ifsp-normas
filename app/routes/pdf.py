@@ -11,7 +11,7 @@ router = APIRouter(tags=["pdf"])
 
 
 @router.get("/pdf/{job_id}")
-async def download_pdf(
+def download_pdf(
     request: Request,
     job_id: str = Path(..., pattern=JOB_ID_PATTERN),
 ):

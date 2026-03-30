@@ -23,7 +23,7 @@ _UPLOAD_ROLES = ("uploader", "revisor", "admin")
 
 
 @router.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, user=Depends(get_current_user)):
+def dashboard(request: Request, user=Depends(get_current_user)):
     if user.get("role") not in _UPLOAD_ROLES:
         return RedirectResponse("/review", status_code=302)
     return templates.TemplateResponse("index.html", {
@@ -99,14 +99,28 @@ async def upload_pdf(
     }
     storage.save_status(job_id, initial_status)
 
-    audit.log(user["email"], "upload", title.strip(), extra={"checksum": checksum[:12]})
-    run_in_background(
+    started = run_in_background(
         job_id=job_id,
         pdf_key=pdf_key,
         title=title.strip(),
         uploaded_by=user["email"],
         checksum=checksum,
     )
+    if not started:
+        storage.delete_pdf(pdf_key)
+        storage.unregister_pdf_checksum_by_job_id(job_id)
+        storage.save_status(job_id, {**initial_status, "status": "error",
+                                     "error": "Servidor ocupado. Aguarde e tente novamente."})
+        return HTMLResponse(
+            '<div class="br-message danger" role="alert">'
+            '<div class="icon"><i class="fas fa-times-circle" aria-hidden="true"></i></div>'
+            '<div class="content">O servidor está processando o número máximo de documentos simultâneos. '
+            'Aguarde alguns minutos e tente novamente.</div>'
+            '</div>',
+            status_code=200,
+        )
+
+    audit.log(user["email"], "upload", title.strip(), extra={"checksum": checksum[:12]})
 
     return templates.TemplateResponse(
         "partials/progress.html",

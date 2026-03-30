@@ -14,7 +14,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 @router.get("/users", response_class=HTMLResponse)
-async def admin_users(request: Request, user=Depends(require_admin)):
+def admin_users(request: Request, user=Depends(require_admin)):
     all_users = user_store.list_users()
     return templates.TemplateResponse("admin.html", {
         "request": request,
@@ -24,7 +24,7 @@ async def admin_users(request: Request, user=Depends(require_admin)):
 
 
 @router.post("/users/{email:path}/role", response_class=HTMLResponse)
-async def update_role(
+def update_role(
     email: str,
     request: Request,
     role: str = Form(...),

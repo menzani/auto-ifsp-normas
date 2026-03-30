@@ -18,7 +18,7 @@ router = APIRouter(prefix="/review", tags=["review"])
 
 
 @router.get("", response_class=HTMLResponse)
-async def review_page(request: Request, user=Depends(get_current_user)):
+def review_page(request: Request, user=Depends(get_current_user)):
     overview = bs.get_all_books_overview()
     role = user.get("role")
     forbidden = {settings.bookstack_staging_shelf_id, settings.bookstack_revoked_shelf_id}
@@ -37,7 +37,7 @@ async def review_page(request: Request, user=Depends(get_current_user)):
 
 
 @router.post("/{book_id}/publish", response_class=HTMLResponse)
-async def publish_book(
+def publish_book(
     book_id: int,
     request: Request,
     user=Depends(get_current_user),
@@ -90,7 +90,7 @@ async def publish_book(
 
 
 @router.post("/{book_id}/move", response_class=HTMLResponse)
-async def move_book_route(
+def move_book_route(
     book_id: int,
     request: Request,
     user=Depends(get_current_user),
@@ -112,7 +112,7 @@ async def move_book_route(
 
 
 @router.delete("/{book_id}", response_class=HTMLResponse)
-async def delete_book_route(book_id: int, request: Request, user=Depends(get_current_user)):
+def delete_book_route(book_id: int, request: Request, user=Depends(get_current_user)):
     if user.get("role") != "admin":
         raise HTTPException(403, "Acesso restrito a administradores.")
 
@@ -152,7 +152,7 @@ def _load_and_authorize_revoke_job(job_id: str, user: dict) -> dict:
 
 
 @router.get("/revoke-status/{job_id}", response_class=HTMLResponse)
-async def revoke_status(
+def revoke_status(
     request: Request,
     job_id: str = Path(..., pattern=REVOKE_JOB_ID_PATTERN),
     user=Depends(get_current_user),
@@ -162,7 +162,7 @@ async def revoke_status(
 
 
 @router.post("/revoke-cancel/{job_id}", response_class=HTMLResponse)
-async def cancel_revoke_job(
+def cancel_revoke_job(
     request: Request,
     job_id: str = Path(..., pattern=REVOKE_JOB_ID_PATTERN),
     user=Depends(get_current_user),
@@ -175,7 +175,7 @@ async def cancel_revoke_job(
 
 
 @router.post("/{book_id}/invalidate", response_class=HTMLResponse)
-async def invalidate_book_route(book_id: int, request: Request, user=Depends(get_current_user)):
+def invalidate_book_route(book_id: int, request: Request, user=Depends(get_current_user)):
     if user.get("role") not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso restrito a revisores.")
 
@@ -189,7 +189,28 @@ async def invalidate_book_route(book_id: int, request: Request, user=Depends(get
         "progress_pct": 0,
         "owner": user["email"],
     })
-    revocation_processor.run_in_background(job_id, book_id, user["email"])
+    if not revocation_processor.run_in_background(job_id, book_id, user["email"]):
+        storage.save_status(job_id, {
+            "id": job_id,
+            "status": "error",
+            "error": "Servidor ocupado. Aguarde e tente novamente.",
+            "current_step": 0,
+            "total_steps": 5,
+            "current_step_label": "Erro",
+            "progress_pct": 0,
+            "owner": user["email"],
+        })
+        bid = html.escape(str(book_id))
+        return HTMLResponse(
+            f'<tbody id="pub-rows-{bid}"></tbody>'
+            '<div id="action-toast" hx-swap-oob="true">'
+            '<div class="br-message danger action-toast" role="status">'
+            '<div class="icon"><i class="fas fa-times-circle" aria-hidden="true"></i></div>'
+            '<div class="content">'
+            '<p class="text-medium-weight mb-1">Servidor ocupado.</p>'
+            '<p class="text-down-01 mb-0">O número máximo de revogações simultâneas foi atingido. Tente novamente em instantes.</p>'
+            '</div></div></div>'
+        )
 
     job = storage.load_status(job_id)
     inner = templates.env.get_template("partials/revoke_progress.html").render(job=job)
@@ -214,7 +235,7 @@ async def invalidate_book_route(book_id: int, request: Request, user=Depends(get
 
 
 @router.delete("/revoked/{revocation_id}", response_class=HTMLResponse)
-async def delete_revoked(
+def delete_revoked(
     request: Request,
     revocation_id: str = Path(..., pattern=REVOCATION_ID_PATTERN),
     user=Depends(get_current_user),

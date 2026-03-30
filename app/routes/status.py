@@ -28,7 +28,7 @@ def _load_and_authorize_job(job_id: str, user: dict) -> dict:
 
 
 @router.get("/{job_id}", response_class=HTMLResponse)
-async def job_status(
+def job_status(
     request: Request,
     job_id: str = Path(..., pattern=JOB_ID_PATTERN),
     user=Depends(get_current_user),
@@ -41,7 +41,7 @@ async def job_status(
 
 
 @router.post("/{job_id}/cancel", response_class=HTMLResponse)
-async def cancel_job(
+def cancel_job(
     request: Request,
     job_id: str = Path(..., pattern=JOB_ID_PATTERN),
     user=Depends(get_current_user),

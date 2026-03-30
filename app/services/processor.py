@@ -212,13 +212,21 @@ def _verify_extraction(markdown_text: str) -> dict:
     }
 
 
-def run_in_background(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str = ""):
-    """Dispara o pipeline numa thread separada (dev local)."""
-    t = threading.Thread(
-        target=run,
-        args=(job_id, pdf_key, title, uploaded_by, checksum),
-        daemon=True,
-    )
-    t.start()
+_semaphore = threading.Semaphore(3)  # máx 3 processamentos simultâneos
+
+
+def run_in_background(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str = "") -> bool:
+    """Dispara o pipeline numa thread separada. Retorna False se o limite de jobs simultâneos for atingido."""
+    if not _semaphore.acquire(blocking=False):
+        return False
+
+    def _target():
+        try:
+            run(job_id, pdf_key, title, uploaded_by, checksum)
+        finally:
+            _semaphore.release()
+
+    threading.Thread(target=_target, daemon=True).start()
+    return True
 
 

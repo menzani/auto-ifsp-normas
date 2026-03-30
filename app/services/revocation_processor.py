@@ -11,15 +11,14 @@ Etapas e suas fatias de progresso:
 import logging
 import re
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from secrets import token_urlsafe
 
-from app.services import bookstack as bs
+from app.config import get_settings
+from app.services import audit, bookstack as bs, storage
+from app.services.bedrock import generate_revocation_summary
 
 _log = logging.getLogger(__name__)
-from app.config import get_settings
-from app.services import audit, storage
-from app.services.bedrock import generate_revocation_summary
 
 class _JobCancelled(Exception):
     pass
@@ -90,6 +89,7 @@ def _extract_field(text: str, field: str) -> str:
 def run(job_id: str, book_id: int, revoked_by: str) -> None:
     """Executa o pipeline completo de revogação. Bloqueia até concluir."""
     revoked_book_id: int | None = None
+    title = ""  # inicializado aqui para garantir binding no except _JobCancelled
     # owner deve persistir em todos os saves — _set_step reescreve o dict completo.
     _private = {"owner": revoked_by}
     try:
@@ -148,7 +148,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
             "pdf_url": pdf_url,
             "uploaded_by": uploaded_by,
             "revoked_by": revoked_by,
-            "revoked_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
+            "revoked_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
             "bookstack_url": revoked_book_url,
             "bookstack_book_id": revoked_book_id,
         })

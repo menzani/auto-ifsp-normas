@@ -173,7 +173,8 @@ _checksums_lock = threading.Lock()
 
 def find_pdf_by_checksum(checksum: str) -> dict | None:
     """Retorna os metadados do upload anterior com o mesmo checksum, ou None."""
-    return _load_checksum_registry().get(checksum)
+    with _checksums_lock:
+        return _load_checksum_registry().get(checksum)
 
 
 def register_pdf_checksum(checksum: str, job_id: str, title: str, uploaded_by: str) -> None:

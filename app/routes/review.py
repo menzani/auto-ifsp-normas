@@ -186,7 +186,7 @@ def invalidate_book_route(book_id: int, request: Request, user=Depends(get_curre
         raise HTTPException(403, "Acesso restrito a revisores.")
 
     job_id = f"rev_{secrets.token_urlsafe(12)}"
-    storage.save_status(job_id, {
+    initial_status = {
         "id": job_id,
         "status": "processing",
         "current_step": 1,
@@ -194,7 +194,8 @@ def invalidate_book_route(book_id: int, request: Request, user=Depends(get_curre
         "current_step_label": "Iniciando...",
         "progress_pct": 0,
         "owner": user["email"],
-    })
+    }
+    storage.save_status(job_id, initial_status)
     if not revocation_processor.run_in_background(job_id, book_id, user["email"]):
         storage.save_status(job_id, {
             "id": job_id,
@@ -218,8 +219,7 @@ def invalidate_book_route(book_id: int, request: Request, user=Depends(get_curre
             '</div></div></div>'
         )
 
-    job = storage.load_status(job_id)
-    inner = templates.env.get_template("partials/revoke_progress.html").render(job=job)
+    inner = templates.env.get_template("partials/revoke_progress.html").render(job=_public_job(initial_status))
     bid = html.escape(str(book_id))
     toast = (
         '<div id="action-toast" hx-swap-oob="true">'

@@ -14,13 +14,12 @@ import logging
 import threading
 import time
 
-from app.services import bookstack as bs
-
-_log = logging.getLogger(__name__)
-from app.services import audit, storage
 from app.config import get_settings
+from app.services import audit, bookstack as bs, storage
 from app.services.bedrock import generate_faq
 from app.services.pdf import pdf_to_markdown_multimodal, detect_structural_anomalies
+
+_log = logging.getLogger(__name__)
 
 class _JobCancelled(Exception):
     pass

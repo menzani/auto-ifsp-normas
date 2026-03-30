@@ -84,7 +84,7 @@
         </div>
         <nav aria-label="Menu principal" id="header-navigation">
           <ul class="d-flex list-unstyled mb-0" style="gap:0.5rem; list-style:none; padding:0;">
-            {% if request.session.user.role in ('uploader', 'revisor', 'admin') %}
+            {% if request.session.user.role in ('operador', 'revisor', 'admin') %}
             <li>
               <a href="/"
                  class="br-button {% if request.url.path == '/' %}primary{% else %}secondary{% endif %} small"

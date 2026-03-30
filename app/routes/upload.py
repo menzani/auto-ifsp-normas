@@ -19,7 +19,7 @@ PDF_MAGIC = b"%PDF"
 MAX_BYTES = settings.max_upload_size_mb * 1024 * 1024
 
 
-_UPLOAD_ROLES = ("uploader", "revisor", "admin")
+_UPLOAD_ROLES = ("operador", "revisor", "admin")
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -42,7 +42,7 @@ async def upload_pdf(
     title: str = Form(..., min_length=3, max_length=255),
 ):
     if user.get("role") not in _UPLOAD_ROLES:
-        raise HTTPException(403, "Acesso restrito a uploaders, revisores e administradores.")
+        raise HTTPException(403, "Acesso restrito a operadores, revisores e administradores.")
 
     # ── Rate limit simples por usuário ───────────────────────────────────
     _check_rate_limit(user["sub"])

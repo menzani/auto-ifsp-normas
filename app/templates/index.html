@@ -131,12 +131,12 @@
               <span class="br-tag
                 {% if request.session.user.role == 'revisor' %}success
                 {% elif request.session.user.role == 'admin' %}warning
-                {% elif request.session.user.role == 'uploader' %}info
+                {% elif request.session.user.role == 'operador' %}info
                 {% else %}info{% endif %}
                 text" style="font-size:.75rem;">
                 {% if request.session.user.role == 'revisor' %}Revisor
                 {% elif request.session.user.role == 'admin' %}Administrador
-                {% elif request.session.user.role == 'uploader' %}Operador
+                {% elif request.session.user.role == 'operador' %}Operador
                 {% else %}Servidor{% endif %}
               </span>
             </div>

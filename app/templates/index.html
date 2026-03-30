@@ -131,10 +131,12 @@
               <span class="br-tag
                 {% if request.session.user.role == 'revisor' %}success
                 {% elif request.session.user.role == 'admin' %}warning
+                {% elif request.session.user.role == 'uploader' %}info
                 {% else %}info{% endif %}
                 text" style="font-size:.75rem;">
                 {% if request.session.user.role == 'revisor' %}Revisor
                 {% elif request.session.user.role == 'admin' %}Administrador
+                {% elif request.session.user.role == 'uploader' %}Operador
                 {% else %}Servidor{% endif %}
               </span>
             </div>
@@ -164,7 +166,39 @@
 <script>
   const pdfInput = document.getElementById('pdf_file');
   const dropZone = document.getElementById('drop-zone');
+  const titleInput = document.getElementById('title');
+  const submitBtn = document.getElementById('submit-btn');
   const originalDropZoneHTML = dropZone.innerHTML;
+
+  function lockUploadForm() {
+    dropZone.style.pointerEvents = 'none';
+    pdfInput.disabled = true;
+    titleInput.disabled = true;
+    submitBtn.disabled = true;
+  }
+
+  function unlockUploadForm() {
+    dropZone.style.pointerEvents = '';
+    pdfInput.disabled = false;
+    titleInput.disabled = false;
+    submitBtn.disabled = false;
+  }
+
+  // Trava o formulário quando o envio começa.
+  document.body.addEventListener('htmx:beforeRequest', function(e) {
+    if (e.detail.elt && e.detail.elt.id === 'upload-form') {
+      lockUploadForm();
+    }
+  });
+
+  // Destrava quando o job chega ao estado final (sem polling ativo em #progress-area).
+  document.body.addEventListener('htmx:afterSwap', function(e) {
+    if (e.detail.target && e.detail.target.id === 'progress-area') {
+      if (!e.detail.target.querySelector('[hx-get]')) {
+        unlockUploadForm();
+      }
+    }
+  });
 
   pdfInput.addEventListener('change', function() {
     showFile(this.files[0]);

@@ -163,12 +163,12 @@
                         <i class="fas fa-check mr-1" aria-hidden="true"></i> Publicar
                       </button>
                       {% endif %}
-                      {% if is_admin %}
+                      {% if is_reviewer and (is_admin or draft.uploaded_by == user.email) %}
                       <button class="br-button secondary"
                               id="remove-btn-{{ draft.book_id }}"
                               type="button"
                               onclick="showRemovePicker({{ draft.book_id }})"
-                              title="Remover rascunho permanentemente (somente admin)"
+                              title="Remover rascunho permanentemente"
                               style="color:#E52207; border-color:#E52207;">
                         <i class="fas fa-trash mr-1" aria-hidden="true"></i> Remover
                       </button>
@@ -213,7 +213,7 @@
                   </td>
                 </tr>
                 {% endif %}
-                {% if is_admin %}
+                {% if is_reviewer and (is_admin or draft.uploaded_by == user.email) %}
                 <tr id="remove-row-{{ draft.book_id }}" style="display:none; background:#fff5f5;">
                   <td colspan="5" style="padding:.75rem 1rem;">
                     <div class="d-flex align-items-center justify-content-center" style="gap:.75rem; flex-wrap:wrap;">

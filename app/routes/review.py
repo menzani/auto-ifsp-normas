@@ -113,11 +113,17 @@ def move_book_route(
 
 @router.delete("/{book_id}", response_class=HTMLResponse)
 def delete_book_route(book_id: int, request: Request, user=Depends(get_current_user)):
-    if user.get("role") != "admin":
-        raise HTTPException(403, "Acesso restrito a administradores.")
+    role = user.get("role")
+    if role not in ("revisor", "admin"):
+        raise HTTPException(403, "Acesso restrito a revisores e administradores.")
 
     drafts = bs.get_draft_books()
-    title = next((d["title"] for d in drafts if d["book_id"] == book_id), str(book_id))
+    draft = next((d for d in drafts if d["book_id"] == book_id), None)
+    title = draft["title"] if draft else str(book_id)
+
+    if role != "admin":
+        if draft is None or draft.get("uploaded_by") != user["email"]:
+            raise HTTPException(403, "Você só pode remover rascunhos que você mesmo enviou.")
 
     bs.delete_book(book_id)
     audit.log(user["email"], "remover", title)

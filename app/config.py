@@ -61,8 +61,8 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 30
     max_uploads_per_user_per_hour: int = 10
 
-    # Máximo de páginas submetidas ao Textract por PDF (controle de custo)
-    max_ocr_pages_per_pdf: int = 15
+    # Máximo de páginas por PDF — limita custo Bedrock Vision (controle de custo)
+    max_pdf_pages: int = 100
 
     # Extração multimodal: Claude Vision extrai e estrutura cada lote de páginas
     multimodal_dpi: int = 120        # DPI de renderização (120 = boa legibilidade para textos menores)

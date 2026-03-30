@@ -166,6 +166,12 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str =
         if bookstack_book_id:
             bs.delete_book_from_bookstack(bookstack_book_id)
         audit.log(uploaded_by, "cancelar", title)
+    except ValueError as exc:
+        # Erro de validação do documento (ex: excesso de páginas) — não é falha do sistema.
+        storage.delete_pdf(pdf_key)
+        if checksum:
+            storage.unregister_pdf_checksum_by_job_id(job_id)
+        _set_error(job_id, str(exc))
     except Exception:
         _log.exception("Erro no pipeline de upload job=%s", job_id)
         if checksum:

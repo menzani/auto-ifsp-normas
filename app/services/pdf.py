@@ -249,6 +249,12 @@ def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str,
         raise ValueError(f"Não foi possível abrir o PDF: {exc}") from exc
 
     total_pages = len(doc)
+    if total_pages > settings.max_pdf_pages:
+        doc.close()
+        raise ValueError(
+            f"O PDF tem {total_pages} páginas, excedendo o limite de {settings.max_pdf_pages}. "
+            "Divida o documento ou envie apenas as seções necessárias."
+        )
     batch_size = settings.multimodal_batch_pages
 
     page_images: list[bytes] = []

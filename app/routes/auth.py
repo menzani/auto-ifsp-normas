@@ -50,7 +50,7 @@ async def login_mock(
 
 @router.get("/callback")
 async def auth_callback(request: Request, code: str = "", state: str = "", error: str = ""):
-    if error:
+    if error or not code:
         return RedirectResponse("/auth/login?erro=acesso_negado", status_code=302)
 
     user = await exchange_code_for_user(request, code, state)

@@ -21,6 +21,10 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "SESSION_SECRET_KEY deve ser definida no .env com um valor seguro antes de rodar em modo produção."
                 )
+            if not self.https_only:
+                raise ValueError(
+                    "HTTPS_ONLY deve ser true no .env em modo produção para garantir a flag Secure no cookie de sessão."
+                )
         return self
 
     # Google OAuth

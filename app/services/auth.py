@@ -118,8 +118,6 @@ async def exchange_code_for_user(request: Request, code: str, state: str) -> dic
         "sub": userinfo["sub"],
         "name": userinfo.get("name", ""),
         "email": userinfo.get("email", ""),
-        "picture": userinfo.get("picture", ""),
-        "hd": userinfo.get("hd", ""),
         "role": role,
     }
 
@@ -139,8 +137,6 @@ def mock_login(email: str, name: str) -> dict[str, Any]:
         "sub": f"mock-{email}",
         "name": name,
         "email": email,
-        "picture": "",
-        "hd": settings.google_allowed_domain,
         "role": role,
     }
 

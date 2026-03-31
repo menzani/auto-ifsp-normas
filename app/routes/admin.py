@@ -26,17 +26,17 @@ _EXCHANGE_TTL = 3600  # segundos
 
 
 def _get_usd_brl() -> float | None:
-    """Busca cotação USD/BRL da AwesomeAPI com cache de 1h."""
+    """Busca cotação USD/BRL com cache de 1h. Fonte: Open Exchange Rates (gratuita, sem chave)."""
     now = time.time()
     with _exchange_lock:
         if _exchange_cache["rate"] and now - _exchange_cache["fetched_at"] < _EXCHANGE_TTL:
             return _exchange_cache["rate"]
     try:
         r = httpx.get(
-            "https://economia.awesomeapi.com.br/json/last/USD-BRL",
-            timeout=4.0,
+            "https://open.er-api.com/v6/latest/USD",
+            timeout=5.0,
         )
-        rate = float(r.json()["USDBRL"]["bid"])
+        rate = float(r.json()["rates"]["BRL"])
         with _exchange_lock:
             _exchange_cache["rate"] = rate
             _exchange_cache["fetched_at"] = now

@@ -12,7 +12,22 @@
             <i class="fas fa-history fa-lg mr-3" style="color:#1351B4;" aria-hidden="true"></i>
             <span class="text-up-01 text-medium-weight">Log de ações</span>
           </div>
-          <span class="br-tag info text">{{ entries|length }} registro{{ 's' if entries|length != 1 else '' }}</span>
+          <div class="d-flex align-items-center" style="gap:.75rem;">
+            <span class="br-tag {% if show_technical %}warning{% else %}info{% endif %} text">
+              {{ entries|length }} registro{{ 's' if entries|length != 1 else '' }}
+            </span>
+            {% if is_admin %}
+              {% if show_technical %}
+                <a href="/log" class="br-button secondary small">
+                  <i class="fas fa-eye-slash mr-1" aria-hidden="true"></i> Ocultar logs técnicos
+                </a>
+              {% else %}
+                <a href="/log?tecnico=1" class="br-button secondary small">
+                  <i class="fas fa-tools mr-1" aria-hidden="true"></i> Exibir logs técnicos
+                </a>
+              {% endif %}
+            {% endif %}
+          </div>
         </div>
       </div>
 
@@ -38,7 +53,7 @@
               </thead>
               <tbody>
                 {% for entry in entries %}
-                <tr>
+                <tr{% if entry.level == "warn" %} style="background:#fffbe6;"{% endif %}>
                   <td class="text-down-01" style="white-space:nowrap;">
                     {{ entry.ts_display }}
                     {% if entry.extra %}
@@ -102,6 +117,14 @@
                     {% elif entry.action == "alterar_papel" %}
                       <span class="br-tag warning text">
                         <i class="fas fa-user-edit mr-1" aria-hidden="true"></i> Papel alterado
+                      </span>
+                    {% elif entry.action == "session_anomaly" %}
+                      <span class="br-tag danger text">
+                        <i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i> Anomalia de sessão
+                      </span>
+                    {% elif entry.action == "erro_pipeline" %}
+                      <span class="br-tag danger text" style="background:#7a3800; color:#fff;">
+                        <i class="fas fa-bug mr-1" aria-hidden="true"></i> Erro de processamento
                       </span>
                     {% else %}
                       <span class="br-tag text">{{ entry.action }}</span>

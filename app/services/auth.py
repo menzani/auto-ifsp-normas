@@ -70,7 +70,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
     if bound_ip and current_ip and current_ip != bound_ip:
         from app.services import audit as _audit
         _audit.log(user["email"], "session_anomaly",
-                   f"IP divergente — sessão: {bound_ip}, atual: {current_ip}")
+                   f"IP divergente — sessão: {bound_ip}, atual: {current_ip}", level="warn")
         request.session.clear()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -83,7 +83,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
     if bound_ua and current_ua != bound_ua:
         from app.services import audit as _audit
         _audit.log(user["email"], "session_anomaly",
-                   "User-Agent divergente — possível uso indevido de sessão")
+                   "User-Agent divergente — possível uso indevido de sessão", level="warn")
         request.session.clear()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

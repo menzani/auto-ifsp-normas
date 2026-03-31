@@ -112,13 +112,15 @@ def _append_line_locked(line: str) -> None:
     )
 
 
-def log(user_email: str, action: str, details: str, extra: dict | None = None) -> None:
+def log(user_email: str, action: str, details: str, level: str = "info", extra: dict | None = None) -> None:
     entry = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "user": user_email,
         "action": action,
         "details": details,
     }
+    if level != "info":
+        entry["level"] = level  # omitido em entradas normais para manter compatibilidade retroativa
     if extra:
         entry["extra"] = extra
     _append_line(json.dumps(entry, ensure_ascii=False))

@@ -176,6 +176,7 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str =
         if checksum:
             storage.unregister_pdf_checksum_by_job_id(job_id)
         _set_error(job_id, "Erro interno no processamento. Tente novamente ou contate o administrador.")
+        audit.log(uploaded_by, "erro_pipeline", f"Falha interna no processamento de '{title}' (job {job_id})", level="warn")
         raise
 
 

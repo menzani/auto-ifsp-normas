@@ -172,6 +172,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
     except Exception as exc:
         _log.exception("Erro no pipeline de revogação job=%s", job_id)
         _set_error(job_id, "Erro interno na revogação. Tente novamente ou contate o administrador.")
+        audit.log(revoked_by, "erro_pipeline", f"Falha interna na revogação de '{title or f'book_id={book_id}'}' (job {job_id})", level="warn")
         raise
 
 

@@ -718,12 +718,16 @@ def _api_post(path: str, body: dict) -> dict:
 
 def _api_put(path: str, body: dict) -> dict:
     r = _http_client.put(path, json=body)
+    if not r.is_success:
+        _log.error("Bookstack API error %s %s: %s", r.status_code, path, r.text[:500])
     r.raise_for_status()
     return r.json()
 
 
 def _api_delete(path: str) -> None:
     r = _http_client.delete(path)
+    if not r.is_success:
+        _log.error("Bookstack API error %s %s: %s", r.status_code, path, r.text[:500])
     r.raise_for_status()
 
 

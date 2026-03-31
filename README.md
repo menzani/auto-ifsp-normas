@@ -108,7 +108,24 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 1. Acesse o menu **Log**
 2. O log exibe todas as ações realizadas no sistema em ordem cronológica reversa: uploads, publicações, movimentações, revogações, exclusões e alterações de papel
 3. Cada registro mostra data/hora, usuário responsável, tipo de ação e normativo envolvido
-4. Clique em **Exibir logs técnicos** para ver também eventos de sistema: anomalias de sessão (IP/User-Agent divergente) e erros internos nos pipelines de processamento. Esses registros ficam ocultos por padrão e são visíveis apenas para administradores
+4. Use o seletor de mês no topo para navegar pelo histórico — apenas os meses com registros são listados
+5. Clique em **Exibir logs técnicos** para ver também eventos de sistema: anomalias de sessão (IP/User-Agent divergente) e erros internos nos pipelines de processamento. Esses registros ficam ocultos por padrão e são visíveis apenas para administradores
+
+---
+
+### Papel: Administrador — Painel de custos Bedrock
+
+1. Acesse o menu **Custo**
+2. O painel exibe o custo estimado de uso da IA (Amazon Bedrock), discriminado por tipo de operação:
+   - **Extração (Vision)** — leitura e estruturação das páginas do PDF
+   - **FAQ** — geração das perguntas frequentes
+   - **Revogação** — geração do resumo de normativos revogados
+3. Os custos são organizados por ano em seções expansíveis; clique no ano para expandir ou recolher
+4. Se a permissão `ce:GetCostAndUsage` estiver configurada no IAM role da EC2, a coluna **Real USD** exibe o valor efetivamente faturado pela AWS (com ~24 h de atraso); caso contrário, apenas a estimativa por token é exibida
+5. A cotação USD/BRL é obtida automaticamente; em caso de falha na API, o último valor registrado é exibido com indicação de desatualização
+6. Para ajustar os preços por token (necessário após mudanças no modelo ou na tabela da AWS), use o formulário **Configuração de preços** no final da página
+
+> **Atenção:** os preços padrão ($3,00/$15,00 por 1M tokens) são um ponto de partida. Verifique o preço real do modelo em uso no console AWS (**Bedrock → Pricing**) e atualize pela interface para que as estimativas sejam precisas.
 
 ---
 

@@ -93,13 +93,19 @@
             {% set yr_custo_usd = (yr_input / 1000000 * price_input) + (yr_output / 1000000 * price_output) %}
 
             <div class="mb-4">
+              {% set yr_display_usd = yr.actual_cost_usd if yr.actual_cost_usd is not none else yr_custo_usd %}
               <div class="d-flex align-items-center mb-2 flex-wrap" style="gap:.75rem;">
                 <span class="text-up-01 text-medium-weight">{{ yr.year }}</span>
-                <span class="br-tag {% if actual_costs %}info{% else %}success{% endif %} text">
-                  {% if actual_costs %}Est.{% endif %} USD {{ "%.2f"|format(yr_custo_usd) }}
-                </span>
+                {% if yr.actual_cost_usd is not none %}
+                  <span class="br-tag success text">Real USD {{ "%.2f"|format(yr.actual_cost_usd) }}</span>
+                  <span class="br-tag text" style="background:#888; color:#fff; font-size:.8em;">
+                    Est. {{ "%.2f"|format(yr_custo_usd) }}
+                  </span>
+                {% else %}
+                  <span class="br-tag success text">USD {{ "%.2f"|format(yr_custo_usd) }}</span>
+                {% endif %}
                 {% if exchange %}<span class="br-tag text" style="background:#145a32; color:#fff;">
-                  R$ {{ "%.2f"|format(yr_custo_usd * exchange.rate) }}
+                  R$ {{ "%.2f"|format(yr_display_usd * exchange.rate) }}
                 </span>{% endif %}
                 <span class="text-down-01" style="color:#888;">
                   {{ yr.count_processar }} upload{{ 's' if yr.count_processar != 1 else '' }}
@@ -178,7 +184,7 @@
                       {% if actual_costs %}<td class="text-right text-medium-weight">—</td>{% endif %}
                       {% if exchange %}
                       <td class="text-right text-medium-weight" style="color:#145a32;">
-                        R$ {{ "%.2f"|format(yr_custo_usd * exchange.rate) }}
+                        R$ {{ "%.2f"|format(yr_display_usd * exchange.rate) }}
                       </td>
                       {% endif %}
                     </tr>

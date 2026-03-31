@@ -162,12 +162,23 @@ def _build_custo_context(request: Request, user: dict, extra: dict | None = None
 
     years = sorted(years_map.values(), key=lambda y: y["year"], reverse=True)
 
+    # Soma custo real por ano a partir do Cost Explorer (calculado no Python para evitar lógica no template)
+    # Preenchido depois de obter ce_result abaixo
+
     # Determina o mês inicial para o Cost Explorer
     available = audit.list_available_months()
     start_year, start_month = available[0] if available else (
         datetime.now(timezone.utc).year, datetime.now(timezone.utc).month
     )
     ce_result = _get_bedrock_actual_costs(start_year, start_month)
+    actual_costs = ce_result.get("costs", {}) if ce_result else {}
+
+    # Agrega custo real por ano para exibição no cabeçalho de cada ano
+    for yr in years:
+        yr["actual_cost_usd"] = sum(
+            actual_costs.get(f"{yr['year']:04d}-{m['month']:02d}", 0.0)
+            for m in yr["months"]
+        ) if actual_costs else None
 
     ctx = {
         "request": request,
@@ -178,7 +189,7 @@ def _build_custo_context(request: Request, user: dict, extra: dict | None = None
         "pricing_meta": pricing,
         "model_id": settings.bedrock_model_id,
         "exchange": _get_usd_brl(),
-        "actual_costs": ce_result.get("costs", {}) if ce_result else {},
+        "actual_costs": actual_costs,
         "ce_has_permission": ce_result.get("has_permission", False) if ce_result else False,
     }
     if extra:

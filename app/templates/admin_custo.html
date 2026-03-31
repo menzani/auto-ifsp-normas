@@ -83,10 +83,10 @@
                       {% set m_input = m.input_tokens + m.legacy_tokens // 2 %}
                       {% set m_output = m.output_tokens + (m.legacy_tokens - m.legacy_tokens // 2) %}
                       {% set m_custo = (m_input / 1000000 * price_input) + (m_output / 1000000 * price_output) %}
-                      {% set _ = ns.__setattr__('grand_input', ns.grand_input + m_input) %}
-                      {% set _ = ns.__setattr__('grand_output', ns.grand_output + m_output) %}
-                      {% set _ = ns.__setattr__('grand_processar', ns.grand_processar + m.count_processar) %}
-                      {% set _ = ns.__setattr__('grand_revogar', ns.grand_revogar + m.count_revogar) %}
+                      {% set ns.grand_input = ns.grand_input + m_input %}
+                      {% set ns.grand_output = ns.grand_output + m_output %}
+                      {% set ns.grand_processar = ns.grand_processar + m.count_processar %}
+                      {% set ns.grand_revogar = ns.grand_revogar + m.count_revogar %}
                     <tr>
                       <td>{{ m.month_name }}</td>
                       <td class="text-right">

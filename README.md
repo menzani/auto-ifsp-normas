@@ -108,6 +108,7 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 1. Acesse o menu **Log**
 2. O log exibe todas as ações realizadas no sistema em ordem cronológica reversa: uploads, publicações, movimentações, revogações, exclusões e alterações de papel
 3. Cada registro mostra data/hora, usuário responsável, tipo de ação e normativo envolvido
+4. Clique em **Exibir logs técnicos** para ver também eventos de sistema: anomalias de sessão (IP/User-Agent divergente) e erros internos nos pipelines de processamento. Esses registros ficam ocultos por padrão e são visíveis apenas para administradores
 
 ---
 
@@ -168,7 +169,7 @@ sudo systemctl restart ifsp-normas
 Consulte o arquivo `.env.example` para as variáveis necessárias. Em desenvolvimento, use as flags `MOCK_AUTH`, `MOCK_BOOKSTACK` e `MOCK_S3` para simular os serviços externos sem custo.
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 # Configure o .env com MOCK_AUTH=true, MOCK_BOOKSTACK=true, MOCK_S3=true
 uvicorn app.main:app --reload

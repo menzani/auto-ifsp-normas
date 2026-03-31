@@ -6,6 +6,9 @@
   <meta http-equiv="X-UA-Compatible" content="ie=edge" />
   <title>{% block title %}IFSP Normas{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  {% if request.session.get("_csrf_token") %}
+  <meta name="csrf-token" content="{{ request.session.get('_csrf_token') }}" />
+  {% endif %}
 
   <!-- Fontes GOV.BR -->
   <link rel="stylesheet" href="https://cdngovbr-ds.estaleiro.serpro.gov.br/design-system/fonts/rawline/css/rawline.css" />
@@ -187,6 +190,15 @@
 
 <!-- DSGOV JS (inicializa componentes: header sticky, tooltips, etc.) -->
 <script src="/static/js/dsgov-init.min.js"></script>
+
+{% if request.session.get("_csrf_token") %}
+<script>
+  htmx.on('htmx:configRequest', function(evt) {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) evt.detail.headers['X-CSRF-Token'] = meta.getAttribute('content');
+  });
+</script>
+{% endif %}
 
 {% block extra_scripts %}{% endblock %}
 </body>

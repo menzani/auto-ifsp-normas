@@ -3,12 +3,14 @@ import re
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from app.services.auth import require_admin
+from app.config import get_settings
+from app.services.auth import require_admin, check_csrf_form
 from app.services import users as user_store
 from app.services import audit
 from app.templates import templates
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+settings = get_settings()
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -28,12 +30,16 @@ def update_role(
     email: str,
     request: Request,
     role: str = Form(...),
+    csrf_token: str = Form(""),
     user=Depends(require_admin),
 ):
     if not _EMAIL_RE.match(email) or len(email) > 254:
         raise HTTPException(400, "Email inválido.")
+    if not settings.mock_auth and not email.endswith(f"@{settings.google_allowed_domain}"):
+        raise HTTPException(400, "Email deve pertencer ao domínio institucional.")
     if role not in user_store.VALID_ROLES:
         raise HTTPException(400, "Papel inválido.")
+    check_csrf_form(request, csrf_token)
     user_store.set_role(email, role)
     audit.log(user["email"], "alterar_papel", f"{email} → {role}")
 

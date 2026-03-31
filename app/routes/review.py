@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from app.config import get_settings
 from app.constants import REVOCATION_ID_PATTERN, REVOKE_JOB_ID_PATTERN
 from app.routes.status import _public_job
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, check_csrf_header
 from app.services import bookstack as bs
 from app.services import audit, storage
 from app.services import revocation_processor
@@ -42,6 +42,7 @@ def publish_book(
     request: Request,
     user=Depends(get_current_user),
     shelf_id: int = Form(...),
+    _csrf=Depends(check_csrf_header),
 ):
     if user.get("role") not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso restrito a revisores.")
@@ -95,6 +96,7 @@ def move_book_route(
     request: Request,
     user=Depends(get_current_user),
     shelf_id: int = Form(...),
+    _csrf=Depends(check_csrf_header),
 ):
     if user.get("role") not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso restrito a revisores.")
@@ -112,7 +114,7 @@ def move_book_route(
 
 
 @router.delete("/{book_id}", response_class=HTMLResponse)
-def delete_book_route(book_id: int, request: Request, user=Depends(get_current_user)):
+def delete_book_route(book_id: int, request: Request, user=Depends(get_current_user), _csrf=Depends(check_csrf_header)):
     role = user.get("role")
     if role not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso restrito a revisores e administradores.")
@@ -172,6 +174,7 @@ def cancel_revoke_job(
     request: Request,
     job_id: str = Path(..., pattern=REVOKE_JOB_ID_PATTERN),
     user=Depends(get_current_user),
+    _csrf=Depends(check_csrf_header),
 ):
     job = _load_and_authorize_revoke_job(job_id, user)
     if job.get("status") == "processing":
@@ -181,7 +184,7 @@ def cancel_revoke_job(
 
 
 @router.post("/{book_id}/invalidate", response_class=HTMLResponse)
-def invalidate_book_route(book_id: int, request: Request, user=Depends(get_current_user)):
+def invalidate_book_route(book_id: int, request: Request, user=Depends(get_current_user), _csrf=Depends(check_csrf_header)):
     if user.get("role") not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso restrito a revisores.")
 
@@ -245,6 +248,7 @@ def delete_revoked(
     request: Request,
     revocation_id: str = Path(..., pattern=REVOCATION_ID_PATTERN),
     user=Depends(get_current_user),
+    _csrf=Depends(check_csrf_header),
 ):
     if user.get("role") != "admin":
         raise HTTPException(403, "Acesso restrito a administradores.")

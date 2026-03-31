@@ -29,7 +29,11 @@ def _get_s3_client():
 
 
 def _local_path(key: str) -> Path:
-    p = LOCAL_DATA / key
+    p = (LOCAL_DATA / key).resolve()
+    try:
+        p.relative_to(LOCAL_DATA.resolve())
+    except ValueError:
+        raise ValueError(f"Chave de armazenamento inválida: {key!r}")
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 

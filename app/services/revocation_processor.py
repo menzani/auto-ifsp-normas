@@ -82,7 +82,7 @@ def _set_error(job_id: str, message: str) -> None:
 
 def _extract_field(text: str, field: str) -> str:
     """Extrai o valor de um campo **Field:** do markdown gerado pela IA."""
-    m = re.search(rf"\*\*{re.escape(field)}:\*\*\s*(.+)", text, re.IGNORECASE)
+    m = re.search(rf"\*\*{re.escape(field)}:\*\*\s*(.+?)(?:\n|$)", text[:10_000], re.IGNORECASE)
     return m.group(1).strip() if m else ""
 
 

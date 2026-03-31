@@ -73,6 +73,7 @@
                   <td class="text-center">
                     <form method="post" action="/admin/users/{{ u.email }}/role"
                           class="d-flex align-items-center justify-content-center" style="gap:.5rem;">
+                      <input type="hidden" name="csrf_token" value="{{ request.session.get('_csrf_token', '') }}" />
                       <div class="br-select" style="min-width:130px;">
                         <div class="br-input">
                           <select name="role" aria-label="Papel de {{ u.name or u.email }}">

@@ -110,6 +110,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
     if needs_save:
         request.session["user"] = user
 
+    _ensure_csrf_token(request)
     return user
 
 
@@ -122,6 +123,27 @@ def require_admin(request: Request) -> dict[str, Any]:
             detail="Acesso restrito a administradores.",
         )
     return user
+
+
+def _ensure_csrf_token(request: Request) -> None:
+    """Gera token CSRF na sessão na primeira requisição autenticada."""
+    if "_csrf_token" not in request.session:
+        request.session["_csrf_token"] = secrets.token_hex(32)
+
+
+def check_csrf_header(request: Request) -> None:
+    """Valida token CSRF via header X-CSRF-Token (requisições HTMX)."""
+    expected = request.session.get("_csrf_token", "")
+    received = request.headers.get("x-csrf-token", "")
+    if not expected or not secrets.compare_digest(expected, received):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Token CSRF inválido.")
+
+
+def check_csrf_form(request: Request, token: str) -> None:
+    """Valida token CSRF via campo oculto de formulário HTML."""
+    expected = request.session.get("_csrf_token", "")
+    if not expected or not secrets.compare_digest(expected, token):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Token CSRF inválido.")
 
 
 

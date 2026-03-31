@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import get_settings
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, check_csrf_header
 from app.services import storage, audit
 from app.services.processor import run_in_background
 from app.templates import templates
@@ -40,6 +40,7 @@ async def upload_pdf(
     user=Depends(get_current_user),
     pdf_file: UploadFile = File(...),
     title: str = Form(..., min_length=3, max_length=255),
+    _csrf=Depends(check_csrf_header),
 ):
     if user.get("role") not in _UPLOAD_ROLES:
         raise HTTPException(403, "Acesso restrito a operadores, revisores e administradores.")

@@ -303,6 +303,43 @@ def _save_book_meta_registry(registry: dict) -> None:
     )
 
 
+_EXCHANGE_RATE_KEY = "meta/exchange_rate.json"
+
+
+def load_exchange_rate() -> dict | None:
+    """Carrega a última cotação USD/BRL persistida. Retorna None se nunca registrada."""
+    try:
+        if settings.mock_s3:
+            p = _local_path(_EXCHANGE_RATE_KEY)
+            return json.loads(p.read_text()) if p.exists() else None
+        from botocore.exceptions import ClientError
+        s3 = _get_s3_client()
+        try:
+            obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_EXCHANGE_RATE_KEY)
+            return json.loads(obj["Body"].read())
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                return None
+            raise
+    except Exception:
+        return None
+
+
+def save_exchange_rate(rate: float, fetched_at: str) -> None:
+    """Persiste a cotação USD/BRL atual no S3."""
+    data = {"rate": rate, "fetched_at": fetched_at}
+    content = json.dumps(data).encode()
+    if settings.mock_s3:
+        _local_path(_EXCHANGE_RATE_KEY).write_bytes(content)
+        return
+    _get_s3_client().put_object(
+        Bucket=settings.s3_bucket_name,
+        Key=_EXCHANGE_RATE_KEY,
+        Body=content,
+        ContentType="application/json",
+    )
+
+
 _PRICING_KEY = "meta/pricing.json"
 _pricing_lock = threading.Lock()
 

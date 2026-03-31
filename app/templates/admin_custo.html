@@ -13,14 +13,23 @@
             <i class="fas fa-dollar-sign fa-lg mr-3" style="color:#1351B4;" aria-hidden="true"></i>
             <span class="text-up-01 text-medium-weight">Custo estimado — Amazon Bedrock</span>
           </div>
-          <div class="d-flex align-items-center" style="gap:.75rem;">
+          <div class="d-flex align-items-center flex-wrap" style="gap:.75rem;">
             <span class="br-tag info text" style="font-size:.8em;">
               <i class="fas fa-robot mr-1" aria-hidden="true"></i>{{ model_id }}
             </span>
-            {% if usd_brl %}
-            <span class="br-tag success text" style="font-size:.8em;">
-              <i class="fas fa-exchange-alt mr-1" aria-hidden="true"></i>1 USD = R$ {{ "%.4f"|format(usd_brl) }}
-            </span>
+            {% if exchange %}
+              <span class="br-tag {% if exchange.is_stale %}warning{% else %}success{% endif %} text"
+                    style="font-size:.8em;"
+                    title="{% if exchange.is_stale %}Cotação desatualizada — última captura: {{ exchange.fetched_at }}{% else %}Atualizado em {{ exchange.fetched_at }}{% endif %}">
+                <i class="fas fa-exchange-alt mr-1" aria-hidden="true"></i>
+                1 USD = R$ {{ "%.4f"|format(exchange.rate) }}
+                {% if exchange.is_stale %}<i class="fas fa-exclamation-circle ml-1" aria-hidden="true"></i>{% endif %}
+              </span>
+            {% endif %}
+            {% if actual_costs %}
+              <span class="br-tag success text" style="font-size:.8em;">
+                <i class="fas fa-aws mr-1" aria-hidden="true"></i> Custo real disponível
+              </span>
             {% endif %}
           </div>
         </div>
@@ -29,9 +38,41 @@
       <div class="card-content">
 
         {% if pricing_saved is defined %}
-        <div class="br-message success mb-4" role="alert">
+        <div class="br-message success mb-3" role="alert">
           <div class="icon"><i class="fas fa-check-circle" aria-hidden="true"></i></div>
           <div class="content">Preços atualizados com sucesso.</div>
+        </div>
+        {% endif %}
+
+        <!-- Aviso de cotação desatualizada -->
+        {% if exchange and exchange.is_stale %}
+        <div class="br-message warning mb-3" role="alert">
+          <div class="icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
+          <div class="content">
+            Cotação USD/BRL indisponível no momento.
+            Usando último valor registrado em <strong>{{ exchange.fetched_at }}</strong>
+            (1 USD = R$ {{ "%.4f"|format(exchange.rate) }}).
+            Os valores em BRL podem estar desatualizados.
+          </div>
+        </div>
+        {% elif not exchange %}
+        <div class="br-message danger mb-3" role="alert">
+          <div class="icon"><i class="fas fa-times-circle" aria-hidden="true"></i></div>
+          <div class="content">Cotação USD/BRL indisponível e sem valor anterior registrado. Valores em BRL não serão exibidos.</div>
+        </div>
+        {% endif %}
+
+        <!-- Aviso sobre Cost Explorer -->
+        {% if not ce_has_permission %}
+        <div class="br-message info mb-3" role="alert">
+          <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
+          <div class="content">
+            <strong>Custo real AWS indisponível.</strong>
+            Para exibir os valores faturados diretamente pela AWS, adicione a permissão
+            <code>ce:GetCostAndUsage</code> ao IAM role da instância EC2
+            (<code>ifsp-normas-sec-group</code>).
+            Os valores estimados abaixo são calculados a partir dos tokens registrados no audit.
+          </div>
         </div>
         {% endif %}
 
@@ -43,7 +84,8 @@
         {% else %}
 
           {% set ns = namespace(grand_input=0, grand_output=0,
-                                grand_processar=0, grand_revogar=0) %}
+                                grand_processar=0, grand_revogar=0,
+                                grand_actual=0.0, grand_has_actual=false) %}
 
           {% for yr in years %}
             {% set yr_input = yr.input_tokens + yr.legacy_tokens // 2 %}
@@ -51,14 +93,14 @@
             {% set yr_custo_usd = (yr_input / 1000000 * price_input) + (yr_output / 1000000 * price_output) %}
 
             <div class="mb-4">
-              <div class="d-flex align-items-center mb-2" style="gap:.75rem;">
+              <div class="d-flex align-items-center mb-2 flex-wrap" style="gap:.75rem;">
                 <span class="text-up-01 text-medium-weight">{{ yr.year }}</span>
-                <span class="br-tag success text">USD {{ "%.2f"|format(yr_custo_usd) }}</span>
-                {% if usd_brl %}
-                <span class="br-tag text" style="background:#145a32; color:#fff;">
-                  R$ {{ "%.2f"|format(yr_custo_usd * usd_brl) }}
+                <span class="br-tag {% if actual_costs %}info{% else %}success{% endif %} text">
+                  {% if actual_costs %}Est.{% endif %} USD {{ "%.2f"|format(yr_custo_usd) }}
                 </span>
-                {% endif %}
+                {% if exchange %}<span class="br-tag text" style="background:#145a32; color:#fff;">
+                  R$ {{ "%.2f"|format(yr_custo_usd * exchange.rate) }}
+                </span>{% endif %}
                 <span class="text-down-01" style="color:#888;">
                   {{ yr.count_processar }} upload{{ 's' if yr.count_processar != 1 else '' }}
                   {% if yr.count_revogar %}· {{ yr.count_revogar }} revogaç{{ 'ões' if yr.count_revogar != 1 else 'ão' }}{% endif %}
@@ -75,19 +117,27 @@
                       <th scope="col" class="text-right">Revogações</th>
                       <th scope="col" class="text-right">Tokens entrada</th>
                       <th scope="col" class="text-right">Tokens saída</th>
-                      <th scope="col" class="text-right">USD</th>
-                      {% if usd_brl %}<th scope="col" class="text-right">BRL</th>{% endif %}
+                      <th scope="col" class="text-right">Est. USD</th>
+                      {% if actual_costs %}<th scope="col" class="text-right">Real USD</th>{% endif %}
+                      {% if exchange %}<th scope="col" class="text-right">{% if actual_costs %}Real {% endif %}BRL</th>{% endif %}
                     </tr>
                   </thead>
                   <tbody>
                     {% for m in yr.months %}
+                      {% set m_key = "%04d-%02d" | format(m.year, m.month) %}
                       {% set m_input = m.input_tokens + m.legacy_tokens // 2 %}
                       {% set m_output = m.output_tokens + (m.legacy_tokens - m.legacy_tokens // 2) %}
-                      {% set m_custo_usd = (m_input / 1000000 * price_input) + (m_output / 1000000 * price_output) %}
+                      {% set m_est_usd = (m_input / 1000000 * price_input) + (m_output / 1000000 * price_output) %}
+                      {% set m_real_usd = actual_costs.get(m_key) %}
+                      {% set m_display_usd = m_real_usd if m_real_usd is not none else m_est_usd %}
                       {% set ns.grand_input = ns.grand_input + m_input %}
                       {% set ns.grand_output = ns.grand_output + m_output %}
                       {% set ns.grand_processar = ns.grand_processar + m.count_processar %}
                       {% set ns.grand_revogar = ns.grand_revogar + m.count_revogar %}
+                      {% if m_real_usd is not none %}
+                        {% set ns.grand_actual = ns.grand_actual + m_real_usd %}
+                        {% set ns.grand_has_actual = true %}
+                      {% endif %}
                     <tr>
                       <td>{{ m.month_name }}</td>
                       <td class="text-right">
@@ -101,12 +151,17 @@
                         {% if m.legacy_tokens %}<span title="inclui dados legado aproximados (split 50/50)" style="color:#aaa; font-size:.8em;">*</span>{% endif %}
                       </td>
                       <td class="text-right text-down-01">{{ "{:,}".format(m_output).replace(",", ".") }}</td>
-                      <td class="text-right text-medium-weight">
-                        {% if m_custo_usd > 0 %}{{ "%.4f"|format(m_custo_usd) }}{% else %}—{% endif %}
+                      <td class="text-right text-medium-weight" style="color:#888;">
+                        {% if m_est_usd > 0 %}{{ "%.4f"|format(m_est_usd) }}{% else %}—{% endif %}
                       </td>
-                      {% if usd_brl %}
+                      {% if actual_costs %}
+                      <td class="text-right text-medium-weight">
+                        {% if m_real_usd is not none %}{{ "%.4f"|format(m_real_usd) }}{% else %}<span style="color:#aaa;">pendente</span>{% endif %}
+                      </td>
+                      {% endif %}
+                      {% if exchange %}
                       <td class="text-right" style="color:#145a32;">
-                        {% if m_custo_usd > 0 %}R$ {{ "%.2f"|format(m_custo_usd * usd_brl) }}{% else %}—{% endif %}
+                        {% if m_display_usd > 0 %}R$ {{ "%.2f"|format(m_display_usd * exchange.rate) }}{% else %}—{% endif %}
                       </td>
                       {% endif %}
                     </tr>
@@ -119,10 +174,11 @@
                       <td class="text-right text-medium-weight">{{ yr.count_revogar }}</td>
                       <td class="text-right text-medium-weight">{{ "{:,}".format(yr_input).replace(",", ".") }}</td>
                       <td class="text-right text-medium-weight">{{ "{:,}".format(yr_output).replace(",", ".") }}</td>
-                      <td class="text-right text-medium-weight">{{ "%.4f"|format(yr_custo_usd) }}</td>
-                      {% if usd_brl %}
+                      <td class="text-right text-medium-weight" style="color:#888;">{{ "%.4f"|format(yr_custo_usd) }}</td>
+                      {% if actual_costs %}<td class="text-right text-medium-weight">—</td>{% endif %}
+                      {% if exchange %}
                       <td class="text-right text-medium-weight" style="color:#145a32;">
-                        R$ {{ "%.2f"|format(yr_custo_usd * usd_brl) }}
+                        R$ {{ "%.2f"|format(yr_custo_usd * exchange.rate) }}
                       </td>
                       {% endif %}
                     </tr>
@@ -133,9 +189,9 @@
             </div>
           {% endfor %}
 
-          <!-- Total acumulado (apenas quando há mais de 1 ano) -->
+          <!-- Total acumulado -->
           {% if years | length > 1 %}
-            {% set grand_custo_usd = (ns.grand_input / 1000000 * price_input) + (ns.grand_output / 1000000 * price_output) %}
+            {% set grand_est_usd = (ns.grand_input / 1000000 * price_input) + (ns.grand_output / 1000000 * price_output) %}
             <div class="br-card mb-4" style="background:#f0f4ff; border:1px solid #c5d4ff;">
               <div class="card-content py-3">
                 <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:1rem;">
@@ -147,13 +203,18 @@
                       · {{ "{:,}".format(ns.grand_input + ns.grand_output).replace(",", ".") }} tokens totais
                     </span>
                   </div>
-                  <div class="d-flex align-items-center" style="gap:.75rem;">
-                    <span class="br-tag success text text-up-01" style="font-size:1.1em; padding:.5rem 1rem;">
-                      USD {{ "%.2f"|format(grand_custo_usd) }}
+                  <div class="d-flex align-items-center flex-wrap" style="gap:.75rem;">
+                    {% if ns.grand_has_actual %}
+                    <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">
+                      Real USD {{ "%.2f"|format(ns.grand_actual) }}
                     </span>
-                    {% if usd_brl %}
-                    <span class="br-tag text text-up-01" style="background:#145a32; color:#fff; font-size:1.1em; padding:.5rem 1rem;">
-                      R$ {{ "%.2f"|format(grand_custo_usd * usd_brl) }}
+                    {% endif %}
+                    <span class="br-tag {% if actual_costs %}info{% else %}success{% endif %} text text-up-01" style="padding:.5rem 1rem;">
+                      {% if actual_costs %}Est.{% endif %} USD {{ "%.2f"|format(grand_est_usd) }}
+                    </span>
+                    {% if exchange %}
+                    <span class="br-tag text text-up-01" style="background:#145a32; color:#fff; padding:.5rem 1rem;">
+                      R$ {{ "%.2f"|format((ns.grand_actual if ns.grand_has_actual else grand_est_usd) * exchange.rate) }}
                     </span>
                     {% endif %}
                   </div>
@@ -176,17 +237,14 @@
         </div>
       </div>
       <div class="card-content">
-
         <div class="br-message info mb-4" role="alert">
           <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
           <div class="content">
             Verifique os valores em
             <strong>console.aws.amazon.com → Bedrock → Pricing</strong>
             para o modelo <code>{{ model_id }}</code> (cross-region inference).
-            A cotação USD/BRL é atualizada automaticamente a cada hora via AwesomeAPI.
-            {% if not usd_brl %}
-            <br><span style="color:#c45000;">Cotação indisponível no momento — tente recarregar a página.</span>
-            {% endif %}
+            Estes preços são usados apenas para a coluna <em>Est. USD</em> — quando o Cost Explorer
+            estiver disponível, a coluna <em>Real USD</em> reflete o valor faturado pela AWS.
           </div>
         </div>
 
@@ -224,7 +282,6 @@
           </p>
           {% endif %}
         </form>
-
       </div>
     </div>
 

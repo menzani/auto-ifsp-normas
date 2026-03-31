@@ -12,17 +12,32 @@
             <i class="fas fa-history fa-lg mr-3" style="color:#1351B4;" aria-hidden="true"></i>
             <span class="text-up-01 text-medium-weight">Log de ações</span>
           </div>
-          <div class="d-flex align-items-center" style="gap:.75rem;">
+          <div class="d-flex align-items-center flex-wrap" style="gap:.75rem;">
+
+            <!-- Seletor de mês -->
+            <div class="br-select" style="min-width:160px;">
+              <div class="br-input">
+                <select aria-label="Mês de referência" onchange="navigateToMonth(this.value)">
+                  {% for y, m, label in available_months %}
+                  <option value="{{ y }}-{{ m }}"
+                    {% if y == year and m == month %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
             <span class="br-tag {% if show_technical %}warning{% else %}info{% endif %} text">
-              {{ entries|length }} registro{{ 's' if entries|length != 1 else '' }}
+              {{ total }} registro{{ 's' if total != 1 else '' }}
             </span>
             {% if is_admin %}
               {% if show_technical %}
-                <a href="/log" class="br-button secondary small">
+                <a href="/log?year={{ year }}&month={{ month }}" class="br-button secondary small">
                   <i class="fas fa-eye-slash mr-1" aria-hidden="true"></i> Ocultar logs técnicos
                 </a>
               {% else %}
-                <a href="/log?tecnico=1" class="br-button secondary small">
+                <a href="/log?year={{ year }}&month={{ month }}&tecnico=1" class="br-button secondary small">
                   <i class="fas fa-tools mr-1" aria-hidden="true"></i> Exibir logs técnicos
                 </a>
               {% endif %}
@@ -33,10 +48,10 @@
 
       <div class="card-content">
 
-        {% if not entries %}
+        {% if not entries and total == 0 %}
           <div class="d-flex flex-column align-items-center py-5" style="color:#888;">
             <i class="fas fa-clipboard fa-3x mb-3" style="color:#DAE3F0;" aria-hidden="true"></i>
-            <p class="text-up-01 text-medium-weight">Nenhuma ação registrada</p>
+            <p class="text-up-01 text-medium-weight">Nenhuma ação registrada neste mês</p>
           </div>
         {% else %}
 
@@ -63,7 +78,10 @@
                         {% set t = entry.extra.tempo_s %}
                         {% if t < 60 %}{{ t }}s{% else %}{{ (t // 60)|int }}min {{ (t % 60)|int }}s{% endif %}
                       {% endif %}
-                      {% if entry.extra.tokens %}
+                      {% set total_tokens = (entry.extra.input_tokens | default(0)) + (entry.extra.output_tokens | default(0)) %}
+                      {% if total_tokens > 0 %}
+                        &nbsp;·&nbsp;<i class="fas fa-robot mr-1" aria-hidden="true"></i>{{ total_tokens }} tokens
+                      {% elif entry.extra.tokens %}
                         &nbsp;·&nbsp;<i class="fas fa-robot mr-1" aria-hidden="true"></i>{{ entry.extra.tokens }} tokens
                       {% endif %}
                       {% if entry.extra.checksum %}
@@ -137,6 +155,46 @@
           </div>
           </div>
 
+          <!-- Paginação -->
+          {% if total_pages > 1 %}
+          <div class="d-flex justify-content-center align-items-center mt-4" style="gap:.5rem; flex-wrap:wrap;">
+            {% set base_url = "/log?year=" ~ year ~ "&month=" ~ month ~ ("&tecnico=1" if show_technical else "") %}
+
+            {% if page > 1 %}
+            <a href="{{ base_url }}&page={{ page - 1 }}" class="br-button secondary small" aria-label="Página anterior">
+              <i class="fas fa-chevron-left" aria-hidden="true"></i>
+            </a>
+            {% else %}
+            <button class="br-button secondary small" disabled aria-label="Página anterior">
+              <i class="fas fa-chevron-left" aria-hidden="true"></i>
+            </button>
+            {% endif %}
+
+            {% for p in range(1, total_pages + 1) %}
+              {% if p == page %}
+                <button class="br-button primary small" aria-current="page" aria-label="Página {{ p }}">{{ p }}</button>
+              {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+                <a href="{{ base_url }}&page={{ p }}" class="br-button secondary small" aria-label="Página {{ p }}">{{ p }}</a>
+              {% elif p == page - 3 or p == page + 3 %}
+                <span style="padding:0 .25rem; color:#888;">…</span>
+              {% endif %}
+            {% endfor %}
+
+            {% if page < total_pages %}
+            <a href="{{ base_url }}&page={{ page + 1 }}" class="br-button secondary small" aria-label="Próxima página">
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+            </a>
+            {% else %}
+            <button class="br-button secondary small" disabled aria-label="Próxima página">
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+            </button>
+            {% endif %}
+          </div>
+          <p class="text-center text-down-01 mt-2" style="color:#888;">
+            Exibindo {{ (page - 1) * 20 + 1 }}–{{ [page * 20, total] | min }} de {{ total }} registros
+          </p>
+          {% endif %}
+
         {% endif %}
 
       </div>
@@ -144,4 +202,14 @@
 
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function navigateToMonth(val) {
+  var parts = val.split('-');
+  var year = parts[0], month = parts[1];
+  window.location = '/log?year=' + year + '&month=' + month{% if show_technical %} + '&tecnico=1'{% endif %};
+}
+</script>
 {% endblock %}

@@ -150,7 +150,8 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str =
         })
         extra: dict = {
             "tempo_s": elapsed,
-            "tokens": bedrock_usage["total_input_tokens"] + bedrock_usage["total_output_tokens"],
+            "input_tokens": bedrock_usage["total_input_tokens"],
+            "output_tokens": bedrock_usage["total_output_tokens"],
         }
         if checksum:
             extra["checksum"] = checksum[:12]

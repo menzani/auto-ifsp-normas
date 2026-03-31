@@ -7,15 +7,48 @@ Documentação da API:
 import base64
 import json
 import logging
+import random
 import re
 import threading
+import time
+from collections.abc import Callable
+from typing import TypeVar
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from app.config import get_settings
 
 settings = get_settings()
+
+_T = TypeVar("_T")
+
+# Códigos de erro do Bedrock que indicam falha transitória — vale tentar novamente.
+_RETRYABLE_CODES = {"ThrottlingException", "ServiceUnavailableException", "ModelStreamErrorException"}
+_MAX_ATTEMPTS = 3
+_BASE_DELAY = 2.0  # segundos
+
+
+def _with_retry(fn: Callable[[], _T]) -> _T:
+    """Executa fn com exponential backoff em erros transitórios do Bedrock.
+    Erros permanentes (ValidationException, permissão etc.) são relançados imediatamente."""
+    _log = logging.getLogger(__name__)
+    for attempt in range(_MAX_ATTEMPTS):
+        try:
+            return fn()
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code not in _RETRYABLE_CODES or attempt == _MAX_ATTEMPTS - 1:
+                raise
+            delay = _BASE_DELAY * (2 ** attempt) + random.uniform(0, 1)
+            _log.warning(
+                "Bedrock %s — tentativa %d/%d, aguardando %.1fs",
+                code, attempt + 1, _MAX_ATTEMPTS, delay,
+            )
+            time.sleep(delay)
+    raise AssertionError("unreachable")  # satisfaz type checker
+
 
 # Normativos longos são truncados antes de enviar ao modelo.
 # 80 000 caracteres ≈ 20 000 tokens — bem abaixo do limite do Haiku (200k tokens).
@@ -59,12 +92,12 @@ def _invoke_bedrock_model(prompt: str, max_tokens: int) -> tuple[str, dict]:
         "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
-    response = client.invoke_model(
+    response = _with_retry(lambda: client.invoke_model(
         modelId=settings.bedrock_model_id,
         body=json.dumps(body),
         contentType="application/json",
         accept="application/json",
-    )
+    ))
     result = json.loads(response["body"].read())
     usage = result.get("usage", {"input_tokens": 0, "output_tokens": 0})
     return result["content"][0]["text"], usage
@@ -227,12 +260,12 @@ def extract_pages_multimodal(
         "messages": [{"role": "user", "content": content}],
     }
     try:
-        response = client.invoke_model(
+        response = _with_retry(lambda: client.invoke_model(
             modelId=settings.bedrock_model_id,
             body=json.dumps(body),
             contentType="application/json",
             accept="application/json",
-        )
+        ))
     except Exception:
         logging.getLogger(__name__).exception(
             "Erro na extração multimodal via Bedrock (lote começando na página %d)", start_page

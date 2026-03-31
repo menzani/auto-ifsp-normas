@@ -152,7 +152,10 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
             "bookstack_url": revoked_book_url,
             "bookstack_book_id": revoked_book_id,
         })
-        audit.log(revoked_by, "revogar", title)
+        audit.log(revoked_by, "revogar", title, extra={
+            "input_tokens": summary_usage["input_tokens"],
+            "output_tokens": summary_usage["output_tokens"],
+        })
 
         _set_done(job_id, {
             "title": title,

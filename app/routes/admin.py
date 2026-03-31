@@ -15,6 +15,43 @@ settings = get_settings()
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+@router.get("/custo", response_class=HTMLResponse)
+def admin_custo(request: Request, user=Depends(require_admin)):
+    monthly = audit.bedrock_usage_by_month()
+
+    # Agrega por ano
+    years_map: dict[int, dict] = {}
+    for m in monthly:
+        y = m["year"]
+        if y not in years_map:
+            years_map[y] = {
+                "year": y,
+                "months": [],
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "legacy_tokens": 0,
+                "count_processar": 0,
+                "count_revogar": 0,
+            }
+        years_map[y]["months"].append(m)
+        years_map[y]["input_tokens"] += m["input_tokens"]
+        years_map[y]["output_tokens"] += m["output_tokens"]
+        years_map[y]["legacy_tokens"] += m["legacy_tokens"]
+        years_map[y]["count_processar"] += m["count_processar"]
+        years_map[y]["count_revogar"] += m["count_revogar"]
+
+    years = sorted(years_map.values(), key=lambda y: y["year"], reverse=True)
+
+    return templates.TemplateResponse("admin_custo.html", {
+        "request": request,
+        "user": user,
+        "years": years,
+        "price_input": settings.bedrock_price_input_per_1m,
+        "price_output": settings.bedrock_price_output_per_1m,
+        "model_id": settings.bedrock_model_id,
+    })
+
+
 @router.get("/users", response_class=HTMLResponse)
 def admin_users(request: Request, user=Depends(require_admin)):
     all_users = user_store.list_users()

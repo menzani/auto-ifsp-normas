@@ -9,6 +9,7 @@ cresçam linearmente com o volume total do log.
 Leituras (`recent()`) consultam o mês atual e o anterior para cobrir a virada de mês.
 """
 import json
+import re
 import threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -102,19 +103,17 @@ def log(user_email: str, action: str, details: str, level: str = "info", extra: 
     _append_line(json.dumps(entry, ensure_ascii=False))
 
 
-def recent(limit: int = 200) -> list[dict]:
-    """Retorna as entradas mais recentes do log, em ordem decrescente de timestamp."""
-    now = datetime.now(timezone.utc)
-    prev_month = now.replace(day=1) - timedelta(days=1)
+_MONTH_NAMES_PT = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+]
 
-    all_lines = (
-        _read_lines_for_month(now)
-        + _read_lines_for_month(prev_month)
-    )
 
+def _parse_lines(lines: list[str]) -> list[dict]:
+    """Parsa linhas NDJSON, deduplica e retorna lista ordenada por timestamp decrescente."""
     entries = []
     seen: set[str] = set()
-    for line in all_lines:
+    for line in lines:
         line = line.strip()
         if not line or line in seen:
             continue
@@ -129,6 +128,87 @@ def recent(limit: int = 200) -> list[dict]:
             entries.append(entry)
         except json.JSONDecodeError:
             continue
-
     entries.sort(key=lambda e: e.get("ts", ""), reverse=True)
-    return entries[:limit]
+    return entries
+
+
+def recent(limit: int = 200) -> list[dict]:
+    """Retorna as entradas mais recentes do log, em ordem decrescente de timestamp."""
+    now = datetime.now(timezone.utc)
+    prev_month = now.replace(day=1) - timedelta(days=1)
+    all_lines = _read_lines_for_month(now) + _read_lines_for_month(prev_month)
+    return _parse_lines(all_lines)[:limit]
+
+
+def read_month(year: int, month: int) -> list[dict]:
+    """Retorna todas as entradas de um mês específico, em ordem decrescente de timestamp."""
+    dt = datetime(year, month, 1, tzinfo=timezone.utc)
+    return _parse_lines(_read_lines_for_month(dt))
+
+
+def list_available_months() -> list[tuple[int, int]]:
+    """Retorna lista de (ano, mês) com arquivos de audit existentes, em ordem crescente."""
+    _AUDIT_RE = re.compile(r"audit-(\d{4})-(\d{2})\.jsonl$")
+
+    if settings.mock_s3:
+        result = []
+        for f in sorted(Path("data").glob("audit-*.jsonl")):
+            m = _AUDIT_RE.search(f.name)
+            if m:
+                result.append((int(m.group(1)), int(m.group(2))))
+        return result
+
+    from botocore.exceptions import ClientError
+    s3 = _get_s3_client()
+    result = []
+    paginator = s3.get_paginator("list_objects_v2")
+    try:
+        for page in paginator.paginate(Bucket=settings.s3_bucket_name, Prefix="meta/audit-"):
+            for obj in page.get("Contents", []):
+                m = _AUDIT_RE.search(obj["Key"])
+                if m:
+                    result.append((int(m.group(1)), int(m.group(2))))
+    except ClientError:
+        pass
+    return sorted(result)
+
+
+def bedrock_usage_by_month() -> list[dict]:
+    """
+    Agrega uso de tokens Bedrock por mês lendo todos os arquivos de audit.
+    Retorna lista ordenada por (ano, mês).
+
+    Suporta dois formatos de extra:
+    - Novo (a partir desta versão): input_tokens + output_tokens separados
+    - Legado: tokens = total (aproximado com split 50/50 para cálculo de custo)
+    """
+    result = []
+    for year, month in list_available_months():
+        entries = read_month(year, month)
+        count_processar = count_revogar = 0
+        input_tokens = output_tokens = legacy_tokens = 0
+        for e in entries:
+            action = e.get("action", "")
+            extra = e.get("extra") or {}
+            if action not in ("processar", "revogar"):
+                continue
+            if action == "processar":
+                count_processar += 1
+            else:
+                count_revogar += 1
+            if extra.get("input_tokens") or extra.get("output_tokens"):
+                input_tokens += extra.get("input_tokens", 0)
+                output_tokens += extra.get("output_tokens", 0)
+            elif extra.get("tokens"):
+                legacy_tokens += extra["tokens"]
+        result.append({
+            "year": year,
+            "month": month,
+            "month_name": _MONTH_NAMES_PT[month - 1],
+            "count_processar": count_processar,
+            "count_revogar": count_revogar,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "legacy_tokens": legacy_tokens,  # tokens sem split conhecido
+        })
+    return result

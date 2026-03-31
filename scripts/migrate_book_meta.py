@@ -4,7 +4,7 @@ Migração única: popula registry/book_meta.json com os dados de uploaded_by
 de todos os livros já existentes no Bookstack.
 
 Execução (a partir da raiz do projeto):
-    python scripts/migrate_book_meta.py [--dry-run]
+    python3 scripts/migrate_book_meta.py [--dry-run]
 
 Requer MOCK_BOOKSTACK=false e credenciais do Bookstack configuradas no .env.
 Livros já presentes no registro não são sobrescritos.

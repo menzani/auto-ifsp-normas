@@ -74,6 +74,115 @@ def _get_usd_brl() -> dict | None:
     return None
 
 
+# ── Preços Bedrock via AWS Pricing API ─────────────────────────────────────────
+
+_pricing_api_cache: dict = {"data": None, "fetched_at": 0.0}
+_pricing_api_lock = threading.Lock()
+_PRICING_API_TTL = 3600  # 1 hora
+
+_PRICING_URL = "https://aws.amazon.com/bedrock/pricing/"
+_EXCHANGE_URL = "https://www.google.com/finance/quote/USD-BRL"
+
+
+def _get_bedrock_pricing() -> dict | None:
+    """
+    Busca preços do modelo Bedrock via AWS Pricing API com cache de 1h.
+    Fallback: cache em memória → S3 persistido → None.
+    Retorna {"input_per_1m_usd", "output_per_1m_usd", "source", "fetched_at"} ou None.
+    """
+    now = time.time()
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+
+    with _pricing_api_lock:
+        if _pricing_api_cache["data"] and now - _pricing_api_cache["fetched_at"] < _PRICING_API_TTL:
+            cached = dict(_pricing_api_cache["data"])
+            cached["source"] = "cache"
+            return cached
+
+    try:
+        import boto3
+        import json as _json
+
+        client = boto3.client("pricing", region_name="us-east-1")
+
+        # Strip o prefixo de região (ex: "us." de "us.anthropic.claude-sonnet-4-6")
+        model_id = settings.bedrock_model_id
+        if "." in model_id and model_id.split(".")[0] in ("us", "eu", "ap"):
+            model_id = model_id.split(".", 1)[1]
+
+        response = client.get_products(
+            ServiceCode="AmazonBedrock",
+            Filters=[
+                {"Type": "TERM_MATCH", "Field": "regionCode", "Value": settings.aws_region},
+                {"Type": "TERM_MATCH", "Field": "modelId", "Value": model_id},
+            ],
+        )
+
+        input_price = None
+        output_price = None
+
+        for item_json in response.get("PriceList", []):
+            item = _json.loads(item_json) if isinstance(item_json, str) else item_json
+            # Navega até os termos OnDemand
+            on_demand = item.get("terms", {}).get("OnDemand", {})
+            for term in on_demand.values():
+                for dim in term.get("priceDimensions", {}).values():
+                    price_usd = float(dim.get("pricePerUnit", {}).get("USD", "0"))
+                    if price_usd == 0:
+                        continue
+                    desc = dim.get("description", "").lower()
+                    group = dim.get("group", "").lower()
+                    unit = dim.get("unit", "").lower()
+
+                    # Normaliza para per-1M tokens
+                    if "1k" in unit or "1,000" in unit:
+                        price_per_1m = price_usd * 1000
+                    elif "1m" in unit or "1,000,000" in unit:
+                        price_per_1m = price_usd
+                    else:
+                        # Assume per-token
+                        price_per_1m = price_usd * 1_000_000
+
+                    if "input" in desc or "input" in group:
+                        input_price = price_per_1m
+                    elif "output" in desc or "output" in group:
+                        output_price = price_per_1m
+
+        if input_price is not None and output_price is not None:
+            result = {
+                "input_per_1m_usd": round(input_price, 6),
+                "output_per_1m_usd": round(output_price, 6),
+                "fetched_at": now_str,
+            }
+            with _pricing_api_lock:
+                _pricing_api_cache["data"] = dict(result)
+                _pricing_api_cache["fetched_at"] = now
+            storage.save_api_pricing(result["input_per_1m_usd"], result["output_per_1m_usd"],
+                                     now_str, model_id)
+            result["source"] = "api"
+            return result
+
+        _log.warning("AWS Pricing API não retornou preços input/output para %s", model_id)
+
+    except Exception:
+        _log.warning("Falha ao buscar preços via AWS Pricing API — usando fallback")
+
+    # Fallback: cache em memória
+    with _pricing_api_lock:
+        if _pricing_api_cache["data"]:
+            cached = dict(_pricing_api_cache["data"])
+            cached["source"] = "s3_fallback"
+            return cached
+
+    # Fallback: S3
+    saved = storage.load_api_pricing()
+    if saved:
+        saved["source"] = "s3_fallback"
+        return saved
+
+    return None
+
+
 # ── AWS Cost Explorer ──────────────────────────────────────────────────────────
 
 _ce_cache: dict = {"data": None, "fetched_at": 0.0}
@@ -148,9 +257,49 @@ def _usd(inp: int, out: int, price_input: float, price_output: float, leg: int =
             (out + leg_out) / 1_000_000 * price_output)
 
 
+def _formula(in_tok: int, out_tok: int, pi: float, po: float) -> dict:
+    """Monta dict com os componentes da fórmula de custo para exibição."""
+    in_cost = in_tok / 1_000_000 * pi
+    out_cost = out_tok / 1_000_000 * po
+    return {
+        "in_tok": in_tok, "out_tok": out_tok,
+        "in_cost": in_cost, "out_cost": out_cost,
+        "total": in_cost + out_cost,
+    }
+
+
+def _resolve_pricing() -> dict:
+    """
+    Resolve preços com cadeia de fallback:
+      AWS Pricing API → manual (S3) → default.
+    Retorna dict unificado para o contexto do template.
+    """
+    api_result = _get_bedrock_pricing()
+    if api_result:
+        return {
+            "input_per_1m_usd": api_result["input_per_1m_usd"],
+            "output_per_1m_usd": api_result["output_per_1m_usd"],
+            "source": api_result["source"],
+            "api_available": api_result["source"] in ("api", "cache"),
+            "fetched_at": api_result.get("fetched_at"),
+            "updated_by": None,
+        }
+
+    manual = storage.load_pricing()
+    has_manual = "updated_by" in manual
+    return {
+        "input_per_1m_usd": manual["input_per_1m_usd"],
+        "output_per_1m_usd": manual["output_per_1m_usd"],
+        "source": "manual" if has_manual else "default",
+        "api_available": False,
+        "fetched_at": manual.get("updated_at"),
+        "updated_by": manual.get("updated_by"),
+    }
+
+
 def _build_custo_context(request: Request, user: dict, extra: dict | None = None) -> dict:
     monthly = audit.bedrock_usage_by_month()
-    pricing = storage.load_pricing()
+    pricing = _resolve_pricing()
     pi = pricing["input_per_1m_usd"]
     po = pricing["output_per_1m_usd"]
 
@@ -162,7 +311,7 @@ def _build_custo_context(request: Request, user: dict, extra: dict | None = None
     ce_result = _get_bedrock_actual_costs(start_year, start_month)
     actual_costs = ce_result.get("costs", {}) if ce_result else {}
 
-    # Enriquece cada mês com custos pré-calculados
+    # Enriquece cada mês com custos pré-calculados e fórmulas
     months_enriched = []
     for m in monthly:
         leg = m["legacy_tokens"]
@@ -180,6 +329,11 @@ def _build_custo_context(request: Request, user: dict, extra: dict | None = None
             "combined_est_usd":   combined_est,
             "total_est_usd":      total_est,
             "actual_usd":         actual_costs.get(m_key),
+            "formulas": {
+                "extraction": _formula(m["extraction_input"], m["extraction_output"], pi, po),
+                "faq":        _formula(m["faq_input"],        m["faq_output"],        pi, po),
+                "revocation": _formula(m["revocation_input"], m["revocation_output"], pi, po),
+            },
         })
 
     # Agrupa por ano
@@ -237,12 +391,12 @@ def _build_custo_context(request: Request, user: dict, extra: dict | None = None
         "user": user,
         "years": years,
         "grand": grand,
-        "price_input": pi,
-        "price_output": po,
-        "pricing_meta": pricing,
+        "pricing": pricing,
         "model_id": settings.bedrock_model_id,
         "exchange": _get_usd_brl(),
         "ce_has_permission": ce_result.get("has_permission", False) if ce_result else False,
+        "pricing_url": _PRICING_URL,
+        "exchange_url": _EXCHANGE_URL,
     }
     if extra:
         ctx.update(extra)
@@ -271,6 +425,28 @@ def update_pricing(
     return templates.TemplateResponse(
         "admin_custo.html",
         _build_custo_context(request, user, {"pricing_saved": True}),
+    )
+
+
+@router.post("/custo/exchange", response_class=HTMLResponse)
+def update_exchange(
+    request: Request,
+    user=Depends(require_admin),
+    rate: float = Form(..., gt=0),
+    csrf_token: str = Form(""),
+):
+    check_csrf_form(request, csrf_token)
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    # Salva no S3 e atualiza o cache em memória
+    storage.save_exchange_rate(rate, now_str)
+    with _exchange_lock:
+        _exchange_cache["rate"] = rate
+        _exchange_cache["fetched_at"] = time.time()
+        _exchange_cache["fetched_at_str"] = now_str
+    audit.log(user["email"], "alterar_cotacao", f"1 USD = R$ {rate:.4f}")
+    return templates.TemplateResponse(
+        "admin_custo.html",
+        _build_custo_context(request, user, {"exchange_saved": True}),
     )
 
 

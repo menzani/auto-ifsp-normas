@@ -140,30 +140,19 @@ def _get_bedrock_actual_costs(start_year: int, start_month: int) -> dict | None:
 
 # ── Helpers compartilhados entre GET e POST ────────────────────────────────────
 
+def _usd(inp: int, out: int, price_input: float, price_output: float, leg: int = 0) -> float:
+    """Calcula custo USD a partir de tokens. leg = tokens no formato legado (split 50/50)."""
+    leg_in = leg // 2
+    leg_out = leg - leg_in
+    return ((inp + leg_in) / 1_000_000 * price_input +
+            (out + leg_out) / 1_000_000 * price_output)
+
+
 def _build_custo_context(request: Request, user: dict, extra: dict | None = None) -> dict:
     monthly = audit.bedrock_usage_by_month()
     pricing = storage.load_pricing()
-
-    years_map: dict[int, dict] = {}
-    for m in monthly:
-        y = m["year"]
-        if y not in years_map:
-            years_map[y] = {
-                "year": y, "months": [],
-                "input_tokens": 0, "output_tokens": 0, "legacy_tokens": 0,
-                "count_processar": 0, "count_revogar": 0,
-            }
-        years_map[y]["months"].append(m)
-        years_map[y]["input_tokens"] += m["input_tokens"]
-        years_map[y]["output_tokens"] += m["output_tokens"]
-        years_map[y]["legacy_tokens"] += m["legacy_tokens"]
-        years_map[y]["count_processar"] += m["count_processar"]
-        years_map[y]["count_revogar"] += m["count_revogar"]
-
-    years = sorted(years_map.values(), key=lambda y: y["year"], reverse=True)
-
-    # Soma custo real por ano a partir do Cost Explorer (calculado no Python para evitar lógica no template)
-    # Preenchido depois de obter ce_result abaixo
+    pi = pricing["input_per_1m_usd"]
+    po = pricing["output_per_1m_usd"]
 
     # Determina o mês inicial para o Cost Explorer
     available = audit.list_available_months()
@@ -173,23 +162,86 @@ def _build_custo_context(request: Request, user: dict, extra: dict | None = None
     ce_result = _get_bedrock_actual_costs(start_year, start_month)
     actual_costs = ce_result.get("costs", {}) if ce_result else {}
 
-    # Agrega custo real por ano para exibição no cabeçalho de cada ano
-    for yr in years:
-        yr["actual_cost_usd"] = sum(
-            actual_costs.get(f"{yr['year']:04d}-{m['month']:02d}", 0.0)
-            for m in yr["months"]
-        ) if actual_costs else None
+    # Enriquece cada mês com custos pré-calculados
+    months_enriched = []
+    for m in monthly:
+        leg = m["legacy_tokens"]
+        extraction_est = _usd(m["extraction_input"], m["extraction_output"], pi, po)
+        faq_est        = _usd(m["faq_input"],        m["faq_output"],        pi, po)
+        revocation_est = _usd(m["revocation_input"], m["revocation_output"], pi, po)
+        combined_est   = _usd(m["combined_input"],   m["combined_output"],   pi, po, leg)
+        total_est = extraction_est + faq_est + revocation_est + combined_est
+        m_key = f"{m['year']:04d}-{m['month']:02d}"
+        months_enriched.append({
+            **m,
+            "extraction_est_usd": extraction_est,
+            "faq_est_usd":        faq_est,
+            "revocation_est_usd": revocation_est,
+            "combined_est_usd":   combined_est,
+            "total_est_usd":      total_est,
+            "actual_usd":         actual_costs.get(m_key),
+        })
+
+    # Agrupa por ano
+    years_map: dict[int, dict] = {}
+    for m in months_enriched:
+        y = m["year"]
+        if y not in years_map:
+            years_map[y] = {
+                "year": y, "months": [],
+                "count_processar": 0, "count_revogar": 0,
+                "extraction_est_usd": 0.0, "faq_est_usd": 0.0,
+                "revocation_est_usd": 0.0, "combined_est_usd": 0.0,
+                "total_est_usd": 0.0, "actual_usd": 0.0,
+                "has_actual": False, "has_split": False,
+            }
+        yr = years_map[y]
+        yr["months"].append(m)
+        yr["count_processar"]    += m["count_processar"]
+        yr["count_revogar"]      += m["count_revogar"]
+        yr["extraction_est_usd"] += m["extraction_est_usd"]
+        yr["faq_est_usd"]        += m["faq_est_usd"]
+        yr["revocation_est_usd"] += m["revocation_est_usd"]
+        yr["combined_est_usd"]   += m["combined_est_usd"]
+        yr["total_est_usd"]      += m["total_est_usd"]
+        if m["actual_usd"] is not None:
+            yr["actual_usd"] += m["actual_usd"]
+            yr["has_actual"] = True
+        if m["has_split"]:
+            yr["has_split"] = True
+
+    for yr in years_map.values():
+        if not yr["has_actual"]:
+            yr["actual_usd"] = None
+
+    years = sorted(years_map.values(), key=lambda y: y["year"], reverse=True)
+
+    # Totais globais
+    grand: dict = {
+        "count_processar":    sum(y["count_processar"]    for y in years),
+        "count_revogar":      sum(y["count_revogar"]      for y in years),
+        "extraction_est_usd": sum(y["extraction_est_usd"] for y in years),
+        "faq_est_usd":        sum(y["faq_est_usd"]        for y in years),
+        "revocation_est_usd": sum(y["revocation_est_usd"] for y in years),
+        "combined_est_usd":   sum(y["combined_est_usd"]   for y in years),
+        "total_est_usd":      sum(y["total_est_usd"]      for y in years),
+        "actual_usd": (
+            sum(y["actual_usd"] for y in years if y["actual_usd"] is not None)
+            if any(y["actual_usd"] is not None for y in years) else None
+        ),
+        "has_split": any(y["has_split"] for y in years),
+    }
 
     ctx = {
         "request": request,
         "user": user,
         "years": years,
-        "price_input": pricing["input_per_1m_usd"],
-        "price_output": pricing["output_per_1m_usd"],
+        "grand": grand,
+        "price_input": pi,
+        "price_output": po,
         "pricing_meta": pricing,
         "model_id": settings.bedrock_model_id,
         "exchange": _get_usd_brl(),
-        "actual_costs": actual_costs,
         "ce_has_permission": ce_result.get("has_permission", False) if ce_result else False,
     }
     if extra:

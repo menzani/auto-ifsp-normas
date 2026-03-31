@@ -26,7 +26,7 @@
                 {% if exchange.is_stale %}<i class="fas fa-exclamation-circle ml-1" aria-hidden="true"></i>{% endif %}
               </span>
             {% endif %}
-            {% if actual_costs %}
+            {% if ce_has_permission %}
               <span class="br-tag success text" style="font-size:.8em;">
                 <i class="fas fa-aws mr-1" aria-hidden="true"></i> Custo real disponível
               </span>
@@ -44,7 +44,6 @@
         </div>
         {% endif %}
 
-        <!-- Aviso de cotação desatualizada -->
         {% if exchange and exchange.is_stale %}
         <div class="br-message warning mb-3" role="alert">
           <div class="icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
@@ -62,19 +61,37 @@
         </div>
         {% endif %}
 
-        <!-- Aviso sobre Cost Explorer -->
         {% if not ce_has_permission %}
         <div class="br-message info mb-3" role="alert">
           <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
           <div class="content">
             <strong>Custo real AWS indisponível.</strong>
-            Para exibir os valores faturados diretamente pela AWS, adicione a permissão
+            Para exibir valores faturados diretamente pela AWS, adicione a permissão
             <code>ce:GetCostAndUsage</code> ao IAM role da instância EC2
             (<code>ifsp-normas-sec-group</code>).
-            Os valores estimados abaixo são calculados a partir dos tokens registrados no audit.
+            Os valores abaixo são <em>estimativas</em> calculadas a partir dos tokens registrados no audit.
           </div>
         </div>
         {% endif %}
+
+        <!-- Metodologia de cálculo -->
+        <div class="br-message info mb-4" role="note">
+          <div class="icon"><i class="fas fa-calculator" aria-hidden="true"></i></div>
+          <div class="content">
+            <strong>Como os valores são calculados:</strong>
+            Os tokens consumidos em cada operação são registrados no log de auditoria e multiplicados
+            pelo preço configurado abaixo (USD por 1 milhão de tokens).
+            Há três tipos de operação com custos distintos:
+            <strong>Extração</strong> — Claude Vision lê as páginas do PDF e gera o texto estruturado;
+            <strong>FAQ</strong> — Claude gera as perguntas frequentes a partir do texto extraído;
+            <strong>Revogação</strong> — Claude gera o resumo de normativos revogados.
+            Extração e FAQ ocorrem sempre juntos a cada upload processado.
+            {% if ce_has_permission %}
+            O <strong>custo real</strong> (coluna "Real USD") é obtido do AWS Cost Explorer com
+            aproximadamente 24&nbsp;h de atraso e reflete o valor efetivamente faturado.
+            {% endif %}
+          </div>
+        </div>
 
         {% if not years %}
           <div class="d-flex flex-column align-items-center py-5" style="color:#888;">
@@ -83,36 +100,120 @@
           </div>
         {% else %}
 
-          {% set ns = namespace(grand_input=0, grand_output=0,
-                                grand_processar=0, grand_revogar=0,
-                                grand_actual=0.0, grand_has_actual=false) %}
-
+          <!-- Seções colapsáveis por ano -->
           {% for yr in years %}
-            {% set yr_input = yr.input_tokens + yr.legacy_tokens // 2 %}
-            {% set yr_output = yr.output_tokens + (yr.legacy_tokens - yr.legacy_tokens // 2) %}
-            {% set yr_custo_usd = (yr_input / 1000000 * price_input) + (yr_output / 1000000 * price_output) %}
-
-            <div class="mb-4">
-              {% set yr_display_usd = yr.actual_cost_usd if yr.actual_cost_usd is not none else yr_custo_usd %}
-              <div class="d-flex align-items-center mb-2 flex-wrap" style="gap:.75rem;">
-                <span class="text-up-01 text-medium-weight">{{ yr.year }}</span>
-                {% if yr.actual_cost_usd is not none %}
-                  <span class="br-tag success text">Real USD {{ "%.2f"|format(yr.actual_cost_usd) }}</span>
-                  <span class="br-tag text" style="background:#888; color:#fff; font-size:.8em;">
-                    Est. {{ "%.2f"|format(yr_custo_usd) }}
+          {% set yr_display_usd = yr.actual_usd if yr.actual_usd is not none else yr.total_est_usd %}
+          <details class="custo-year" {% if loop.first %}open{% endif %}>
+            <summary>
+              <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:.75rem; pointer-events:none;">
+                <div class="d-flex align-items-center" style="gap:.75rem;">
+                  <i class="fas fa-chevron-right custo-chevron" aria-hidden="true"></i>
+                  <span class="text-up-01 text-medium-weight">{{ yr.year }}</span>
+                  <span class="text-down-01" style="color:#666;">
+                    {{ yr.count_processar }} upload{{ 's' if yr.count_processar != 1 else '' }}
+                    {% if yr.count_revogar %}· {{ yr.count_revogar }} revogaç{{ 'ões' if yr.count_revogar != 1 else 'ão' }}{% endif %}
                   </span>
-                {% else %}
-                  <span class="br-tag success text">USD {{ "%.2f"|format(yr_custo_usd) }}</span>
-                {% endif %}
-                {% if exchange %}<span class="br-tag text" style="background:#145a32; color:#fff;">
-                  R$ {{ "%.2f"|format(yr_display_usd * exchange.rate) }}
-                </span>{% endif %}
-                <span class="text-down-01" style="color:#888;">
-                  {{ yr.count_processar }} upload{{ 's' if yr.count_processar != 1 else '' }}
-                  {% if yr.count_revogar %}· {{ yr.count_revogar }} revogaç{{ 'ões' if yr.count_revogar != 1 else 'ão' }}{% endif %}
-                </span>
+                </div>
+                <div class="d-flex flex-wrap" style="gap:.5rem;">
+                  {% if yr.actual_usd is not none %}
+                    <span class="br-tag success text">Real USD {{ "%.4f"|format(yr.actual_usd) }}</span>
+                    <span class="br-tag text" style="background:#888; color:#fff; font-size:.8em;">Est. {{ "%.4f"|format(yr.total_est_usd) }}</span>
+                  {% else %}
+                    <span class="br-tag success text">Est. USD {{ "%.4f"|format(yr.total_est_usd) }}</span>
+                  {% endif %}
+                  {% if exchange %}
+                    <span class="br-tag text" style="background:#145a32; color:#fff;">
+                      R$ {{ "%.2f"|format(yr_display_usd * exchange.rate) }}
+                    </span>
+                  {% endif %}
+                </div>
               </div>
+            </summary>
 
+            <div class="custo-year-body">
+
+              <!-- Detalhamento por tipo de operação -->
+              <p class="text-down-01 text-medium-weight mb-2" style="color:#444;">
+                <i class="fas fa-layer-group mr-1" aria-hidden="true"></i> Detalhamento por tipo de operação
+              </p>
+              <div class="custo-breakdown-grid mb-4">
+
+                <!-- Extração -->
+                <div class="custo-breakdown-card">
+                  <div class="custo-breakdown-title">
+                    <i class="fas fa-eye" style="color:#5c4ec4;" aria-hidden="true"></i>
+                    Extração (Vision)
+                  </div>
+                  {% set ext_in  = yr.months | sum(attribute='extraction_input') %}
+                  {% set ext_out = yr.months | sum(attribute='extraction_output') %}
+                  {% if ext_in + ext_out > 0 %}
+                    <div class="text-down-01" style="color:#666;">
+                      {{ "{:,}".format(ext_in).replace(",", ".") }} entrada
+                      · {{ "{:,}".format(ext_out).replace(",", ".") }} saída
+                    </div>
+                    <div class="custo-breakdown-value">USD {{ "%.4f"|format(yr.extraction_est_usd) }}</div>
+                    {% if exchange %}<div class="custo-breakdown-brl">R$ {{ "%.2f"|format(yr.extraction_est_usd * exchange.rate) }}</div>{% endif %}
+                  {% else %}
+                    <div class="text-down-01" style="color:#aaa;">Sem dados discriminados</div>
+                  {% endif %}
+                </div>
+
+                <!-- FAQ -->
+                <div class="custo-breakdown-card">
+                  <div class="custo-breakdown-title">
+                    <i class="fas fa-question-circle" style="color:#1351B4;" aria-hidden="true"></i>
+                    Geração de FAQ
+                  </div>
+                  {% set faq_in  = yr.months | sum(attribute='faq_input') %}
+                  {% set faq_out = yr.months | sum(attribute='faq_output') %}
+                  {% if faq_in + faq_out > 0 %}
+                    <div class="text-down-01" style="color:#666;">
+                      {{ "{:,}".format(faq_in).replace(",", ".") }} entrada
+                      · {{ "{:,}".format(faq_out).replace(",", ".") }} saída
+                    </div>
+                    <div class="custo-breakdown-value">USD {{ "%.4f"|format(yr.faq_est_usd) }}</div>
+                    {% if exchange %}<div class="custo-breakdown-brl">R$ {{ "%.2f"|format(yr.faq_est_usd * exchange.rate) }}</div>{% endif %}
+                  {% else %}
+                    <div class="text-down-01" style="color:#aaa;">Sem dados discriminados</div>
+                  {% endif %}
+                </div>
+
+                <!-- Revogação -->
+                <div class="custo-breakdown-card">
+                  <div class="custo-breakdown-title">
+                    <i class="fas fa-ban" style="color:#c0392b;" aria-hidden="true"></i>
+                    Revogação
+                  </div>
+                  {% set rev_in  = yr.months | sum(attribute='revocation_input') %}
+                  {% set rev_out = yr.months | sum(attribute='revocation_output') %}
+                  {% if rev_in + rev_out > 0 %}
+                    <div class="text-down-01" style="color:#666;">
+                      {{ "{:,}".format(rev_in).replace(",", ".") }} entrada
+                      · {{ "{:,}".format(rev_out).replace(",", ".") }} saída
+                    </div>
+                    <div class="custo-breakdown-value">USD {{ "%.4f"|format(yr.revocation_est_usd) }}</div>
+                    {% if exchange %}<div class="custo-breakdown-brl">R$ {{ "%.2f"|format(yr.revocation_est_usd * exchange.rate) }}</div>{% endif %}
+                  {% else %}
+                    <div class="text-down-01" style="color:#aaa;">—</div>
+                  {% endif %}
+                </div>
+
+                <!-- Dados anteriores sem discriminação (se existirem) -->
+                {% if yr.combined_est_usd > 0 %}
+                <div class="custo-breakdown-card custo-breakdown-legacy">
+                  <div class="custo-breakdown-title">
+                    <i class="fas fa-history" style="color:#888;" aria-hidden="true"></i>
+                    <span style="color:#666;">Processamentos anteriores</span>
+                  </div>
+                  <div class="text-down-01" style="color:#999; font-size:.85em;">Registros sem discriminação de tipo (extração + FAQ agrupados)</div>
+                  <div class="custo-breakdown-value" style="color:#888;">USD {{ "%.4f"|format(yr.combined_est_usd) }}</div>
+                  {% if exchange %}<div class="text-down-01" style="color:#888;">R$ {{ "%.2f"|format(yr.combined_est_usd * exchange.rate) }}</div>{% endif %}
+                </div>
+                {% endif %}
+
+              </div><!-- /custo-breakdown-grid -->
+
+              <!-- Tabela mensal -->
               <div style="overflow-x:auto;">
               <div class="br-table">
                 <table>
@@ -123,27 +224,18 @@
                       <th scope="col" class="text-right">Revogações</th>
                       <th scope="col" class="text-right">Tokens entrada</th>
                       <th scope="col" class="text-right">Tokens saída</th>
-                      <th scope="col" class="text-right">Est. USD</th>
-                      {% if actual_costs %}<th scope="col" class="text-right">Real USD</th>{% endif %}
-                      {% if exchange %}<th scope="col" class="text-right">{% if actual_costs %}Real {% endif %}BRL</th>{% endif %}
+                      <th scope="col" class="text-right" title="Estimativa calculada a partir dos tokens do audit">Est. USD</th>
+                      {% if ce_has_permission %}<th scope="col" class="text-right">Real USD</th>{% endif %}
+                      {% if exchange %}<th scope="col" class="text-right">{% if ce_has_permission %}Real {% endif %}BRL</th>{% endif %}
                     </tr>
                   </thead>
                   <tbody>
                     {% for m in yr.months %}
-                      {% set m_key = "%04d-%02d" | format(m.year, m.month) %}
-                      {% set m_input = m.input_tokens + m.legacy_tokens // 2 %}
-                      {% set m_output = m.output_tokens + (m.legacy_tokens - m.legacy_tokens // 2) %}
-                      {% set m_est_usd = (m_input / 1000000 * price_input) + (m_output / 1000000 * price_output) %}
-                      {% set m_real_usd = actual_costs.get(m_key) %}
-                      {% set m_display_usd = m_real_usd if m_real_usd is not none else m_est_usd %}
-                      {% set ns.grand_input = ns.grand_input + m_input %}
-                      {% set ns.grand_output = ns.grand_output + m_output %}
-                      {% set ns.grand_processar = ns.grand_processar + m.count_processar %}
-                      {% set ns.grand_revogar = ns.grand_revogar + m.count_revogar %}
-                      {% if m_real_usd is not none %}
-                        {% set ns.grand_actual = ns.grand_actual + m_real_usd %}
-                        {% set ns.grand_has_actual = true %}
-                      {% endif %}
+                      {% set leg_in  = m.legacy_tokens // 2 %}
+                      {% set leg_out = m.legacy_tokens - leg_in %}
+                      {% set m_total_in  = m.extraction_input  + m.faq_input  + m.revocation_input  + m.combined_input  + leg_in %}
+                      {% set m_total_out = m.extraction_output + m.faq_output + m.revocation_output + m.combined_output + leg_out %}
+                      {% set m_display_usd = m.actual_usd if m.actual_usd is not none else m.total_est_usd %}
                     <tr>
                       <td>{{ m.month_name }}</td>
                       <td class="text-right">
@@ -153,16 +245,17 @@
                         {% if m.count_revogar %}<span class="br-tag warning text">{{ m.count_revogar }}</span>{% else %}—{% endif %}
                       </td>
                       <td class="text-right text-down-01">
-                        {{ "{:,}".format(m_input).replace(",", ".") }}
+                        {{ "{:,}".format(m_total_in).replace(",", ".") }}
                         {% if m.legacy_tokens %}<span title="inclui dados legado aproximados (split 50/50)" style="color:#aaa; font-size:.8em;">*</span>{% endif %}
                       </td>
-                      <td class="text-right text-down-01">{{ "{:,}".format(m_output).replace(",", ".") }}</td>
-                      <td class="text-right text-medium-weight" style="color:#888;">
-                        {% if m_est_usd > 0 %}{{ "%.4f"|format(m_est_usd) }}{% else %}—{% endif %}
+                      <td class="text-right text-down-01">{{ "{:,}".format(m_total_out).replace(",", ".") }}</td>
+                      <td class="text-right text-medium-weight" style="color:#888;"
+                          title="{% if m.has_split %}Extração: USD {{ '%.4f'|format(m.extraction_est_usd) }} · FAQ: USD {{ '%.4f'|format(m.faq_est_usd) }} · Revogação: USD {{ '%.4f'|format(m.revocation_est_usd) }}{% endif %}">
+                        {% if m.total_est_usd > 0 %}{{ "%.4f"|format(m.total_est_usd) }}{% else %}—{% endif %}
                       </td>
-                      {% if actual_costs %}
+                      {% if ce_has_permission %}
                       <td class="text-right text-medium-weight">
-                        {% if m_real_usd is not none %}{{ "%.4f"|format(m_real_usd) }}{% else %}<span style="color:#aaa;">pendente</span>{% endif %}
+                        {% if m.actual_usd is not none %}{{ "%.4f"|format(m.actual_usd) }}{% else %}<span style="color:#aaa;">pendente</span>{% endif %}
                       </td>
                       {% endif %}
                       {% if exchange %}
@@ -174,14 +267,21 @@
                     {% endfor %}
                   </tbody>
                   <tfoot>
+                    {% set yr_leg     = yr.months | map(attribute='legacy_tokens') | sum %}
+                    {% set yr_total_in  = yr.months | sum(attribute='extraction_input')  + yr.months | sum(attribute='faq_input')  + yr.months | sum(attribute='revocation_input')  + yr.months | sum(attribute='combined_input')  + yr_leg // 2 %}
+                    {% set yr_total_out = yr.months | sum(attribute='extraction_output') + yr.months | sum(attribute='faq_output') + yr.months | sum(attribute='revocation_output') + yr.months | sum(attribute='combined_output') + (yr_leg - yr_leg // 2) %}
                     <tr style="border-top:2px solid #dce1ef;">
                       <td class="text-medium-weight">Total {{ yr.year }}</td>
                       <td class="text-right text-medium-weight">{{ yr.count_processar }}</td>
                       <td class="text-right text-medium-weight">{{ yr.count_revogar }}</td>
-                      <td class="text-right text-medium-weight">{{ "{:,}".format(yr_input).replace(",", ".") }}</td>
-                      <td class="text-right text-medium-weight">{{ "{:,}".format(yr_output).replace(",", ".") }}</td>
-                      <td class="text-right text-medium-weight" style="color:#888;">{{ "%.4f"|format(yr_custo_usd) }}</td>
-                      {% if actual_costs %}<td class="text-right text-medium-weight">—</td>{% endif %}
+                      <td class="text-right text-medium-weight">{{ "{:,}".format(yr_total_in).replace(",", ".") }}</td>
+                      <td class="text-right text-medium-weight">{{ "{:,}".format(yr_total_out).replace(",", ".") }}</td>
+                      <td class="text-right text-medium-weight" style="color:#888;">{{ "%.4f"|format(yr.total_est_usd) }}</td>
+                      {% if ce_has_permission %}
+                      <td class="text-right text-medium-weight">
+                        {% if yr.actual_usd is not none %}{{ "%.4f"|format(yr.actual_usd) }}{% else %}—{% endif %}
+                      </td>
+                      {% endif %}
                       {% if exchange %}
                       <td class="text-right text-medium-weight" style="color:#145a32;">
                         R$ {{ "%.2f"|format(yr_display_usd * exchange.rate) }}
@@ -192,40 +292,77 @@
                 </table>
               </div>
               </div>
-            </div>
+
+            </div><!-- /custo-year-body -->
+          </details>
           {% endfor %}
 
-          <!-- Total acumulado -->
+          <!-- Total acumulado (múltiplos anos) -->
           {% if years | length > 1 %}
-            {% set grand_est_usd = (ns.grand_input / 1000000 * price_input) + (ns.grand_output / 1000000 * price_output) %}
+            {% set grand_display_usd = grand.actual_usd if grand.actual_usd is not none else grand.total_est_usd %}
             <div class="br-card mb-4" style="background:#f0f4ff; border:1px solid #c5d4ff;">
-              <div class="card-content py-3">
+              <div class="card-header">
                 <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:1rem;">
                   <div>
                     <span class="text-up-01 text-medium-weight">Total acumulado</span>
                     <span class="text-down-01 ml-3" style="color:#555;">
-                      {{ ns.grand_processar }} upload{{ 's' if ns.grand_processar != 1 else '' }}
-                      {% if ns.grand_revogar %}· {{ ns.grand_revogar }} revogaç{{ 'ões' if ns.grand_revogar != 1 else 'ão' }}{% endif %}
-                      · {{ "{:,}".format(ns.grand_input + ns.grand_output).replace(",", ".") }} tokens totais
+                      {{ grand.count_processar }} upload{{ 's' if grand.count_processar != 1 else '' }}
+                      {% if grand.count_revogar %}· {{ grand.count_revogar }} revogaç{{ 'ões' if grand.count_revogar != 1 else 'ão' }}{% endif %}
                     </span>
                   </div>
-                  <div class="d-flex align-items-center flex-wrap" style="gap:.75rem;">
-                    {% if ns.grand_has_actual %}
-                    <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">
-                      Real USD {{ "%.2f"|format(ns.grand_actual) }}
-                    </span>
+                  <div class="d-flex flex-wrap" style="gap:.5rem;">
+                    {% if grand.actual_usd is not none %}
+                      <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">Real USD {{ "%.2f"|format(grand.actual_usd) }}</span>
                     {% endif %}
-                    <span class="br-tag {% if actual_costs %}info{% else %}success{% endif %} text text-up-01" style="padding:.5rem 1rem;">
-                      {% if actual_costs %}Est.{% endif %} USD {{ "%.2f"|format(grand_est_usd) }}
+                    <span class="br-tag {% if grand.actual_usd is not none %}info{% else %}success{% endif %} text text-up-01" style="padding:.5rem 1rem;">
+                      {% if grand.actual_usd is not none %}Est. {% endif %}USD {{ "%.2f"|format(grand.total_est_usd) }}
                     </span>
                     {% if exchange %}
                     <span class="br-tag text text-up-01" style="background:#145a32; color:#fff; padding:.5rem 1rem;">
-                      R$ {{ "%.2f"|format((ns.grand_actual if ns.grand_has_actual else grand_est_usd) * exchange.rate) }}
+                      R$ {{ "%.2f"|format(grand_display_usd * exchange.rate) }}
                     </span>
                     {% endif %}
                   </div>
                 </div>
               </div>
+
+              {% if grand.has_split or grand.combined_est_usd > 0 %}
+              <div class="card-content">
+                <p class="text-down-01 text-medium-weight mb-2" style="color:#444;">
+                  <i class="fas fa-layer-group mr-1" aria-hidden="true"></i> Detalhamento por tipo — todos os anos
+                </p>
+                <div class="custo-breakdown-grid">
+                  <div class="custo-breakdown-card" style="border-color:#c5d4ff;">
+                    <div class="custo-breakdown-title"><i class="fas fa-eye" style="color:#5c4ec4;" aria-hidden="true"></i> Extração (Vision)</div>
+                    {% if grand.extraction_est_usd > 0 %}
+                      <div class="custo-breakdown-value">USD {{ "%.4f"|format(grand.extraction_est_usd) }}</div>
+                      {% if exchange %}<div class="custo-breakdown-brl">R$ {{ "%.2f"|format(grand.extraction_est_usd * exchange.rate) }}</div>{% endif %}
+                    {% else %}<div class="text-down-01" style="color:#aaa;">Sem dados discriminados</div>{% endif %}
+                  </div>
+                  <div class="custo-breakdown-card" style="border-color:#c5d4ff;">
+                    <div class="custo-breakdown-title"><i class="fas fa-question-circle" style="color:#1351B4;" aria-hidden="true"></i> Geração de FAQ</div>
+                    {% if grand.faq_est_usd > 0 %}
+                      <div class="custo-breakdown-value">USD {{ "%.4f"|format(grand.faq_est_usd) }}</div>
+                      {% if exchange %}<div class="custo-breakdown-brl">R$ {{ "%.2f"|format(grand.faq_est_usd * exchange.rate) }}</div>{% endif %}
+                    {% else %}<div class="text-down-01" style="color:#aaa;">Sem dados discriminados</div>{% endif %}
+                  </div>
+                  <div class="custo-breakdown-card" style="border-color:#c5d4ff;">
+                    <div class="custo-breakdown-title"><i class="fas fa-ban" style="color:#c0392b;" aria-hidden="true"></i> Revogação</div>
+                    {% if grand.revocation_est_usd > 0 %}
+                      <div class="custo-breakdown-value">USD {{ "%.4f"|format(grand.revocation_est_usd) }}</div>
+                      {% if exchange %}<div class="custo-breakdown-brl">R$ {{ "%.2f"|format(grand.revocation_est_usd * exchange.rate) }}</div>{% endif %}
+                    {% else %}<div class="text-down-01" style="color:#aaa;">—</div>{% endif %}
+                  </div>
+                  {% if grand.combined_est_usd > 0 %}
+                  <div class="custo-breakdown-card custo-breakdown-legacy" style="border-color:#c5d4ff;">
+                    <div class="custo-breakdown-title"><i class="fas fa-history" style="color:#888;" aria-hidden="true"></i> <span style="color:#666;">Processamentos anteriores</span></div>
+                    <div class="custo-breakdown-value" style="color:#888;">USD {{ "%.4f"|format(grand.combined_est_usd) }}</div>
+                    {% if exchange %}<div class="text-down-01" style="color:#888;">R$ {{ "%.2f"|format(grand.combined_est_usd * exchange.rate) }}</div>{% endif %}
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endif %}
             </div>
           {% endif %}
 
@@ -293,4 +430,64 @@
 
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+/* Ano colapsável */
+.custo-year {
+  border: 1px solid #dce1ef;
+  border-radius: 6px;
+  margin-bottom: .75rem;
+}
+.custo-year > summary {
+  list-style: none;
+  padding: .875rem 1.25rem;
+  cursor: pointer;
+  background: #f8f9ff;
+  border-radius: 6px;
+  user-select: none;
+}
+.custo-year > summary::-webkit-details-marker { display: none; }
+.custo-year[open] > summary {
+  border-bottom: 1px solid #dce1ef;
+  border-radius: 6px 6px 0 0;
+}
+.custo-year[open] .custo-chevron { transform: rotate(90deg); }
+.custo-chevron { transition: transform .18s; color: #888; margin-right: .25rem; }
+.custo-year-body { padding: 1.25rem; }
+
+/* Grid de detalhamento */
+.custo-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: .75rem;
+}
+.custo-breakdown-card {
+  border: 1px solid #dce1ef;
+  border-radius: 4px;
+  padding: .75rem;
+  background: #fff;
+}
+.custo-breakdown-legacy {
+  background: #faf8ff;
+}
+.custo-breakdown-title {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .9em;
+  font-weight: 600;
+  margin-bottom: .4rem;
+  color: #333;
+}
+.custo-breakdown-value {
+  font-weight: 600;
+  margin-top: .25rem;
+}
+.custo-breakdown-brl {
+  font-size: .9em;
+  color: #145a32;
+}
+</style>
 {% endblock %}

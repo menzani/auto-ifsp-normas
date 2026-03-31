@@ -178,37 +178,64 @@ def bedrock_usage_by_month() -> list[dict]:
     Agrega uso de tokens Bedrock por mês lendo todos os arquivos de audit.
     Retorna lista ordenada por (ano, mês).
 
-    Suporta dois formatos de extra:
-    - Novo (a partir desta versão): input_tokens + output_tokens separados
-    - Legado: tokens = total (aproximado com split 50/50 para cálculo de custo)
+    Suporta três formatos de extra em entradas "processar":
+    - Completo (novo): extraction_input_tokens + faq_input_tokens + seus output equivalentes
+    - Combinado: input_tokens + output_tokens (sem split extração/FAQ)
+    - Legado: tokens = total (split 50/50 para cálculo de custo)
+
+    Entradas "revogar" usam input_tokens + output_tokens (ou tokens legado).
     """
     result = []
     for year, month in list_available_months():
         entries = read_month(year, month)
         count_processar = count_revogar = 0
-        input_tokens = output_tokens = legacy_tokens = 0
+        extraction_input = extraction_output = 0
+        faq_input = faq_output = 0
+        revocation_input = revocation_output = 0
+        combined_input = combined_output = 0  # processar sem split extração/FAQ
+        legacy_tokens = 0  # formato muito antigo (campo "tokens")
+
         for e in entries:
             action = e.get("action", "")
             extra = e.get("extra") or {}
             if action not in ("processar", "revogar"):
                 continue
+
             if action == "processar":
                 count_processar += 1
-            else:
+                if "extraction_input_tokens" in extra:
+                    extraction_input += extra.get("extraction_input_tokens", 0)
+                    extraction_output += extra.get("extraction_output_tokens", 0)
+                    faq_input += extra.get("faq_input_tokens", 0)
+                    faq_output += extra.get("faq_output_tokens", 0)
+                elif extra.get("input_tokens") or extra.get("output_tokens"):
+                    combined_input += extra.get("input_tokens", 0)
+                    combined_output += extra.get("output_tokens", 0)
+                elif extra.get("tokens"):
+                    legacy_tokens += extra["tokens"]
+            else:  # revogar
                 count_revogar += 1
-            if extra.get("input_tokens") or extra.get("output_tokens"):
-                input_tokens += extra.get("input_tokens", 0)
-                output_tokens += extra.get("output_tokens", 0)
-            elif extra.get("tokens"):
-                legacy_tokens += extra["tokens"]
+                if extra.get("input_tokens") or extra.get("output_tokens"):
+                    revocation_input += extra.get("input_tokens", 0)
+                    revocation_output += extra.get("output_tokens", 0)
+                elif extra.get("tokens"):
+                    legacy_tokens += extra["tokens"]
+
         result.append({
             "year": year,
             "month": month,
             "month_name": _MONTH_NAMES_PT[month - 1],
             "count_processar": count_processar,
             "count_revogar": count_revogar,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "legacy_tokens": legacy_tokens,  # tokens sem split conhecido
+            "extraction_input": extraction_input,
+            "extraction_output": extraction_output,
+            "faq_input": faq_input,
+            "faq_output": faq_output,
+            "revocation_input": revocation_input,
+            "revocation_output": revocation_output,
+            "combined_input": combined_input,   # processar sem split extração/FAQ
+            "combined_output": combined_output,
+            "legacy_tokens": legacy_tokens,     # formato antigo sem split entrada/saída
+            "has_split": extraction_input + extraction_output + faq_input + faq_output > 0,
         })
     return result

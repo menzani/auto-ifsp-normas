@@ -152,6 +152,10 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str =
             "tempo_s": elapsed,
             "input_tokens": bedrock_usage["total_input_tokens"],
             "output_tokens": bedrock_usage["total_output_tokens"],
+            "extraction_input_tokens": bedrock_usage["structure_input_tokens"],
+            "extraction_output_tokens": bedrock_usage["structure_output_tokens"],
+            "faq_input_tokens": bedrock_usage["faq_input_tokens"],
+            "faq_output_tokens": bedrock_usage["faq_output_tokens"],
         }
         if checksum:
             extra["checksum"] = checksum[:12]

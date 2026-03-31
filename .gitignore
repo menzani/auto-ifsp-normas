@@ -224,3 +224,6 @@ awscliv2.zip
 
 # Configurações locais do Claude Code
 .claude/
+
+# Contexto LLM importado de outro ambiente (memória, CLAUDE.md)
+llm-context/

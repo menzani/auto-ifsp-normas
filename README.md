@@ -8,11 +8,11 @@ Portal web institucional do **Instituto Federal de Educação, Ciência e Tecnol
 
 ## O que o sistema faz
 
-1. Um **servidor** envia o PDF do normativo pelo portal
-2. O sistema extrai o texto automaticamente — páginas digitalizadas (imagem) passam por OCR automático — e uma IA estrutura o conteúdo e gera um FAQ sobre o documento
+1. Um **operador** envia o PDF do normativo pelo portal
+2. O sistema renderiza cada página do PDF como imagem e usa IA (visão computacional) para extrair e estruturar o conteúdo, gerando também um FAQ sobre o documento
 3. Um rascunho estruturado é criado no [normas.ifsp.edu.br](https://normas.ifsp.edu.br) (Bookstack) com três seções: Perguntas Frequentes, Texto Completo e link de download
 4. Um **revisor** ou **administrador** analisa o rascunho e o publica na prateleira correta, ou o descarta
-5. Normativos publicados podem ser **revogados**: a IA gera um resumo estruturado e o documento é movido para a prateleira de Revogadas
+5. Normativos publicados podem ser **movidos** entre prateleiras ou **revogados**: a IA gera um resumo estruturado e o documento é movido para a prateleira de Revogadas
 6. Todas as ações ficam registradas no log de auditoria
 
 ---
@@ -21,9 +21,10 @@ Portal web institucional do **Instituto Federal de Educação, Ciência e Tecnol
 
 | Papel | Quem é | O que pode fazer |
 |-------|--------|-----------------|
-| **Servidor** | Servidores em geral | Enviar normativos via upload |
-| **Revisor** | Responsáveis pela publicação | Enviar + revisar, publicar e revogar normativos |
-| **Administrador** | Gestores do sistema | Tudo acima + excluir registros, gerenciar usuários e ver log |
+| **Servidor** | Servidores em geral | Visualizar rascunhos e normativos publicados; consultar log |
+| **Operador** | Quem envia documentos | Tudo acima + enviar normativos via upload |
+| **Revisor** | Responsáveis pela publicação | Tudo acima + publicar, mover e revogar normativos; excluir rascunhos próprios |
+| **Administrador** | Gestores do sistema | Tudo acima + excluir qualquer rascunho/revogado, gerenciar usuários |
 
 O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padrão no primeiro login é **Servidor** — um administrador deve promover o usuário se necessário.
 
@@ -41,20 +42,21 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 
 ---
 
-### Papel: Servidor — Enviar um normativo
+### Papel: Operador — Enviar um normativo
 
 1. Na tela inicial, informe o **título do normativo** (ex: *Portaria IFSP nº 001, de 01 de janeiro de 2025*)
 2. Selecione ou arraste o arquivo **PDF**
 3. Clique em **Enviar para processamento**
 4. Acompanhe o progresso pelas etapas exibidas na tela:
-   - **Extração** — o texto do PDF é lido; páginas sem texto passam por OCR automático
-   - **Estruturação / IA** — uma inteligência artificial organiza o conteúdo em seções e capítulos
+   - **Extração** — cada página do PDF é analisada por IA (visão computacional), que extrai e estrutura o conteúdo em seções e capítulos
    - **FAQ / IA** — uma inteligência artificial gera perguntas frequentes sobre o documento
    - **Bookstack** — o rascunho é criado no portal de normas
    - **Concluído** — link para visualizar o rascunho no Bookstack
-5. Ao final, o sistema exibe quantas páginas e caracteres foram extraídos. Um aviso em amarelo indica se a qualidade da extração pode estar comprometida (ex: PDF com layout complexo ou muitas imagens)
+5. Ao final, o sistema exibe quantas páginas e caracteres foram extraídos. Avisos em amarelo indicam possíveis problemas na extração ou na numeração dos capítulos
 
 > **Atenção:** o PDF enviado fica armazenado permanentemente, mesmo após revogação do normativo.
+
+> **PDFs idênticos:** se o mesmo arquivo já foi enviado anteriormente, o sistema retorna o upload anterior sem reprocessar.
 
 ---
 
@@ -64,7 +66,15 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 2. Na seção **Rascunhos aguardando revisão**, use a busca por título para localizar o normativo
 3. Clique em **Revisar** para abrir o documento no Bookstack e verificar o conteúdo
 4. Se o conteúdo estiver correto, clique em **Publicar**, selecione a **prateleira de destino** e confirme
-5. Se houver problema no rascunho, clique em **Remover** (apenas administradores)
+5. Se houver problema no rascunho, clique em **Remover** (revisores podem remover rascunhos enviados por eles mesmos; administradores podem remover qualquer rascunho)
+
+---
+
+### Papel: Revisor — Mover um normativo entre prateleiras
+
+1. Acesse o menu **Revisão**, seção **Normativos publicados**
+2. Localize o normativo usando a busca por título ou o filtro por prateleira
+3. Clique em **Mover**, selecione a **nova prateleira de destino** e confirme
 
 ---
 
@@ -89,14 +99,14 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 3. Para alterar o papel, selecione o novo papel no menu ao lado do usuário e clique em **Salvar**
 4. A mudança entra em vigor imediatamente, sem necessidade de o usuário fazer logout
 
-> **Papéis disponíveis:** Servidor · Revisor · Administrador
+> **Papéis disponíveis:** Servidor · Operador · Revisor · Administrador
 
 ---
 
 ### Papel: Administrador — Consultar o log de auditoria
 
 1. Acesse o menu **Log**
-2. O log exibe todas as ações realizadas no sistema em ordem cronológica reversa: uploads, publicações, revogações, exclusões e alterações de papel
+2. O log exibe todas as ações realizadas no sistema em ordem cronológica reversa: uploads, publicações, movimentações, revogações, exclusões e alterações de papel
 3. Cada registro mostra data/hora, usuário responsável, tipo de ação e normativo envolvido
 
 ---
@@ -118,8 +128,7 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 - **Frontend:** Jinja2 + HTMX + Design System GOV.BR
 - **Autenticação:** Google OAuth 2.0 — restrito ao Workspace `@ifsp.edu.br`
 - **Armazenamento:** AWS S3
-- **IA Generativa:** Amazon Bedrock (Claude Haiku)
-- **OCR:** AWS Textract (páginas digitalizadas sem texto)
+- **IA Generativa:** Amazon Bedrock (Claude Sonnet 4.6 — extração por visão, FAQ e resumo de revogação)
 - **Wiki:** Bookstack (normas.ifsp.edu.br)
 - **Infraestrutura:** AWS EC2 + nginx + Let's Encrypt
 

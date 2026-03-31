@@ -43,7 +43,8 @@ async def login_mock(
     if not settings.mock_auth:
         return RedirectResponse("/auth/login", status_code=302)
 
-    user = mock_login(email, name)
+    user = mock_login(request, email, name)
+    request.session.clear()
     request.session["user"] = user
     return RedirectResponse("/", status_code=302)
 
@@ -54,6 +55,7 @@ async def auth_callback(request: Request, code: str = "", state: str = "", error
         return RedirectResponse("/auth/login?erro=acesso_negado", status_code=302)
 
     user = await exchange_code_for_user(request, code, state)
+    request.session.clear()
     request.session["user"] = user
     return RedirectResponse("/", status_code=302)
 

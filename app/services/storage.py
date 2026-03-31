@@ -239,6 +239,66 @@ def _save_checksum_registry(registry: dict) -> None:
     )
 
 
+_BOOK_META_KEY = "registry/book_meta.json"
+_book_meta_lock = threading.Lock()
+
+
+def get_book_meta_registry() -> dict:
+    """Retorna {str(book_id): {"uploaded_by": email}} para livros conhecidos pelo sistema."""
+    if settings.mock_s3:
+        p = _local_path(_BOOK_META_KEY)
+        if not p.exists():
+            return {}
+        try:
+            return json.loads(p.read_text())
+        except Exception:
+            return {}
+
+    from botocore.exceptions import ClientError
+    s3 = _get_s3_client()
+    try:
+        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_BOOK_META_KEY)
+        return json.loads(obj["Body"].read())
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            return {}
+        raise
+
+
+def register_book_meta(book_id: int, uploaded_by: str) -> None:
+    """Registra metadados locais de um livro Bookstack recém-criado."""
+    with _book_meta_lock:
+        registry = get_book_meta_registry()
+        registry[str(book_id)] = {"uploaded_by": uploaded_by}
+        _save_book_meta_registry(registry)
+
+
+def unregister_book_meta(book_id: int) -> None:
+    """Remove metadados locais de um livro deletado."""
+    with _book_meta_lock:
+        registry = get_book_meta_registry()
+        key = str(book_id)
+        if key not in registry:
+            return
+        del registry[key]
+        _save_book_meta_registry(registry)
+
+
+def _save_book_meta_registry(registry: dict) -> None:
+    content = json.dumps(registry, ensure_ascii=False, indent=2).encode()
+    if settings.mock_s3:
+        _local_path(_BOOK_META_KEY).write_bytes(content)
+        return
+
+    s3 = _get_s3_client()
+    s3.put_object(
+        Bucket=settings.s3_bucket_name,
+        Key=_BOOK_META_KEY,
+        Body=content,
+        ContentType="application/json",
+    )
+
+
 _REVOKED_REGISTRY_KEY = "registry/revoked_books.json"
 
 

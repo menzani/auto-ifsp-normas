@@ -41,7 +41,7 @@ MOCK_DRAFTS = [
 
 # ── Cache em memória ──────────────────────────────────────────────────────────
 
-_CACHE_TTL = 120        # segundos — rascunhos (muda com frequência)
+_CACHE_TTL = 300        # segundos — rascunhos; cache invalidado em toda mutação, então TTL alto é seguro
 _SHELF_MAP_TTL = 300    # segundos — mapa de prateleiras (muda raramente)
 
 _drafts_cache: dict = {}    # {"data": [...], "ts": float}
@@ -163,13 +163,17 @@ def create_normativo(
     })
     book_id = book["id"]
 
-    # 2. Coloca na prateleira de staging e restringe acesso ao papel Public.
+    # 2. Registra metadados locais (evita N+1 na tela de revisão)
+    from app.services import storage as _storage
+    _storage.register_book_meta(book_id, uploaded_by)
+
+    # 3. Coloca na prateleira de staging e restringe acesso ao papel Public.
     #    O livro ficará invisível ao público até ser aprovado na revisão.
     if settings.bookstack_staging_shelf_id:
         _add_book_to_shelf(settings.bookstack_staging_shelf_id, book_id)
     _restrict_book_to_authenticated(book_id)
 
-    # 3. Capítulo "1. Perguntas Frequentes"
+    # 4. Capítulo "1. Perguntas Frequentes"
     faq_chapter = _api_post("/chapters", {
         "book_id": book_id,
         "name": "1. Perguntas Frequentes",
@@ -182,7 +186,7 @@ def create_normativo(
         "draft": True,
     })
 
-    # 4. Capítulo "2. Texto Completo" — uma página por capítulo do normativo (quando detectado)
+    # 5. Capítulo "2. Texto Completo" — uma página por capítulo do normativo (quando detectado)
     text_chapter = _api_post("/chapters", {
         "book_id": book_id,
         "name": "2. Texto Completo",
@@ -203,7 +207,7 @@ def create_normativo(
             "draft": True,
         })
 
-    # 5. Capítulo "3. Download" — link permanente para o PDF original
+    # 6. Capítulo "3. Download" — link permanente para o PDF original
     if download_url:
         dl_chapter = _api_post("/chapters", {
             "book_id": book_id,
@@ -259,39 +263,24 @@ def get_all_books_overview() -> dict:
 
     from concurrent.futures import ThreadPoolExecutor
 
-    def _fetch_all_books() -> list:
-        return _api_get_all("/books")
-
     # Busca lista de livros e dados de prateleiras em paralelo.
     # _build_shelf_data() retorna tudo que precisamos sobre prateleiras numa chamada cacheada.
     with ThreadPoolExecutor(max_workers=2) as executor:
-        f_books = executor.submit(_fetch_all_books)
+        f_books = executor.submit(_api_get_all, "/books")
         f_shelf = executor.submit(_build_shelf_data)
         all_books_list = f_books.result()
         shelf_map, all_shelves, staging_book_ids, revoked_shelf_book_ids = f_shelf.result()
 
     all_books = {b["id"]: b for b in all_books_list}
 
-    # A listagem /books não inclui tags — busca uploaded_by individualmente para
-    # rascunhos (staging) e publicados em paralelo. Filtra apenas IDs que existem em
-    # all_books para evitar 404 em referências órfãs na prateleira.
-    published_ids = {
-        bid for bid in all_books
-        if bid not in revoked_shelf_book_ids and bid not in staging_book_ids
+    # A listagem /books não inclui tags — uploaded_by vem do registro local (S3/data),
+    # gravado no momento do upload. Isso elimina N+1 chamadas individuais à API do Bookstack.
+    from app.services import storage as _storage
+    _book_meta = _storage.get_book_meta_registry()
+    uploaded_by_map: dict[int, str] = {
+        bid: _book_meta.get(str(bid), {}).get("uploaded_by", "—")
+        for bid in all_books
     }
-
-    def _fetch_uploaded_by(bid: int) -> tuple[int, str]:
-        try:
-            detail = _api_get(f"/books/{bid}")
-            return bid, _parse_tags(detail).get("uploaded_by", "—")
-        except Exception:
-            return bid, "—"
-
-    ids_to_fetch = (staging_book_ids & all_books.keys()) | published_ids
-    uploaded_by_map: dict[int, str] = {}
-    if ids_to_fetch:
-        with ThreadPoolExecutor(max_workers=min(10, len(ids_to_fetch))) as executor:
-            uploaded_by_map = dict(executor.map(_fetch_uploaded_by, ids_to_fetch))
 
     drafts = []
     published = []
@@ -427,6 +416,8 @@ def delete_book_from_bookstack(book_id: int) -> None:
             raise
         _log.warning("delete_book_from_bookstack: livro %s não encontrado (já removido?)", book_id)
 
+    from app.services import storage as _storage
+    _storage.unregister_book_meta(book_id)
     _invalidate_drafts_cache()
     _invalidate_shelf_map_cache()
 
@@ -435,6 +426,7 @@ def _fetch_draft_books() -> list[dict]:
     """
     Busca os livros na prateleira de staging (rascunhos aguardando revisão).
     Consistente com get_all_books_overview(): usa staging shelf como fonte da verdade.
+    uploaded_by vem do registro local — a listagem /books não inclui tags.
     """
     all_books = {b["id"]: b for b in _api_get_all("/books")}
 
@@ -443,18 +435,20 @@ def _fetch_draft_books() -> list[dict]:
         staging = _api_get(f"/shelves/{settings.bookstack_staging_shelf_id}")
         staging_book_ids = {b["id"] for b in staging.get("books", [])}
 
+    from app.services import storage as _storage
+    book_meta = _storage.get_book_meta_registry()
+
     result = []
     for bid in staging_book_ids:
         book = all_books.get(bid)
         if not book:
             continue
-        tags = _parse_tags(book)
         created_at = _format_datetime(book.get("created_at", ""))
         result.append({
             "book_id": bid,
             "title": book["name"],
             "shelf_name": "—",
-            "uploaded_by": tags.get("uploaded_by", "—"),
+            "uploaded_by": book_meta.get(str(bid), {}).get("uploaded_by", "—"),
             "created_at": created_at,
             "bookstack_url": f"{settings.bookstack_base_url}/books/{book['slug']}",
         })
@@ -469,13 +463,17 @@ def publish_book(book_id: int, shelf_id: int) -> None:
     # 0. Remove restrições de acesso (livro passa a ser público)
     _reset_book_permissions(book_id)
 
-    # 1. Publica as páginas
+    # 1. Publica as páginas em paralelo
     pages = _api_get("/pages", params={
         "filter[book_id:eq]": book_id,
         "filter[draft:eq]": "true",
     })["data"]
-    for page in pages:
-        _api_put(f"/pages/{page['id']}", {"draft": False})
+    if pages:
+        from concurrent.futures import ThreadPoolExecutor
+        def _publish_page(page: dict) -> None:
+            _api_put(f"/pages/{page['id']}", {"draft": False})
+        with ThreadPoolExecutor(max_workers=min(5, len(pages))) as executor:
+            list(executor.map(_publish_page, pages))
 
     # 2. Remove da staging
     if settings.bookstack_staging_shelf_id:
@@ -549,8 +547,9 @@ def delete_book(book_id: int) -> None:
         if exc.response.status_code != 404:
             raise
 
+    from app.services import storage
+    storage.unregister_book_meta(book_id)
     if pdf_key:
-        from app.services import storage
         storage.delete_pdf(pdf_key)
         job_id = pdf_key.removeprefix("pdfs/").removesuffix(".pdf")
         storage.unregister_pdf_checksum_by_job_id(job_id)

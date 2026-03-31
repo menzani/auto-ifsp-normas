@@ -303,6 +303,59 @@ def _save_book_meta_registry(registry: dict) -> None:
     )
 
 
+_PRICING_KEY = "meta/pricing.json"
+_pricing_lock = threading.Lock()
+
+_DEFAULT_PRICING: dict = {
+    "input_per_1m_usd": 3.00,
+    "output_per_1m_usd": 15.00,
+}
+
+
+def load_pricing() -> dict:
+    """Carrega preços do Bedrock do S3. Retorna defaults se ainda não configurado."""
+    try:
+        if settings.mock_s3:
+            p = _local_path(_PRICING_KEY)
+            if not p.exists():
+                return dict(_DEFAULT_PRICING)
+            return json.loads(p.read_text())
+
+        from botocore.exceptions import ClientError
+        s3 = _get_s3_client()
+        try:
+            obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_PRICING_KEY)
+            return json.loads(obj["Body"].read())
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                return dict(_DEFAULT_PRICING)
+            raise
+    except Exception:
+        return dict(_DEFAULT_PRICING)
+
+
+def save_pricing(input_per_1m: float, output_per_1m: float, updated_by: str) -> None:
+    """Persiste configuração de preços do Bedrock no S3."""
+    from datetime import datetime, timezone
+    data = {
+        "input_per_1m_usd": round(input_per_1m, 6),
+        "output_per_1m_usd": round(output_per_1m, 6),
+        "updated_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
+        "updated_by": updated_by,
+    }
+    content = json.dumps(data, ensure_ascii=False, indent=2).encode()
+    with _pricing_lock:
+        if settings.mock_s3:
+            _local_path(_PRICING_KEY).write_bytes(content)
+            return
+        _get_s3_client().put_object(
+            Bucket=settings.s3_bucket_name,
+            Key=_PRICING_KEY,
+            Body=content,
+            ContentType="application/json",
+        )
+
+
 _REVOKED_REGISTRY_KEY = "registry/revoked_books.json"
 
 

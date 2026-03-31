@@ -1,25 +1,57 @@
+import logging
 import re
+import threading
+import time
 
+import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
 from app.services.auth import require_admin, check_csrf_form
 from app.services import users as user_store
-from app.services import audit
+from app.services import audit, storage
 from app.templates import templates
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 settings = get_settings()
+_log = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# Cache em memória da cotação USD/BRL — revalidado a cada hora
+_exchange_cache: dict = {"rate": None, "fetched_at": 0.0}
+_exchange_lock = threading.Lock()
+_EXCHANGE_TTL = 3600  # segundos
+
+
+def _get_usd_brl() -> float | None:
+    """Busca cotação USD/BRL da AwesomeAPI com cache de 1h."""
+    now = time.time()
+    with _exchange_lock:
+        if _exchange_cache["rate"] and now - _exchange_cache["fetched_at"] < _EXCHANGE_TTL:
+            return _exchange_cache["rate"]
+    try:
+        r = httpx.get(
+            "https://economia.awesomeapi.com.br/json/last/USD-BRL",
+            timeout=4.0,
+        )
+        rate = float(r.json()["USDBRL"]["bid"])
+        with _exchange_lock:
+            _exchange_cache["rate"] = rate
+            _exchange_cache["fetched_at"] = now
+        return rate
+    except Exception:
+        _log.warning("Falha ao buscar cotação USD/BRL")
+        with _exchange_lock:
+            return _exchange_cache["rate"]  # último valor válido ou None
 
 
 @router.get("/custo", response_class=HTMLResponse)
 def admin_custo(request: Request, user=Depends(require_admin)):
     monthly = audit.bedrock_usage_by_month()
+    pricing = storage.load_pricing()
 
-    # Agrega por ano
     years_map: dict[int, dict] = {}
     for m in monthly:
         y = m["year"]
@@ -46,9 +78,63 @@ def admin_custo(request: Request, user=Depends(require_admin)):
         "request": request,
         "user": user,
         "years": years,
-        "price_input": settings.bedrock_price_input_per_1m,
-        "price_output": settings.bedrock_price_output_per_1m,
+        "price_input": pricing["input_per_1m_usd"],
+        "price_output": pricing["output_per_1m_usd"],
+        "pricing_meta": pricing,
         "model_id": settings.bedrock_model_id,
+        "usd_brl": _get_usd_brl(),
+    })
+
+
+@router.post("/custo/pricing", response_class=HTMLResponse)
+def update_pricing(
+    request: Request,
+    user=Depends(require_admin),
+    input_per_1m: float = Form(..., gt=0),
+    output_per_1m: float = Form(..., gt=0),
+    csrf_token: str = Form(""),
+):
+    check_csrf_form(request, csrf_token)
+    storage.save_pricing(input_per_1m, output_per_1m, user["email"])
+    audit.log(user["email"], "alterar_preco_bedrock",
+              f"entrada={input_per_1m}/1M saída={output_per_1m}/1M")
+
+    # Recarrega a página com os novos preços
+    monthly = audit.bedrock_usage_by_month()
+    pricing = storage.load_pricing()
+
+    years_map: dict[int, dict] = {}
+    for m in monthly:
+        y = m["year"]
+        if y not in years_map:
+            years_map[y] = {
+                "year": y,
+                "months": [],
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "legacy_tokens": 0,
+                "count_processar": 0,
+                "count_revogar": 0,
+            }
+        years_map[y]["months"].append(m)
+        years_map[y]["input_tokens"] += m["input_tokens"]
+        years_map[y]["output_tokens"] += m["output_tokens"]
+        years_map[y]["legacy_tokens"] += m["legacy_tokens"]
+        years_map[y]["count_processar"] += m["count_processar"]
+        years_map[y]["count_revogar"] += m["count_revogar"]
+
+    years = sorted(years_map.values(), key=lambda y: y["year"], reverse=True)
+
+    return templates.TemplateResponse("admin_custo.html", {
+        "request": request,
+        "user": user,
+        "years": years,
+        "price_input": pricing["input_per_1m_usd"],
+        "price_output": pricing["output_per_1m_usd"],
+        "pricing_meta": pricing,
+        "model_id": settings.bedrock_model_id,
+        "usd_brl": _get_usd_brl(),
+        "pricing_saved": True,
     })
 
 

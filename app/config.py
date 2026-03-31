@@ -72,10 +72,6 @@ class Settings(BaseSettings):
     multimodal_dpi: int = 120        # DPI de renderização (120 = boa legibilidade para textos menores)
     multimodal_batch_pages: int = 4  # Páginas por chamada Bedrock (menor = progresso mais frequente)
 
-    # Preços Bedrock (USD por 1 milhão de tokens) — verificar em console.aws.amazon.com/bedrock
-    # Padrões baseados em Claude Sonnet com cross-region inference (us.*) — atualizar se mudar
-    bedrock_price_input_per_1m: float = 3.00
-    bedrock_price_output_per_1m: float = 15.00
 
     class Config:
         env_file = ".env"

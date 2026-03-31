@@ -5,34 +5,35 @@
 <div class="row">
   <div class="col-12">
 
-    <div class="br-card">
+    <!-- Cabeçalho -->
+    <div class="br-card mb-4">
       <div class="card-header">
         <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:1rem;">
           <div class="d-flex align-items-center">
             <i class="fas fa-dollar-sign fa-lg mr-3" style="color:#1351B4;" aria-hidden="true"></i>
             <span class="text-up-01 text-medium-weight">Custo estimado — Amazon Bedrock</span>
           </div>
-          <span class="br-tag info text" style="font-size:.8em;">
-            <i class="fas fa-robot mr-1" aria-hidden="true"></i>{{ model_id }}
-          </span>
+          <div class="d-flex align-items-center" style="gap:.75rem;">
+            <span class="br-tag info text" style="font-size:.8em;">
+              <i class="fas fa-robot mr-1" aria-hidden="true"></i>{{ model_id }}
+            </span>
+            {% if usd_brl %}
+            <span class="br-tag success text" style="font-size:.8em;">
+              <i class="fas fa-exchange-alt mr-1" aria-hidden="true"></i>1 USD = R$ {{ "%.4f"|format(usd_brl) }}
+            </span>
+            {% endif %}
+          </div>
         </div>
       </div>
 
       <div class="card-content">
 
-        <div class="br-message info mb-4" role="alert">
-          <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
-          <div class="content">
-            Valores estimados com base em
-            <strong>USD {{ "%.2f"|format(price_input) }}/1M tokens de entrada</strong> e
-            <strong>USD {{ "%.2f"|format(price_output) }}/1M tokens de saída</strong>
-            (preços configuráveis em <code>BEDROCK_PRICE_INPUT_PER_1M</code> e
-            <code>BEDROCK_PRICE_OUTPUT_PER_1M</code> no <code>.env</code>).
-            Verifique os valores atuais em
-            <strong>console.aws.amazon.com → Bedrock → Pricing</strong>.
-            Processamentos anteriores a esta versão têm split entrada/saída aproximado (50/50).
-          </div>
+        {% if pricing_saved is defined %}
+        <div class="br-message success mb-4" role="alert">
+          <div class="icon"><i class="fas fa-check-circle" aria-hidden="true"></i></div>
+          <div class="content">Preços atualizados com sucesso.</div>
         </div>
+        {% endif %}
 
         {% if not years %}
           <div class="d-flex flex-column align-items-center py-5" style="color:#888;">
@@ -41,30 +42,29 @@
           </div>
         {% else %}
 
-          {# Calcula custo mensal: entradas com split real + legado (50/50) #}
-          {% set ns = namespace(grand_input=0, grand_output=0, grand_legacy=0,
+          {% set ns = namespace(grand_input=0, grand_output=0,
                                 grand_processar=0, grand_revogar=0) %}
 
           {% for yr in years %}
-            {% set yr_ns = namespace(custo=0.0) %}
+            {% set yr_input = yr.input_tokens + yr.legacy_tokens // 2 %}
+            {% set yr_output = yr.output_tokens + (yr.legacy_tokens - yr.legacy_tokens // 2) %}
+            {% set yr_custo_usd = (yr_input / 1000000 * price_input) + (yr_output / 1000000 * price_output) %}
 
             <div class="mb-4">
-              <!-- Cabeçalho do ano -->
               <div class="d-flex align-items-center mb-2" style="gap:.75rem;">
                 <span class="text-up-01 text-medium-weight">{{ yr.year }}</span>
-                {% set yr_input = yr.input_tokens + yr.legacy_tokens // 2 %}
-                {% set yr_output = yr.output_tokens + (yr.legacy_tokens - yr.legacy_tokens // 2) %}
-                {% set yr_custo = (yr_input / 1000000 * price_input) + (yr_output / 1000000 * price_output) %}
-                <span class="br-tag success text">
-                  USD {{ "%.2f"|format(yr_custo) }}
+                <span class="br-tag success text">USD {{ "%.2f"|format(yr_custo_usd) }}</span>
+                {% if usd_brl %}
+                <span class="br-tag text" style="background:#145a32; color:#fff;">
+                  R$ {{ "%.2f"|format(yr_custo_usd * usd_brl) }}
                 </span>
+                {% endif %}
                 <span class="text-down-01" style="color:#888;">
                   {{ yr.count_processar }} upload{{ 's' if yr.count_processar != 1 else '' }}
                   {% if yr.count_revogar %}· {{ yr.count_revogar }} revogaç{{ 'ões' if yr.count_revogar != 1 else 'ão' }}{% endif %}
                 </span>
               </div>
 
-              <!-- Tabela mensal -->
               <div style="overflow-x:auto;">
               <div class="br-table">
                 <table>
@@ -75,14 +75,15 @@
                       <th scope="col" class="text-right">Revogações</th>
                       <th scope="col" class="text-right">Tokens entrada</th>
                       <th scope="col" class="text-right">Tokens saída</th>
-                      <th scope="col" class="text-right">Custo estimado (USD)</th>
+                      <th scope="col" class="text-right">USD</th>
+                      {% if usd_brl %}<th scope="col" class="text-right">BRL</th>{% endif %}
                     </tr>
                   </thead>
                   <tbody>
                     {% for m in yr.months %}
                       {% set m_input = m.input_tokens + m.legacy_tokens // 2 %}
                       {% set m_output = m.output_tokens + (m.legacy_tokens - m.legacy_tokens // 2) %}
-                      {% set m_custo = (m_input / 1000000 * price_input) + (m_output / 1000000 * price_output) %}
+                      {% set m_custo_usd = (m_input / 1000000 * price_input) + (m_output / 1000000 * price_output) %}
                       {% set ns.grand_input = ns.grand_input + m_input %}
                       {% set ns.grand_output = ns.grand_output + m_output %}
                       {% set ns.grand_processar = ns.grand_processar + m.count_processar %}
@@ -97,26 +98,33 @@
                       </td>
                       <td class="text-right text-down-01">
                         {{ "{:,}".format(m_input).replace(",", ".") }}
-                        {% if m.legacy_tokens %}<span title="inclui dados legado (split 50/50)" style="color:#aaa; font-size:.8em;">*</span>{% endif %}
+                        {% if m.legacy_tokens %}<span title="inclui dados legado aproximados (split 50/50)" style="color:#aaa; font-size:.8em;">*</span>{% endif %}
                       </td>
                       <td class="text-right text-down-01">{{ "{:,}".format(m_output).replace(",", ".") }}</td>
                       <td class="text-right text-medium-weight">
-                        {% if m_custo > 0 %}{{ "%.4f"|format(m_custo) }}{% else %}—{% endif %}
+                        {% if m_custo_usd > 0 %}{{ "%.4f"|format(m_custo_usd) }}{% else %}—{% endif %}
                       </td>
+                      {% if usd_brl %}
+                      <td class="text-right" style="color:#145a32;">
+                        {% if m_custo_usd > 0 %}R$ {{ "%.2f"|format(m_custo_usd * usd_brl) }}{% else %}—{% endif %}
+                      </td>
+                      {% endif %}
                     </tr>
                     {% endfor %}
                   </tbody>
                   <tfoot>
                     <tr style="border-top:2px solid #dce1ef;">
-                      {% set yr_input = yr.input_tokens + yr.legacy_tokens // 2 %}
-                      {% set yr_output = yr.output_tokens + (yr.legacy_tokens - yr.legacy_tokens // 2) %}
-                      {% set yr_custo = (yr_input / 1000000 * price_input) + (yr_output / 1000000 * price_output) %}
                       <td class="text-medium-weight">Total {{ yr.year }}</td>
                       <td class="text-right text-medium-weight">{{ yr.count_processar }}</td>
                       <td class="text-right text-medium-weight">{{ yr.count_revogar }}</td>
                       <td class="text-right text-medium-weight">{{ "{:,}".format(yr_input).replace(",", ".") }}</td>
                       <td class="text-right text-medium-weight">{{ "{:,}".format(yr_output).replace(",", ".") }}</td>
-                      <td class="text-right text-medium-weight">{{ "%.4f"|format(yr_custo) }}</td>
+                      <td class="text-right text-medium-weight">{{ "%.4f"|format(yr_custo_usd) }}</td>
+                      {% if usd_brl %}
+                      <td class="text-right text-medium-weight" style="color:#145a32;">
+                        R$ {{ "%.2f"|format(yr_custo_usd * usd_brl) }}
+                      </td>
+                      {% endif %}
                     </tr>
                   </tfoot>
                 </table>
@@ -125,29 +133,97 @@
             </div>
           {% endfor %}
 
-          <!-- Total geral -->
+          <!-- Total acumulado (apenas quando há mais de 1 ano) -->
           {% if years | length > 1 %}
-          {% set grand_custo = (ns.grand_input / 1000000 * price_input) + (ns.grand_output / 1000000 * price_output) %}
-          <div class="br-card mt-2" style="background:#f0f4ff; border:1px solid #c5d4ff;">
-            <div class="card-content py-3">
-              <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:1rem;">
-                <div>
-                  <span class="text-up-01 text-medium-weight">Total acumulado</span>
-                  <span class="text-down-01 ml-3" style="color:#555;">
-                    {{ ns.grand_processar }} upload{{ 's' if ns.grand_processar != 1 else '' }}
-                    {% if ns.grand_revogar %}· {{ ns.grand_revogar }} revogaç{{ 'ões' if ns.grand_revogar != 1 else 'ão' }}{% endif %}
-                    · {{ "{:,}".format(ns.grand_input + ns.grand_output).replace(",", ".") }} tokens totais
-                  </span>
+            {% set grand_custo_usd = (ns.grand_input / 1000000 * price_input) + (ns.grand_output / 1000000 * price_output) %}
+            <div class="br-card mb-4" style="background:#f0f4ff; border:1px solid #c5d4ff;">
+              <div class="card-content py-3">
+                <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:1rem;">
+                  <div>
+                    <span class="text-up-01 text-medium-weight">Total acumulado</span>
+                    <span class="text-down-01 ml-3" style="color:#555;">
+                      {{ ns.grand_processar }} upload{{ 's' if ns.grand_processar != 1 else '' }}
+                      {% if ns.grand_revogar %}· {{ ns.grand_revogar }} revogaç{{ 'ões' if ns.grand_revogar != 1 else 'ão' }}{% endif %}
+                      · {{ "{:,}".format(ns.grand_input + ns.grand_output).replace(",", ".") }} tokens totais
+                    </span>
+                  </div>
+                  <div class="d-flex align-items-center" style="gap:.75rem;">
+                    <span class="br-tag success text text-up-01" style="font-size:1.1em; padding:.5rem 1rem;">
+                      USD {{ "%.2f"|format(grand_custo_usd) }}
+                    </span>
+                    {% if usd_brl %}
+                    <span class="br-tag text text-up-01" style="background:#145a32; color:#fff; font-size:1.1em; padding:.5rem 1rem;">
+                      R$ {{ "%.2f"|format(grand_custo_usd * usd_brl) }}
+                    </span>
+                    {% endif %}
+                  </div>
                 </div>
-                <span class="br-tag success text text-up-01" style="font-size:1.1em; padding:.5rem 1rem;">
-                  USD {{ "%.2f"|format(grand_custo) }}
-                </span>
               </div>
             </div>
-          </div>
           {% endif %}
 
         {% endif %}
+
+      </div>
+    </div>
+
+    <!-- Configuração de preços -->
+    <div class="br-card">
+      <div class="card-header">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-cog fa-lg mr-3" style="color:#888;" aria-hidden="true"></i>
+          <span class="text-up-01 text-medium-weight">Configuração de preços</span>
+        </div>
+      </div>
+      <div class="card-content">
+
+        <div class="br-message info mb-4" role="alert">
+          <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
+          <div class="content">
+            Verifique os valores em
+            <strong>console.aws.amazon.com → Bedrock → Pricing</strong>
+            para o modelo <code>{{ model_id }}</code> (cross-region inference).
+            A cotação USD/BRL é atualizada automaticamente a cada hora via AwesomeAPI.
+            {% if not usd_brl %}
+            <br><span style="color:#c45000;">Cotação indisponível no momento — tente recarregar a página.</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <form method="post" action="/admin/custo/pricing">
+          <input type="hidden" name="csrf_token" value="{{ request.session.get('_csrf_token', '') }}" />
+          <div class="row" style="gap:1rem; align-items:flex-end;">
+            <div class="col-auto">
+              <div class="br-input">
+                <label for="input_per_1m">Tokens de entrada (USD / 1M)</label>
+                <input id="input_per_1m" name="input_per_1m" type="number"
+                       step="0.0001" min="0.0001"
+                       value="{{ "%.4f"|format(price_input) }}"
+                       style="max-width:180px;" />
+              </div>
+            </div>
+            <div class="col-auto">
+              <div class="br-input">
+                <label for="output_per_1m">Tokens de saída (USD / 1M)</label>
+                <input id="output_per_1m" name="output_per_1m" type="number"
+                       step="0.0001" min="0.0001"
+                       value="{{ "%.4f"|format(price_output) }}"
+                       style="max-width:180px;" />
+              </div>
+            </div>
+            <div class="col-auto">
+              <button type="submit" class="br-button primary">
+                <i class="fas fa-save mr-1" aria-hidden="true"></i> Salvar preços
+              </button>
+            </div>
+          </div>
+          {% if pricing_meta.updated_at is defined %}
+          <p class="text-down-01 mt-2" style="color:#888;">
+            <i class="fas fa-history mr-1" aria-hidden="true"></i>
+            Última atualização: {{ pricing_meta.updated_at }} por {{ pricing_meta.updated_by }}
+          </p>
+          {% endif %}
+        </form>
 
       </div>
     </div>

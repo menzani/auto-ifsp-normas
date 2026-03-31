@@ -7,7 +7,6 @@ MOCK_S3=false → armazenado em s3://<bucket>/meta/audit-YYYY-MM.jsonl
 Arquivos são rotacionados mensalmente para evitar que reads + rewrites S3
 cresçam linearmente com o volume total do log.
 Leituras (`recent()`) consultam o mês atual e o anterior para cobrir a virada de mês.
-Arquivo legado meta/audit.jsonl (sem sufixo de mês) é lido como fallback de migração.
 """
 import json
 import threading
@@ -34,11 +33,6 @@ def _get_s3_client():
             _s3_client = boto3.client("s3", region_name=settings.aws_region)
     return _s3_client
 
-# Chave/arquivo legado (gravado antes da rotação mensal) — lido como fallback
-_LEGACY_S3_KEY = "meta/audit.jsonl"
-_LEGACY_LOCAL_FILE = Path("data/audit.jsonl")
-
-
 def _s3_key_for(dt: datetime) -> str:
     return f"meta/audit-{dt.strftime('%Y-%m')}.jsonl"
 
@@ -58,24 +52,6 @@ def _read_lines_for_month(dt: datetime) -> list[str]:
     s3 = _get_s3_client()
     try:
         obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_s3_key_for(dt))
-        return obj["Body"].read().decode("utf-8").splitlines()
-    except ClientError as e:
-        if e.response["Error"]["Code"] in ("NoSuchKey", "NoSuchBucket"):
-            return []
-        raise
-
-
-def _read_legacy_lines() -> list[str]:
-    """Lê o arquivo de log anterior à rotação mensal (migração)."""
-    if settings.mock_s3:
-        if not _LEGACY_LOCAL_FILE.exists():
-            return []
-        return _LEGACY_LOCAL_FILE.read_text(encoding="utf-8").splitlines()
-
-    from botocore.exceptions import ClientError
-    s3 = _get_s3_client()
-    try:
-        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_LEGACY_S3_KEY)
         return obj["Body"].read().decode("utf-8").splitlines()
     except ClientError as e:
         if e.response["Error"]["Code"] in ("NoSuchKey", "NoSuchBucket"):
@@ -120,24 +96,20 @@ def log(user_email: str, action: str, details: str, level: str = "info", extra: 
         "details": details,
     }
     if level != "info":
-        entry["level"] = level  # omitido em entradas normais para manter compatibilidade retroativa
+        entry["level"] = level  # omitido quando "info" para manter o JSON conciso
     if extra:
         entry["extra"] = extra
     _append_line(json.dumps(entry, ensure_ascii=False))
 
 
 def recent(limit: int = 200) -> list[dict]:
-    """
-    Retorna as entradas mais recentes do log, em ordem decrescente de timestamp.
-    Lê o mês atual, o anterior e o arquivo legado (pré-rotação).
-    """
+    """Retorna as entradas mais recentes do log, em ordem decrescente de timestamp."""
     now = datetime.now(timezone.utc)
     prev_month = now.replace(day=1) - timedelta(days=1)
 
     all_lines = (
         _read_lines_for_month(now)
         + _read_lines_for_month(prev_month)
-        + _read_legacy_lines()
     )
 
     entries = []

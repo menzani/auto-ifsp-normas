@@ -137,7 +137,6 @@ def create_normativo(
     uploaded_by: str,
     pdf_key: str = "",
     anomalies: list[str] | None = None,
-    structure_mode: str = "validate",
 ) -> str:
     """
     Cria um livro (normativo) com capítulos em rascunho na prateleira de staging.
@@ -192,11 +191,11 @@ def create_normativo(
         "name": "2. Texto Completo",
         "description": "Reprodução do texto completo para simplificação de busca e consultas específicas.",
     })
-    if anomalies or structure_mode == "suggest":
+    if anomalies:
         _api_post("/pages", {
             "chapter_id": text_chapter["id"],
             "name": "Avisos sobre o documento",
-            "markdown": _build_anomaly_page(anomalies or [], structure_mode),
+            "markdown": _build_anomaly_page(anomalies),
             "draft": True,
         })
     for page_name, page_content in _split_into_chapter_pages(full_text_markdown):
@@ -589,25 +588,13 @@ def _remove_book_from_shelf(shelf_id: int, book_id: int) -> None:
     remaining = [b["id"] for b in shelf.get("books", []) if b["id"] != book_id]
     _api_put(f"/shelves/{shelf_id}", {"books": remaining})
 
-def _build_anomaly_page(anomalies: list[str], structure_mode: str = "validate") -> str:
+def _build_anomaly_page(anomalies: list[str]) -> str:
     """Gera o conteúdo Markdown da página 'Avisos sobre o documento'."""
-    parts = []
-
-    if structure_mode == "multimodal":
-        parts.append(
-            "## Extraído via visão computacional\n\n"
-            "O texto foi extraído diretamente das imagens das páginas do PDF pelo modelo Claude Vision, "
-            "sem processamento intermediário por PyMuPDF. A estrutura de headings foi detectada visualmente pelo modelo."
-        )
-
-    if structure_mode == "suggest":
-        parts.append(
-            "## Estrutura sugerida pela IA\n\n"
-            "Este documento não continha formatação de seções detectável no PDF original "
-            "(sem negrito, sem variação de fonte, sem palavras-chave como CAPÍTULO ou TÍTULO). "
-            "A estrutura de headings foi sugerida pelo modelo de IA com base no contexto temático do texto. "
-            "**Revise e ajuste os headings antes de publicar.**"
-        )
+    parts = [
+        "## Extraído via visão computacional\n\n"
+        "O texto foi extraído diretamente das imagens das páginas do PDF pelo modelo Claude Vision, "
+        "sem processamento intermediário por PyMuPDF. A estrutura de headings foi detectada visualmente pelo modelo."
+    ]
 
     if anomalies:
         items = '\n'.join(f'- {a}' for a in anomalies)

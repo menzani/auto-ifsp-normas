@@ -33,14 +33,6 @@ async def _lifespan(application: FastAPI):
     except Exception:
         _log.exception("Erro ao verificar jobs órfãos no startup")
 
-    try:
-        from app.services.users import migrate_role_names
-        n = migrate_role_names()
-        if n:
-            _log.info("Migração de papéis: %d usuário(s) renomeados de 'uploader' para 'operador'", n)
-    except Exception:
-        _log.exception("Erro na migração de papéis no startup")
-
     yield
     # Shutdown: nenhuma ação necessária
 

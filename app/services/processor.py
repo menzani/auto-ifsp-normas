@@ -106,7 +106,6 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str =
         )
         extraction_check = _verify_extraction(markdown_text)
         anomalies = detect_structural_anomalies(markdown_text)
-        structure_mode = "multimodal"
 
         # ── Etapa 2: Verificação da extração ────────────────────────────
         _raise_if_cancelled(job_id)
@@ -129,7 +128,6 @@ def run(job_id: str, pdf_key: str, title: str, uploaded_by: str, checksum: str =
             uploaded_by=uploaded_by,
             pdf_key=pdf_key,
             anomalies=anomalies,
-            structure_mode=structure_mode,
         )
 
         # ── Etapa 5: Concluído ───────────────────────────────────────────

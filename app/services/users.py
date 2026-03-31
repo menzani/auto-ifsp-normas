@@ -23,22 +23,6 @@ settings = get_settings()
 VALID_ROLES = ("servidor", "operador", "revisor", "admin")
 
 
-def migrate_role_names() -> int:
-    """
-    Migra usuários com papel legado 'uploader' para 'operador'.
-    Retorna o número de registros atualizados.
-    """
-    data = _load()
-    updated = 0
-    for info in data.values():
-        if info.get("role") == "uploader":
-            info["role"] = "operador"
-            updated += 1
-    if updated:
-        _save(data)
-        with _role_cache_lock:
-            _role_cache.clear()
-    return updated
 
 _s3_client = None
 _s3_client_lock = threading.Lock()

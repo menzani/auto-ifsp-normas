@@ -140,7 +140,7 @@ def _validate_pdf(filename: str, content_type: str, content: bytes) -> str | Non
     return None
 
 
-# Rate limit em memória (reinicia com o processo — suficiente para Fase 1)
+# Rate limit em memória — reinicia com o processo, adequado para instância única EC2
 _rate_limit: dict[str, list] = {}
 
 def _check_rate_limit(user_sub: str) -> None:

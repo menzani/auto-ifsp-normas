@@ -219,6 +219,45 @@
     </div><!-- /card preços+câmbio -->
 
     {# ═══════════════════════════════════════════════════════════════════════ #}
+    {# COMO USAR                                                               #}
+    {# ═══════════════════════════════════════════════════════════════════════ #}
+    <div class="br-card mb-4">
+      <div class="card-header">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-info-circle mr-2" style="color:#1351B4;" aria-hidden="true"></i>
+          <span class="text-medium-weight">Como usar este painel</span>
+        </div>
+      </div>
+      <div class="card-content">
+        <ol class="pl-3" style="line-height:2;">
+          <li>
+            <strong>Confirme os preços do modelo.</strong>
+            Acesse o <a href="{{ pricing_url }}" target="_blank" rel="noopener">site da AWS sobre Bedrock</a>,
+            localize o modelo <strong>{{ model_id }}</strong> e insira os valores de entrada e saída acima.
+            Clique em <em>Confirmar preços</em> para registrar que os valores estão atualizados.
+            Repita sempre que a AWS anunciar reajuste.
+          </li>
+          <li>
+            <strong>Acompanhe o custo por ano.</strong>
+            Cada ano exibe o total faturado pela AWS (via Cost Explorer) e o valor convertido para reais.
+            Abra o ano para ver o detalhamento por mês e por tipo de operação (extração, FAQ, revogação).
+          </li>
+          <li>
+            <strong>Entenda a estimativa.</strong>
+            A estimativa é calculada internamente com base nos tokens registrados no log multiplicados
+            pelo preço configurado. Quando os preços estão corretos, a diferença entre estimativa
+            e cobrado pela AWS indica créditos ou descontos da AWS.
+          </li>
+          <li>
+            <strong>A cotação do dólar é automática.</strong>
+            Atualizada a cada hora via open.er-api.com. Em caso de falha, usa o último valor registrado.
+            O valor pode ser ajustado manualmente se necessário.
+          </li>
+        </ol>
+      </div>
+    </div>
+
+    {# ═══════════════════════════════════════════════════════════════════════ #}
     {# NOTA METODOLÓGICA                                                      #}
     {# ═══════════════════════════════════════════════════════════════════════ #}
     {% if not ce_has_permission %}
@@ -277,7 +316,9 @@
             </div>
             <div class="d-flex flex-wrap" style="gap:.5rem;">
               {% if yr.actual_usd is not none %}
-                <span class="br-tag success text">AWS cobrou ${{ fmt_usd(yr.actual_usd) }}</span>
+                <span class="br-tag success text">
+                  AWS cobrou ${{ fmt_usd(yr.actual_usd) }}{% if exchange %} · {{ fmt_brl(yr.actual_usd, exchange.rate) }}{% endif %}
+                </span>
                 {% if yr.actual_usd < yr.total_est_usd and yr.total_est_usd > 0 %}
                   {% set savings_pct = ((yr.total_est_usd - yr.actual_usd) / yr.total_est_usd * 100) | round(1) %}
                   <span class="br-tag info text" style="font-size:.8em;"
@@ -286,11 +327,8 @@
                   </span>
                 {% endif %}
               {% else %}
-                <span class="br-tag success text">Estimativa ${{ fmt_usd(yr.total_est_usd) }}</span>
-              {% endif %}
-              {% if exchange %}
-                <span class="br-tag text" style="background:#145a32; color:#fff;">
-                  {{ fmt_brl(yr_display_usd, exchange.rate) }}
+                <span class="br-tag success text">
+                  Estimativa ${{ fmt_usd(yr.total_est_usd) }}{% if exchange %} · {{ fmt_brl(yr.total_est_usd, exchange.rate) }}{% endif %}
                 </span>
               {% endif %}
             </div>
@@ -497,7 +535,9 @@
               </div>
               <div class="d-flex flex-wrap" style="gap:.5rem;">
                 {% if grand.actual_usd is not none %}
-                  <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">AWS cobrou ${{ "%.2f"|format(grand.actual_usd) }}</span>
+                  <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">
+                    AWS cobrou ${{ "%.2f"|format(grand.actual_usd) }}{% if exchange %} · {{ fmt_brl(grand.actual_usd, exchange.rate) }}{% endif %}
+                  </span>
                   {% if grand.actual_usd < grand.total_est_usd and grand.total_est_usd > 0 %}
                     {% set grand_savings_pct = ((grand.total_est_usd - grand.actual_usd) / grand.total_est_usd * 100) | round(1) %}
                     <span class="br-tag info text text-up-01" style="padding:.5rem 1rem;"
@@ -506,12 +546,9 @@
                     </span>
                   {% endif %}
                 {% else %}
-                  <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">Estimativa ${{ "%.2f"|format(grand.total_est_usd) }}</span>
-                {% endif %}
-                {% if exchange %}
-                <span class="br-tag text text-up-01" style="background:#145a32; color:#fff; padding:.5rem 1rem;">
-                  {{ fmt_brl(grand_display_usd, exchange.rate) }}
-                </span>
+                  <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">
+                    Estimativa ${{ "%.2f"|format(grand.total_est_usd) }}{% if exchange %} · {{ fmt_brl(grand.total_est_usd, exchange.rate) }}{% endif %}
+                  </span>
                 {% endif %}
               </div>
             </div>

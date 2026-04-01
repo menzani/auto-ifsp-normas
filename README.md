@@ -116,16 +116,14 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 ### Papel: Administrador — Painel de custos Bedrock
 
 1. Acesse o menu **Custo**
-2. O painel exibe o custo estimado de uso da IA (Amazon Bedrock), discriminado por tipo de operação:
-   - **Extração (Vision)** — leitura e estruturação das páginas do PDF
+2. Na primeira utilização, o painel exibirá o aviso **"Preços não confirmados"**: consulte o [site da AWS sobre Bedrock](https://aws.amazon.com/bedrock/pricing/), localize o modelo indicado na página e insira os valores no formulário **Configuração de preços**; clique em **Confirmar preços**. Repita sempre que a AWS anunciar reajuste
+3. O painel exibe o custo estimado de uso da IA, discriminado por tipo de operação:
+   - **Extração** — leitura e estruturação das páginas do PDF via visão computacional
    - **FAQ** — geração das perguntas frequentes
    - **Revogação** — geração do resumo de normativos revogados
-3. Os custos são organizados por ano em seções expansíveis; clique no ano para expandir ou recolher
-4. Se a permissão `ce:GetCostAndUsage` estiver configurada no IAM role da EC2, a coluna **Real USD** exibe o valor efetivamente faturado pela AWS (com ~24 h de atraso); caso contrário, apenas a estimativa por token é exibida
-5. A cotação USD/BRL é obtida automaticamente; em caso de falha na API, o último valor registrado é exibido com indicação de desatualização
-6. Para ajustar os preços por token (necessário após mudanças no modelo ou na tabela da AWS), use o formulário **Configuração de preços** no final da página
-
-> **Atenção:** os preços padrão ($3,00/$15,00 por 1M tokens) são um ponto de partida. Verifique o preço real do modelo em uso no console AWS (**Bedrock → Pricing**) e atualize pela interface para que as estimativas sejam precisas.
+4. Os custos são organizados por ano em seções expansíveis; clique no ano para expandir ou recolher
+5. Se a permissão `ce:GetCostAndUsage` estiver configurada no IAM role da EC2, o cabeçalho do ano exibe o valor efetivamente cobrado pela AWS (**AWS cobrou $X · R$ Y**), com diferença percentual em relação à estimativa por tokens; caso contrário, exibe apenas a estimativa
+6. A cotação USD/BRL é atualizada automaticamente a cada hora via open.er-api.com e exibida em destaque no topo do painel; em caso de falha na API, o último valor registrado é exibido em âmbar com indicação de desatualização — nesse caso, use o link **Editar manualmente** para inserir a cotação atual
 
 ---
 

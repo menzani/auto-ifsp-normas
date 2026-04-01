@@ -212,6 +212,9 @@ CLAUDE.md
 # Bibliotecas PlantUML (instalação local, não versionada)
 docs/plantuml-libs/
 
+# Documentos internos (análises, TCO) — não versionados
+docs/tco-rede-federal.md
+
 # Dados locais de desenvolvimento (mock S3)
 data/
 

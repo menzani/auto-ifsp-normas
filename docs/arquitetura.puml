@@ -7,57 +7,63 @@ title Arquitetura: auto.normas.ifsp.edu.br
 !define AWSPuml plantuml-libs/aws-icons-for-plantuml/dist
 !include AWSPuml/AWSCommon.puml
 !include AWSPuml/AWSSimplified.puml
-!include AWSPuml/Compute/EC2.puml
 !include AWSPuml/Compute/EC2Instance.puml
 !include AWSPuml/NetworkingContentDelivery/Route53.puml
 !include AWSPuml/Storage/SimpleStorageService.puml
 !include AWSPuml/ArtificialIntelligence/Bedrock.puml
-!include AWSPuml/ArtificialIntelligence/Textract.puml
 !include AWSPuml/SecurityIdentityCompliance/IdentityAccessManagementRole.puml
-!include AWSPuml/General/Internet.puml
 !include AWSPuml/Groups/AWSCloud.puml
 !include AWSPuml/Groups/VPC.puml
 
 hide stereotype
 skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 80
 
-' Atores externos
 actor "Usuário\n@ifsp.edu.br" as user
+
 node "Google OAuth\n(Workspace Institucional)" as oauth
 node "Bookstack\n(Wiki de Normas)" as bookstack
 
 AWSCloudGroup(cloud, "AWS Cloud") {
 
-    Route53(r53, "DNS", "Route 53")
-    IdentityAccessManagementRole(iam, "IAM Role\n(permissões mínimas)", "Credenciais da instância")
-    SimpleStorageService(s3, "Armazenamento\n(PDFs, metadados,\nregistro de revogações)", "S3")
-    Bedrock(bedrock, "IA Generativa\n(Claude Haiku)", "Amazon Bedrock")
-    Textract(textract, "OCR\n(páginas sem texto)", "Amazon Textract")
+    Route53(r53, "Route 53\n(DNS)", "DNS")
 
     VPCGroup(vpc, "VPC Privada") {
-        EC2Instance(ec2, "EC2 t3.micro (Free Tier)\nnginx + FastAPI\n(uvicorn, systemd)", "EC2")
+        EC2Instance(ec2, "EC2 t3.micro\nnginx + FastAPI\n(uvicorn · systemd)", "EC2")
     }
+
+    together {
+        SimpleStorageService(s3, "S3\nPDFs · metadados\nauditoria · revogações", "S3")
+        Bedrock(bedrock, "Amazon Bedrock\nClaude Sonnet 4.6\nVisão · FAQ · Resumo", "Bedrock")
+    }
+
+    IdentityAccessManagementRole(iam, "IAM Role\nS3 + Bedrock +\nCost Explorer", "IAM")
 }
 
-user --> r53 : resolução DNS
-r53 ..> ec2 : aponta para IP elástico
-user --> ec2 : HTTPS (443)
+' Fluxo principal: usuário → DNS → EC2
+' 1. Browser consulta DNS → Route 53 retorna o IP do EC2
+user ..> r53 : DNS
+r53 ..> ec2 : IP elástico
+' 2. Browser conecta ao EC2 via HTTPS
+user -down-> ec2 : HTTPS (443)
 
-ec2 --> oauth : autenticação OAuth 2.0
-ec2 --> s3 : PDFs e metadados
-ec2 --> bedrock : geração de FAQ e resumos
-ec2 --> textract : OCR de páginas-imagem
-ec2 --> bookstack : criação e gestão de livros
+' EC2 → serviços externos (direita)
+ec2 -right-> oauth : OAuth 2.0
+ec2 -right-> bookstack : API REST
 
-iam ..> s3 : acesso via instância
-iam ..> bedrock : acesso via instância
-iam ..> textract : acesso via instância
+' EC2 → serviços AWS (baixo) — labels removidos, ícones já comunicam
+ec2 -down-> s3
+ec2 -down-> bedrock
 
-note right of ec2
-  Pipelines assíncronos
-  (threading.Thread):
-  - Upload: extração PDF + OCR (Textract) → estruturação (IA) → FAQ (IA) → Bookstack
-  - Revogação: busca → resumo (IA) → Revogadas → remove original
+' IAM → permissões (tracejado)
+iam ..> s3
+iam ..> bedrock
+
+note right of bedrock
+  Pipelines assíncronos (threading.Thread):
+  • Upload: Vision por lotes → FAQ → Bookstack
+  • Revogação: resumo (IA) → Revogadas → remove
 end note
 
 @enduml

@@ -48,32 +48,45 @@
                 Preços do modelo
               </span>
               {% if pricing.source == "manual" %}
-                <span class="br-tag info text" style="font-size:.75em;">
-                  <i class="fas fa-user-edit mr-1" aria-hidden="true"></i> Manual
+                <span class="br-tag success text" style="font-size:.75em;">
+                  <i class="fas fa-check mr-1" aria-hidden="true"></i> Confirmado
+                </span>
+              {% else %}
+                <span class="br-tag warning text" style="font-size:.75em;">
+                  <i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i> Não confirmado
                 </span>
               {% endif %}
             </div>
 
-            <div class="br-message info mb-3" role="alert">
-              <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
+            {% if pricing.source == "manual" %}
+            <div class="br-message success mb-3" role="alert">
+              <div class="icon"><i class="fas fa-check-circle" aria-hidden="true"></i></div>
               <div class="content">
-                Os preços atualizados do modelo <strong>{{ model_id }}</strong> podem ser consultados no
+                Preços confirmados por <strong>{{ pricing.updated_by }}</strong> em {{ pricing.fetched_at }}.
+                Consulte o
+                <a href="{{ pricing_url }}" target="_blank" rel="noopener">
+                  <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>site da AWS
+                </a>
+                se o modelo <strong>{{ model_id }}</strong> tiver sofrido reajuste.
+              </div>
+            </div>
+            {% else %}
+            <div class="br-message warning mb-3" role="alert">
+              <div class="icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
+              <div class="content">
+                Preços <strong>não confirmados</strong> — usando valores padrão. Consulte o
                 <a href="{{ pricing_url }}" target="_blank" rel="noopener">
                   <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>site da AWS sobre Bedrock
                 </a>
-                e devem ser inseridos manualmente abaixo.
-                {% if pricing.source == "manual" %}
-                  Última atualização por <strong>{{ pricing.updated_by }}</strong> em {{ pricing.fetched_at }}.
-                {% elif pricing.source == "default" %}
-                  Usando valores padrão — atualize com os preços reais do modelo em uso.
-                {% endif %}
+                para o modelo <strong>{{ model_id }}</strong> e confirme os valores abaixo.
               </div>
             </div>
+            {% endif %}
 
             {% if pricing_saved is defined %}
             <div class="br-message success mb-3" role="alert">
               <div class="icon"><i class="fas fa-check-circle" aria-hidden="true"></i></div>
-              <div class="content">Preços atualizados com sucesso.</div>
+              <div class="content">Preços confirmados com sucesso.</div>
             </div>
             {% endif %}
 
@@ -103,7 +116,7 @@
               </div>
               <div class="mt-2">
                 <button type="submit" class="br-button primary small">
-                  <i class="fas fa-save mr-1" aria-hidden="true"></i> Salvar preços
+                  <i class="fas fa-check mr-1" aria-hidden="true"></i> Confirmar preços
                 </button>
               </div>
             </form>

@@ -59,15 +59,7 @@
                 <i class="fas fa-tags mr-1" style="color:#1351B4;" aria-hidden="true"></i>
                 Preços do modelo
               </span>
-              {% if pricing.api_available %}
-                <span class="br-tag success text" style="font-size:.75em;">
-                  <i class="fas fa-cloud-download-alt mr-1" aria-hidden="true"></i> Automático
-                </span>
-              {% elif pricing.source == "s3_fallback" %}
-                <span class="br-tag warning text" style="font-size:.75em;">
-                  <i class="fas fa-history mr-1" aria-hidden="true"></i> Cache
-                </span>
-              {% elif pricing.source == "manual" %}
+              {% if pricing.source == "manual" %}
                 <span class="br-tag info text" style="font-size:.75em;">
                   <i class="fas fa-user-edit mr-1" aria-hidden="true"></i> Manual
                 </span>
@@ -79,24 +71,21 @@
             </div>
           </div>
           <div class="card-content">
-            {% if not pricing.api_available %}
-            <div class="br-message warning mb-3" role="alert">
-              <div class="icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
+            <div class="br-message info mb-3" role="alert">
+              <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
               <div class="content">
-                Não foi possível obter preços automaticamente da API AWS.
-                {% if pricing.source == "s3_fallback" %}
-                  Usando último valor obtido em <strong>{{ pricing.fetched_at }}</strong>.
-                {% elif pricing.source == "manual" %}
-                  Usando valores definidos manualmente por <strong>{{ pricing.updated_by }}</strong> em {{ pricing.fetched_at }}.
-                {% else %}
-                  Usando valores padrão — verifique e ajuste se necessário.
-                {% endif %}
-                <br><a href="{{ pricing_url }}" target="_blank" rel="noopener">
-                  <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>Consultar preços na AWS
+                Os preços atualizados do modelo podem ser consultados no
+                <a href="{{ pricing_url }}" target="_blank" rel="noopener">
+                  <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>site da AWS sobre Bedrock
                 </a>
+                e devem ser inseridos manualmente abaixo.
+                {% if pricing.source == "manual" %}
+                  Última atualização por <strong>{{ pricing.updated_by }}</strong> em {{ pricing.fetched_at }}.
+                {% elif pricing.source == "default" %}
+                  Usando valores padrão — atualize com os preços reais do modelo em uso.
+                {% endif %}
               </div>
             </div>
-            {% endif %}
 
             {% if pricing_saved is defined %}
             <div class="br-message success mb-3" role="alert">
@@ -116,7 +105,7 @@
                            step="0.0001" min="0.0001"
                            value="{{ fmt_usd(pricing.input_per_1m_usd) }}"
                            class="custo-price-input"
-                           {% if pricing.api_available %}readonly{% endif %} />
+                           />
                   </div>
                 </div>
                 <div class="custo-price-field">
@@ -126,26 +115,14 @@
                     <input id="output_per_1m" name="output_per_1m" type="number"
                            step="0.0001" min="0.0001"
                            value="{{ fmt_usd(pricing.output_per_1m_usd) }}"
-                           class="custo-price-input"
-                           {% if pricing.api_available %}readonly{% endif %} />
+                           class="custo-price-input" />
                   </div>
                 </div>
               </div>
               <div class="d-flex align-items-center justify-content-between mt-2 flex-wrap" style="gap:.5rem;">
-                <div>
-                  {% if pricing.api_available %}
-                    <button type="button" class="br-button secondary small" onclick="togglePricingEdit()" id="pricing-edit-btn">
-                      <i class="fas fa-pen mr-1" aria-hidden="true"></i> Editar manualmente
-                    </button>
-                  {% endif %}
-                  <button type="submit" class="br-button primary small" id="pricing-save-btn"
-                          {% if pricing.api_available %}style="display:none;"{% endif %}>
-                    <i class="fas fa-save mr-1" aria-hidden="true"></i> Salvar preços
-                  </button>
-                </div>
-                <a href="{{ pricing_url }}" target="_blank" rel="noopener" class="text-down-01" style="color:#1351B4;">
-                  <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>Preços AWS Bedrock
-                </a>
+                <button type="submit" class="br-button primary small">
+                  <i class="fas fa-save mr-1" aria-hidden="true"></i> Salvar preços
+                </button>
               </div>
             </form>
           </div>

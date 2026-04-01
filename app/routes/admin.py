@@ -271,28 +271,15 @@ def _formula(in_tok: int, out_tok: int, pi: float, po: float) -> dict:
 
 def _resolve_pricing() -> dict:
     """
-    Resolve preços com cadeia de fallback:
-      AWS Pricing API → manual (S3) → default.
+    Resolve preços a partir de configuração manual (S3) ou default.
     Retorna dict unificado para o contexto do template.
     """
-    api_result = _get_bedrock_pricing()
-    if api_result:
-        return {
-            "input_per_1m_usd": api_result["input_per_1m_usd"],
-            "output_per_1m_usd": api_result["output_per_1m_usd"],
-            "source": api_result["source"],
-            "api_available": api_result["source"] in ("api", "cache"),
-            "fetched_at": api_result.get("fetched_at"),
-            "updated_by": None,
-        }
-
     manual = storage.load_pricing()
     has_manual = "updated_by" in manual
     return {
         "input_per_1m_usd": manual["input_per_1m_usd"],
         "output_per_1m_usd": manual["output_per_1m_usd"],
         "source": "manual" if has_manual else "default",
-        "api_available": False,
         "fetched_at": manual.get("updated_at"),
         "updated_by": manual.get("updated_by"),
     }

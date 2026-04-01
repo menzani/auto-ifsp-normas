@@ -113,6 +113,7 @@ def _get_bedrock_pricing() -> dict | None:
         input_price = None
         output_price = None
 
+        anthropic_usagetypes = []
         kwargs: dict = {
             "ServiceCode": "AmazonBedrock",
             "Filters": [{"Type": "TERM_MATCH", "Field": "regionCode", "Value": settings.aws_region}],
@@ -122,8 +123,11 @@ def _get_bedrock_pricing() -> dict | None:
             for item_json in response.get("PriceList", []):
                 item = _json.loads(item_json) if isinstance(item_json, str) else item_json
                 attrs = item.get("product", {}).get("attributes", {})
+                usagetype = attrs.get("usagetype", "")
+                if "anthropic" in usagetype.lower() or "claude" in usagetype.lower():
+                    anthropic_usagetypes.append(usagetype)
                 # usagetype contém o model_id, ex: "USE1-anthropic.claude-sonnet-4-6-input-tokens"
-                if model_id.lower() not in attrs.get("usagetype", "").lower():
+                if model_id.lower() not in usagetype.lower():
                     continue
                 on_demand = item.get("terms", {}).get("OnDemand", {})
                 for term in on_demand.values():
@@ -163,7 +167,7 @@ def _get_bedrock_pricing() -> dict | None:
             result["source"] = "api"
             return result
 
-        _log.warning("AWS Pricing API não retornou preços input/output para %s", model_id)
+        _log.warning("AWS Pricing API não retornou preços input/output para %s — usagetypes Anthropic/Claude encontrados: %s", model_id, anthropic_usagetypes)
 
     except Exception:
         _log.warning("Falha ao buscar preços via AWS Pricing API — usando fallback")

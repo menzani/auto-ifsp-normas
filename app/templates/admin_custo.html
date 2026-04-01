@@ -352,8 +352,8 @@
               {% set ext_in  = yr.months | sum(attribute='extraction_input') %}
               {% set ext_out = yr.months | sum(attribute='extraction_output') %}
               {% if ext_in + ext_out > 0 %}
-                <div class="custo-breakdown-value">USD {{ fmt_usd(yr.extraction_est_usd) }}</div>
                 {% if exchange %}<div class="custo-breakdown-brl">{{ fmt_brl(yr.extraction_est_usd, exchange.rate) }}</div>{% endif %}
+                <div class="custo-breakdown-value">USD {{ fmt_usd(yr.extraction_est_usd) }}</div>
                 <div class="custo-formula-line text-down-02 mt-1">
                   {{ fmt_tok(ext_in) }} ent. &times; ${{ fmt_usd(pi) }}/1M
                   + {{ fmt_tok(ext_out) }} saída &times; ${{ fmt_usd(po) }}/1M
@@ -372,8 +372,8 @@
               {% set faq_in  = yr.months | sum(attribute='faq_input') %}
               {% set faq_out = yr.months | sum(attribute='faq_output') %}
               {% if faq_in + faq_out > 0 %}
-                <div class="custo-breakdown-value">USD {{ fmt_usd(yr.faq_est_usd) }}</div>
                 {% if exchange %}<div class="custo-breakdown-brl">{{ fmt_brl(yr.faq_est_usd, exchange.rate) }}</div>{% endif %}
+                <div class="custo-breakdown-value">USD {{ fmt_usd(yr.faq_est_usd) }}</div>
                 <div class="custo-formula-line text-down-02 mt-1">
                   {{ fmt_tok(faq_in) }} ent. &times; ${{ fmt_usd(pi) }}/1M
                   + {{ fmt_tok(faq_out) }} saída &times; ${{ fmt_usd(po) }}/1M
@@ -392,8 +392,8 @@
               {% set rev_in  = yr.months | sum(attribute='revocation_input') %}
               {% set rev_out = yr.months | sum(attribute='revocation_output') %}
               {% if rev_in + rev_out > 0 %}
-                <div class="custo-breakdown-value">USD {{ fmt_usd(yr.revocation_est_usd) }}</div>
                 {% if exchange %}<div class="custo-breakdown-brl">{{ fmt_brl(yr.revocation_est_usd, exchange.rate) }}</div>{% endif %}
+                <div class="custo-breakdown-value">USD {{ fmt_usd(yr.revocation_est_usd) }}</div>
                 <div class="custo-formula-line text-down-02 mt-1">
                   {{ fmt_tok(rev_in) }} ent. &times; ${{ fmt_usd(pi) }}/1M
                   + {{ fmt_tok(rev_out) }} saída &times; ${{ fmt_usd(po) }}/1M
@@ -411,8 +411,8 @@
                 <span style="color:#666;">Processamentos anteriores</span>
               </div>
               <div class="text-down-01" style="color:#999; font-size:.85em;">Registros sem discriminação de tipo</div>
-              <div class="custo-breakdown-value" style="color:#888;">USD {{ fmt_usd(yr.combined_est_usd) }}</div>
-              {% if exchange %}<div class="text-down-01" style="color:#888;">{{ fmt_brl(yr.combined_est_usd, exchange.rate) }}</div>{% endif %}
+              {% if exchange %}<div class="custo-breakdown-brl" style="color:#888;">{{ fmt_brl(yr.combined_est_usd, exchange.rate) }}</div>{% endif %}
+              <div class="custo-breakdown-value">USD {{ fmt_usd(yr.combined_est_usd) }}</div>
             </div>
             {% endif %}
 
@@ -563,29 +563,29 @@
               <div class="custo-breakdown-card" style="border-color:#c5d4ff;">
                 <div class="custo-breakdown-title"><i class="fas fa-eye" style="color:#5c4ec4;" aria-hidden="true"></i> Extração (Vision)</div>
                 {% if grand.extraction_est_usd > 0 %}
-                  <div class="custo-breakdown-value">USD {{ fmt_usd(grand.extraction_est_usd) }}</div>
                   {% if exchange %}<div class="custo-breakdown-brl">{{ fmt_brl(grand.extraction_est_usd, exchange.rate) }}</div>{% endif %}
+                  <div class="custo-breakdown-value">USD {{ fmt_usd(grand.extraction_est_usd) }}</div>
                 {% else %}<div class="text-down-01" style="color:#aaa;">Sem dados discriminados</div>{% endif %}
               </div>
               <div class="custo-breakdown-card" style="border-color:#c5d4ff;">
                 <div class="custo-breakdown-title"><i class="fas fa-question-circle" style="color:#1351B4;" aria-hidden="true"></i> Geração de FAQ</div>
                 {% if grand.faq_est_usd > 0 %}
-                  <div class="custo-breakdown-value">USD {{ fmt_usd(grand.faq_est_usd) }}</div>
                   {% if exchange %}<div class="custo-breakdown-brl">{{ fmt_brl(grand.faq_est_usd, exchange.rate) }}</div>{% endif %}
+                  <div class="custo-breakdown-value">USD {{ fmt_usd(grand.faq_est_usd) }}</div>
                 {% else %}<div class="text-down-01" style="color:#aaa;">Sem dados discriminados</div>{% endif %}
               </div>
               <div class="custo-breakdown-card" style="border-color:#c5d4ff;">
                 <div class="custo-breakdown-title"><i class="fas fa-ban" style="color:#c0392b;" aria-hidden="true"></i> Revogação</div>
                 {% if grand.revocation_est_usd > 0 %}
-                  <div class="custo-breakdown-value">USD {{ fmt_usd(grand.revocation_est_usd) }}</div>
                   {% if exchange %}<div class="custo-breakdown-brl">{{ fmt_brl(grand.revocation_est_usd, exchange.rate) }}</div>{% endif %}
+                  <div class="custo-breakdown-value">USD {{ fmt_usd(grand.revocation_est_usd) }}</div>
                 {% else %}<div class="text-down-01" style="color:#aaa;">—</div>{% endif %}
               </div>
               {% if grand.combined_est_usd > 0 %}
               <div class="custo-breakdown-card custo-breakdown-legacy" style="border-color:#c5d4ff;">
                 <div class="custo-breakdown-title"><i class="fas fa-history" style="color:#888;" aria-hidden="true"></i> <span style="color:#666;">Processamentos anteriores</span></div>
-                <div class="custo-breakdown-value" style="color:#888;">USD {{ fmt_usd(grand.combined_est_usd) }}</div>
-                {% if exchange %}<div class="text-down-01" style="color:#888;">{{ fmt_brl(grand.combined_est_usd, exchange.rate) }}</div>{% endif %}
+                {% if exchange %}<div class="custo-breakdown-brl" style="color:#888;">{{ fmt_brl(grand.combined_est_usd, exchange.rate) }}</div>{% endif %}
+                <div class="custo-breakdown-value">USD {{ fmt_usd(grand.combined_est_usd) }}</div>
               </div>
               {% endif %}
             </div>
@@ -647,8 +647,8 @@
   margin-bottom: .4rem;
   color: #333;
 }
-.custo-breakdown-value { font-weight: 600; margin-top: .25rem; }
-.custo-breakdown-brl { font-size: .9em; color: #145a32; }
+.custo-breakdown-brl { font-weight: 600; font-size: 1.05em; color: #145a32; margin-top: .25rem; }
+.custo-breakdown-value { font-size: .85em; color: #666; margin-top: .1rem; }
 
 /* Painel de preços */
 .custo-price-row {

@@ -114,7 +114,6 @@ def _get_bedrock_pricing() -> dict | None:
             ServiceCode="AmazonBedrock",
             Filters=[
                 {"Type": "TERM_MATCH", "Field": "regionCode", "Value": settings.aws_region},
-                {"Type": "TERM_MATCH", "Field": "modelId", "Value": model_id},
             ],
         )
 
@@ -123,6 +122,11 @@ def _get_bedrock_pricing() -> dict | None:
 
         for item_json in response.get("PriceList", []):
             item = _json.loads(item_json) if isinstance(item_json, str) else item_json
+            # Verifica se o item é do modelo desejado (busca em todos os atributos)
+            attrs = item.get("product", {}).get("attributes", {})
+            attr_values = " ".join(str(v).lower() for v in attrs.values())
+            if model_id.lower() not in attr_values:
+                continue
             # Navega até os termos OnDemand
             on_demand = item.get("terms", {}).get("OnDemand", {})
             for term in on_demand.values():

@@ -131,21 +131,32 @@
               {% endif %}
             </div>
 
+            <p class="text-down-01 mb-3" style="color:#555;">
+              Taxa de câmbio usada para converter estimativas de custo de USD para BRL.
+            </p>
+
             {% if not exchange %}
             <div class="br-message warning mb-3" role="alert">
               <div class="icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
               <div class="content">
-                Cotação indisponível e sem valor anterior registrado. Insira manualmente.
-                <br><a href="{{ exchange_url }}" target="_blank" rel="noopener">
-                  <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>Consultar cotação
-                </a>
+                Cotação indisponível. Insira manualmente ou
+                <a href="{{ exchange_url }}" target="_blank" rel="noopener">consulte aqui</a>.
               </div>
             </div>
-            {% elif exchange.is_stale %}
-            <div class="br-message warning mb-3" role="alert">
-              <div class="icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
-              <div class="content">
-                Usando último valor registrado em <strong>{{ exchange.fetched_at }}</strong>. Os valores em BRL podem estar desatualizados.
+            {% else %}
+            <div id="exchange-display" style="padding:.75rem 0 1rem; margin-bottom:1rem; border-bottom:1px solid #e6e6e6;">
+              <div class="text-down-01 mb-1" style="color:#888; font-size:.85em;">1 USD equivale a</div>
+              <div style="font-size:2rem; font-weight:700; line-height:1.1;
+                          color:{% if exchange.is_stale %}#b3860a{% else %}#145a32{% endif %};">
+                R$ {{ "%.4f"|format(exchange.rate) }}
+              </div>
+              <div class="text-down-02 mt-2" style="color:{% if exchange.is_stale %}#b3860a{% else %}#aaa{% endif %}; font-size:.8em;">
+                {% if exchange.is_stale %}
+                  <i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i>
+                  Último registro: {{ exchange.fetched_at }} — pode estar desatualizado
+                {% else %}
+                  <i class="fas fa-clock mr-1" aria-hidden="true"></i>{{ exchange.fetched_at }}
+                {% endif %}
               </div>
             </div>
             {% endif %}
@@ -159,7 +170,8 @@
 
             <form method="post" action="/admin/custo/exchange" id="exchange-form">
               <input type="hidden" name="csrf_token" value="{{ request.session.get('_csrf_token', '') }}" />
-              <div class="custo-price-field">
+              <div class="custo-price-field" id="exchange-input-row"
+                   {% if exchange and not exchange.is_stale %}style="display:none;"{% endif %}>
                 <label for="exchange_rate" class="text-down-01" style="color:#666;">1 USD =</label>
                 <div class="d-flex align-items-center" style="gap:.5rem;">
                   <span style="color:#666;">R$</span>
@@ -167,15 +179,9 @@
                          step="0.0001" min="0.0001"
                          value="{{ "%.4f"|format(exchange.rate) if exchange else '' }}"
                          class="custo-price-input"
-                         {% if exchange and not exchange.is_stale %}readonly{% endif %}
                          {% if not exchange %}placeholder="Ex: 5.7234"{% endif %} />
                 </div>
               </div>
-              {% if exchange and exchange.fetched_at %}
-              <p class="text-down-01 mt-1 mb-2" style="color:#888;">
-                <i class="fas fa-clock mr-1" aria-hidden="true"></i> {{ exchange.fetched_at }}
-              </p>
-              {% endif %}
               <div class="d-flex align-items-center justify-content-between mt-2 flex-wrap" style="gap:.5rem;">
                 <div>
                   {% if exchange and not exchange.is_stale %}
@@ -664,11 +670,11 @@ function togglePricingEdit() {
   document.getElementById('pricing-edit-btn').style.display = 'none';
 }
 function toggleExchangeEdit() {
-  var input = document.getElementById('exchange_rate');
-  input.removeAttribute('readonly');
-  input.focus();
+  document.getElementById('exchange-display').style.display = 'none';
+  document.getElementById('exchange-input-row').style.display = '';
   document.getElementById('exchange-save-btn').style.display = '';
   document.getElementById('exchange-edit-btn').style.display = 'none';
+  document.getElementById('exchange_rate').focus();
 }
 </script>
 {% endblock %}

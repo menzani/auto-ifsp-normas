@@ -201,48 +201,6 @@ def detect_structural_anomalies(text: str) -> list[str]:
     return anomalies
 
 
-def _merge_chapter_titles(lines: list[str]) -> list[str]:
-    """
-    Mescla o numeral de capítulo/título/seção com o nome quando estão em headings separados.
-
-    Em documentos jurídicos brasileiros é comum o PDF dispor o heading em duas linhas:
-      ## CAPÍTULO II           ← só o numeral
-      (linhas em branco)
-      ## DOS CONCEITOS         ← só o nome (iniciado com preposição articulada)
-    →   ## CAPÍTULO II — DOS CONCEITOS
-
-    Só age quando os dois headings têm o mesmo nível (##) e o segundo começa com
-    DA/DO/DAS/DOS/DE, que é o padrão das denominações de capítulo em normativos.
-    """
-    _numeral_only_re = re.compile(
-        r'^(#{1,3})\s+((?:CAP[IÍ]TULO|T[IÍ]TULO|SE[CÇ][AÃ]O)\s+[IVXLCDM\d]+)\s*$',
-        re.IGNORECASE,
-    )
-    _preposition_heading_re = re.compile(
-        r'^(#{1,3})\s+((?:DA|DO|DAS|DOS|DE)\s+\S.*)$',
-        re.IGNORECASE,
-    )
-    merged = []
-    i = 0
-    while i < len(lines):
-        m = _numeral_only_re.match(lines[i])
-        if m:
-            j = i + 1
-            while j < len(lines) and not lines[j].strip():
-                j += 1
-            if j < len(lines):
-                m2 = _preposition_heading_re.match(lines[j])
-                if m2 and m.group(1) == m2.group(1):
-                    merged.append(f"{m.group(1)} {m.group(2)} — {m2.group(2)}")
-                    i = j + 1
-                    continue
-        merged.append(lines[i])
-        i += 1
-    return merged
-
-
-
-
 def _remove_signature_artifacts(text: str) -> str:
     """
     Remove blocos e linhas de assinatura eletrônica de PDFs governamentais brasileiros.

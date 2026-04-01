@@ -1,10 +1,5 @@
 """
-Extração de PDF para Markdown usando PyMuPDF. (rev. 2026-03-29)
-
-Detecção de headings em duas camadas determinísticas, antes de qualquer IA:
-  1. Visual (get_text("dict")): linhas em negrito ou fonte maior que o corpo
-  2. Keyword (regex): TÍTULO/CAPÍTULO/SEÇÃO com tolerância a typos e variações
-Documentos sem nenhum heading detectado são marcados para o modo de sugestão da IA.
+Extração de PDF para Markdown usando PyMuPDF e Claude Vision via Amazon Bedrock.
 """
 import re
 
@@ -13,18 +8,6 @@ import fitz  # PyMuPDF
 from app.config import get_settings
 
 settings = get_settings()
-
-# Ligaduras Unicode explícitas (U+FB00–FB06) — glifos tipográficos que PDFs mal
-# codificados expõem como caracteres literais em vez de sequências de letras.
-_LIGATURE_MAP = {
-    '\uFB00': 'ff',
-    '\uFB01': 'fi',
-    '\uFB02': 'fl',
-    '\uFB03': 'ffi',
-    '\uFB04': 'ffl',
-    '\uFB05': 'st',
-    '\uFB06': 'st',
-}
 
 # Padrões de linhas de assinatura digital em documentos governamentais brasileiros
 _SIGNATURE_LINE_RE = re.compile(
@@ -35,9 +18,6 @@ _SIGNATURE_LINE_RE = re.compile(
     r"autenticidade\s+deste\s+documento",
     re.IGNORECASE,
 )
-
-# Rodapés de paginação variáveis (ex: "Página 48 de 65") — removidos antes da etapa de IA
-_PAGE_FOOTER_RE = re.compile(r"^\s*página\s+\d+\s+de\s+\d+\s*$", re.IGNORECASE)
 
 # Identificadores de artigo e parágrafo que devem ser negritados no início de linha.
 # Captura apenas o marcador (Art. 1º, § 2º, Parágrafo único…), não o texto do artigo.
@@ -54,7 +34,7 @@ _ARTICLE_ID_RE = re.compile(
 
 
 _TERMINAL_PUNCT_RE = re.compile(r'[.!?:;"")\]»]\s*$')
-_LIST_START_RE     = re.compile(r'^\s*([a-zA-Z]\)|[IVXivx]+\)|\d+\.|\s*[-*•])\s')
+_LIST_START_RE = re.compile(r'^\s*([a-zA-Z]\)|[IVXivx]+\)|\d+\.|\s*[-*•])\s')
 
 
 def _merge_broken_paragraphs(text: str) -> str:
@@ -96,40 +76,6 @@ def _bold_article_identifiers(text: str) -> str:
         return m.group('indent') + '**' + m.group('id') + '**'
     return _ARTICLE_ID_RE.sub(_replace, text)
 
-# Headings estruturais detectáveis deterministicamente por palavras-chave.
-# Tolerância a typos comuns: sem acento (CAPITULO), sem espaço antes do numeral
-# (CAPÍTULOI), abreviação (CAP. IV), prefixo numérico (4. CAPÍTULO IV),
-# separador com dois-pontos (CAPÍTULO I: nome).
-#
-# ANEXO: marcadores de anexo (romano ou arábico), com título opcional na mesma linha.
-# Ex: "ANEXO I", "ANEXO II - REGIMENTO INTERNO", "ANEXO 1 – FORMULÁRIO".
-# Nível # (igual a TÍTULO) — marca limite entre o corpo da portaria e seus anexos.
-_ANNEX_HEADING_RE = re.compile(
-    r'^\s*'
-    r'(ANEXO\s+(?:[IVXLCDM]+|\d+)(?:\s*[-—–:]\s*.+)?)'
-    r'\s*$',
-    re.IGNORECASE,
-)
-_TITLE_HEADING_RE = re.compile(
-    r'^\s*(?:\d+\.\s*)?'
-    r'(T[IÍ]TULO\s+[IVXLCDM]+(?:\s*[-—–:]?\s*.+)?)'
-    r'\s*$',
-    re.IGNORECASE,
-)
-_CHAPTER_HEADING_RE = re.compile(
-    r'^\s*(?:\d+\.\s*)?'
-    r'(CAP[IÍ]TULO\s*[IVXLCDM]+(?:\s*[-—–:]?\s*.+)?'
-    r'|CAP\.\s+[IVXLCDM]+(?:\s*[-—–:]?\s*.+)?)'
-    r'\s*$',
-    re.IGNORECASE,
-)
-_SECTION_HEADING_RE = re.compile(
-    r'^\s*(?:\d+\.\s*)?'
-    r'(SE[CÇ][AÃ]O\s+[IVXLCDM]+(?:\s*[-—–:]?\s*.+)?)'
-    r'\s*$',
-    re.IGNORECASE,
-)
-
 # Marcadores de início de bloco de assinatura eletrônica SUAP/Gov.br
 # Tudo a partir dessa linha até o fim do documento é removido.
 _SIGNATURE_BLOCK_RE = re.compile(
@@ -140,98 +86,6 @@ _SIGNATURE_BLOCK_RE = re.compile(
     r"\bcd\d\b.{0,30}\bifsp\b",                   # "REITOR(A) - CD1 - IFSP"
     re.IGNORECASE,
 )
-
-
-def _extract_page_text(page) -> str:
-    """
-    Extrai texto de uma página com detecção de headings visuais via get_text("dict").
-
-    Linhas com ≥80 % dos caracteres em negrito (somente quando negrito é usado com
-    parcimônia na página), ou com fonte ≥15 % maior que o tamanho modal do corpo,
-    e com no máximo 12 palavras, recebem prefixo ## como heading visual.
-
-    Documentos onde >30 % do texto da página está em negrito (ex: portarias com preâmbulo
-    em negrito) desabilitam a detecção por negrito — apenas diferença de tamanho de fonte
-    vale, evitando que "CONSIDERANDO", "O REITOR DO INSTITUTO..." sejam marcados como headings.
-
-    O terço superior da página (timbre institucional) é excluído da detecção para evitar
-    falsos positivos. Fallback para get_text("text") se o modo dict falhar.
-    """
-    try:
-        data = page.get_text("dict")
-    except Exception:
-        return page.get_text("text")
-
-    page_height = data.get("height", 842)
-    top_zone = page_height * 0.15
-    blocks = [b for b in data.get("blocks", []) if b.get("type") == 0]
-    if not blocks:
-        return ""
-
-    # Tamanho modal de fonte do corpo — ponderado por volume de caracteres para
-    # que o texto corrido domine sobre títulos isolados.
-    from collections import Counter
-    size_counter: Counter = Counter()
-    total_body_chars = 0
-    bold_body_chars = 0
-    for block in blocks:
-        if block.get("bbox", (0,))[1] < top_zone:
-            continue
-        for line in block.get("lines", []):
-            for span in line.get("spans", []):
-                txt = span.get("text", "").strip()
-                sz = round(span.get("size", 0))
-                if txt and sz > 4:
-                    size_counter[sz] += len(txt)
-                    total_body_chars += len(txt)
-                    if span.get("flags", 0) & 16:
-                        bold_body_chars += len(txt)
-
-    body_size = size_counter.most_common(1)[0][0] if size_counter else 0
-    size_threshold = body_size * 1.15 if body_size else float("inf")
-    # Se >30 % do texto é negrito, negrito é estilo do documento (ex: preâmbulo de portaria)
-    # e não serve como indicador de heading — somente tamanho de fonte é critério.
-    bold_fraction = bold_body_chars / total_body_chars if total_body_chars else 0
-    bold_as_heading = bold_fraction < 0.30
-
-    lines_out = []
-    for block in blocks:
-        in_top_zone = block.get("bbox", (0,))[1] < top_zone
-        for line in block.get("lines", []):
-            spans = line.get("spans", [])
-            line_text = "".join(s.get("text", "") for s in spans).strip()
-            if not line_text:
-                continue
-            if in_top_zone or line_text.lstrip().startswith("#"):
-                lines_out.append(line_text)
-                continue
-
-            char_total = sum(len(s.get("text", "").strip()) for s in spans)
-            if not char_total:
-                lines_out.append(line_text)
-                continue
-
-            bold_chars = sum(
-                len(s.get("text", "").strip())
-                for s in spans
-                if s.get("flags", 0) & 16 and s.get("text", "").strip()
-            )
-            avg_size = sum(
-                s.get("size", 0) * len(s.get("text", "").strip())
-                for s in spans if s.get("text", "").strip()
-            ) / char_total
-
-            is_large = avg_size >= size_threshold
-            is_mostly_bold = bold_chars / char_total >= 0.8
-            is_short = len(line_text.split()) <= 12
-
-            if is_short and (is_large or (is_mostly_bold and bold_as_heading)):
-                lines_out.append(f"## {line_text}")
-            else:
-                lines_out.append(line_text)
-        lines_out.append("")  # linha em branco entre blocos
-
-    return "\n".join(lines_out)
 
 
 def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str, dict]:
@@ -285,95 +139,6 @@ def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str,
     return full_text, total_usage
 
 
-def _remove_running_headers(pages: list[str]) -> list[str]:
-    """
-    Remove cabeçalhos de página recorrentes (ex: timbre institucional) que aparecem
-    como texto simples no topo de muitas páginas.
-
-    Estratégia: linhas que aparecem nas primeiras 5 linhas de ≥ 40% das páginas
-    (mínimo 3 páginas) são consideradas cabeçalhos de rodapé/cabeçalho corrente e
-    removidas de todas as páginas.
-    A comparação é insensível a maiúsculas e ignora variações de espaço para tolerar
-    pequenas inconsistências de OCR entre páginas.
-    """
-    if len(pages) < 3:
-        return pages
-
-    _HEAD_LINES = 5
-    _TAIL_LINES = 3
-    threshold = max(3, int(len(pages) * 0.4))
-
-    import unicodedata
-
-    def _norm(s: str) -> str:
-        """Normaliza para comparação: sem acentos, maiúsculas, espaços colapsados, sem pontuação."""
-        s = unicodedata.normalize("NFD", s)
-        s = "".join(c for c in s if unicodedata.category(c) != "Mn")  # remove diacríticos
-        s = re.sub(r"[^\w\s]", " ", s)  # remove pontuação
-        return re.sub(r"\s+", " ", s.strip()).upper()
-
-    # Conta ocorrências de cada linha normalizada nas primeiras e últimas linhas de cada página
-    from collections import Counter
-    counts: Counter = Counter()
-    for page in pages:
-        seen_in_page: set[str] = set()
-        all_lines = page.splitlines()
-        candidate_lines = all_lines[:_HEAD_LINES] + all_lines[-_TAIL_LINES:]
-        for line in candidate_lines:
-            norm = _norm(line)
-            if len(norm) > 5 and norm not in seen_in_page:
-                counts[norm] += 1
-                seen_in_page.add(norm)
-
-    running = {norm for norm, cnt in counts.items() if cnt >= threshold}
-    if not running:
-        return pages
-
-    result = []
-    for page in pages:
-        lines = page.splitlines()
-        # Remove apenas nas primeiras e últimas linhas de cada página para não apagar
-        # conteúdo legítimo que coincida com o cabeçalho/rodapé mais adiante no texto.
-        filtered_head = [line for line in lines[:_HEAD_LINES] if _norm(line) not in running]
-        middle = lines[_HEAD_LINES:max(_HEAD_LINES, len(lines) - _TAIL_LINES)]
-        filtered_tail = [line for line in lines[-_TAIL_LINES:] if _norm(line) not in running]
-        # Evita duplicação quando a página é curta demais para ter head e tail distintos
-        if len(lines) <= _HEAD_LINES + _TAIL_LINES:
-            result.append("\n".join(filtered_head))
-        else:
-            result.append("\n".join(filtered_head + middle + filtered_tail))
-    return result
-
-
-def _page_to_text(page_num: int, raw_text: str) -> str:
-    """Limpeza básica do texto bruto de uma página."""
-    text = raw_text.strip()
-    if not text:
-        return f"*[Página {page_num} sem conteúdo de texto]*"
-
-    lines = [line.strip() for line in text.splitlines() if not _PAGE_FOOTER_RE.match(line.strip())]
-    cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
-    return cleaned
-
-
-def _fix_ligature_artifacts(text: str) -> str:
-    """
-    Corrige artefatos de ligadura tipográfica comuns em PDFs governamentais brasileiros.
-
-    Dois tipos de artefato:
-    1. Ligaduras Unicode explícitas (U+FB00–FB06): glifos como ﬁ, ﬂ, ﬀ que PDFs mal
-       codificados expõem como caracteres literais — sempre substituídos.
-    2. Aspas tipográficas usadas como substitutos de ligaduras: o encoder do PDF mapeia
-       combinações como 'ti' ou 'fi' para aspas curvas (U+201C, U+2019). Detectadas
-       apenas quando aparecem entre letras, para não afetar aspas legítimas.
-    """
-    for char, replacement in _LIGATURE_MAP.items():
-        text = text.replace(char, replacement)
-    # U+201C (") entre letras → 'ti'  ex: Ins"tui → Institui
-    text = re.sub(r'(?<=\w)\u201c(?=\w)', 'ti', text)
-    # U+2019 (') entre letras → 'fi'  ex: o'cial → oficial
-    text = re.sub(r'(?<=\w)\u2019(?=\w)', 'fi', text)
-    return text
 
 
 def _roman_to_int(s: str) -> int:
@@ -476,39 +241,6 @@ def _merge_chapter_titles(lines: list[str]) -> list[str]:
     return merged
 
 
-def _detect_headings(text: str) -> str:
-    """
-    Detecta e marca headings estruturais (Anexos, Títulos, Capítulos, Seções) com prefixos
-    Markdown antes do processamento por IA.
-
-    Linhas que correspondem a padrões rígidos de estrutura normativa recebem o prefixo
-    adequado. Isso garante que a estrutura nunca dependa da inferência do modelo de IA.
-
-    Hierarquia:
-      # → ANEXO, TÍTULO
-      ## → CAPÍTULO
-      ### → SEÇÃO
-
-    Só processa linhas que ainda não têm prefixo # para não duplicar headings já presentes.
-    Após a marcação, mescla numerais de capítulo com o nome quando em headings separados.
-    """
-    lines = text.splitlines()
-    result = []
-    for line in lines:
-        if line.lstrip().startswith('#'):
-            result.append(line)
-        elif _ANNEX_HEADING_RE.match(line):
-            result.append('# ' + line.strip())
-        elif _TITLE_HEADING_RE.match(line):
-            result.append('# ' + line.strip())
-        elif _CHAPTER_HEADING_RE.match(line):
-            result.append('## ' + line.strip())
-        elif _SECTION_HEADING_RE.match(line):
-            result.append('### ' + line.strip())
-        else:
-            result.append(line)
-    result = _merge_chapter_titles(result)
-    return '\n'.join(result)
 
 
 def _remove_signature_artifacts(text: str) -> str:

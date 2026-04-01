@@ -393,48 +393,6 @@ def save_pricing(input_per_1m: float, output_per_1m: float, updated_by: str) -> 
         )
 
 
-_API_PRICING_KEY = "meta/api_pricing.json"
-
-
-def load_api_pricing() -> dict | None:
-    """Carrega preços obtidos automaticamente da AWS Pricing API. Retorna None se nunca registrado."""
-    try:
-        if settings.mock_s3:
-            p = _local_path(_API_PRICING_KEY)
-            return json.loads(p.read_text()) if p.exists() else None
-        from botocore.exceptions import ClientError
-        s3 = _get_s3_client()
-        try:
-            obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_API_PRICING_KEY)
-            return json.loads(obj["Body"].read())
-        except ClientError as e:
-            if e.response["Error"]["Code"] == "NoSuchKey":
-                return None
-            raise
-    except Exception:
-        return None
-
-
-def save_api_pricing(input_per_1m: float, output_per_1m: float, fetched_at: str, model_id: str) -> None:
-    """Persiste preços obtidos automaticamente da AWS Pricing API."""
-    data = {
-        "input_per_1m_usd": round(input_per_1m, 6),
-        "output_per_1m_usd": round(output_per_1m, 6),
-        "fetched_at": fetched_at,
-        "model_id": model_id,
-    }
-    content = json.dumps(data, ensure_ascii=False, indent=2).encode()
-    if settings.mock_s3:
-        _local_path(_API_PRICING_KEY).write_bytes(content)
-        return
-    _get_s3_client().put_object(
-        Bucket=settings.s3_bucket_name,
-        Key=_API_PRICING_KEY,
-        Body=content,
-        ContentType="application/json",
-    )
-
-
 _REVOKED_REGISTRY_KEY = "registry/revoked_books.json"
 
 

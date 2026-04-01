@@ -110,54 +110,44 @@ def _get_bedrock_pricing() -> dict | None:
         if "." in model_id and model_id.split(".")[0] in ("us", "eu", "ap"):
             model_id = model_id.split(".", 1)[1]
 
-        response = client.get_products(
-            ServiceCode="AmazonBedrock",
-            Filters=[
-                {"Type": "TERM_MATCH", "Field": "regionCode", "Value": settings.aws_region},
-            ],
-        )
-
         input_price = None
         output_price = None
 
-        price_list = response.get("PriceList", [])
-        anthropic_usagetypes = []
-        for item_json in price_list:
-            item = _json.loads(item_json) if isinstance(item_json, str) else item_json
-            # O campo usagetype contém o model_id no formato da API
-            # ex: "USE1-anthropic.claude-sonnet-4-6-input-tokens"
-            attrs = item.get("product", {}).get("attributes", {})
-            usagetype = attrs.get("usagetype", "")
-            if "anthropic" in usagetype.lower() or "claude" in usagetype.lower():
-                anthropic_usagetypes.append(usagetype)
-            if model_id.lower() not in usagetype.lower():
-                continue
-        if not input_price and not output_price:
-            _log.warning("usagetypes Anthropic/Claude disponíveis: %s", anthropic_usagetypes)
-            # Navega até os termos OnDemand
-            on_demand = item.get("terms", {}).get("OnDemand", {})
-            for term in on_demand.values():
-                for dim in term.get("priceDimensions", {}).values():
-                    price_usd = float(dim.get("pricePerUnit", {}).get("USD", "0"))
-                    if price_usd == 0:
-                        continue
-                    desc = dim.get("description", "").lower()
-                    group = dim.get("group", "").lower()
-                    unit = dim.get("unit", "").lower()
-
-                    # Normaliza para per-1M tokens
-                    if "1k" in unit or "1,000" in unit:
-                        price_per_1m = price_usd * 1000
-                    elif "1m" in unit or "1,000,000" in unit:
-                        price_per_1m = price_usd
-                    else:
-                        # Assume per-token
-                        price_per_1m = price_usd * 1_000_000
-
-                    if "input" in desc or "input" in group:
-                        input_price = price_per_1m
-                    elif "output" in desc or "output" in group:
-                        output_price = price_per_1m
+        kwargs: dict = {
+            "ServiceCode": "AmazonBedrock",
+            "Filters": [{"Type": "TERM_MATCH", "Field": "regionCode", "Value": settings.aws_region}],
+        }
+        while True:
+            response = client.get_products(**kwargs)
+            for item_json in response.get("PriceList", []):
+                item = _json.loads(item_json) if isinstance(item_json, str) else item_json
+                attrs = item.get("product", {}).get("attributes", {})
+                # usagetype contém o model_id, ex: "USE1-anthropic.claude-sonnet-4-6-input-tokens"
+                if model_id.lower() not in attrs.get("usagetype", "").lower():
+                    continue
+                on_demand = item.get("terms", {}).get("OnDemand", {})
+                for term in on_demand.values():
+                    for dim in term.get("priceDimensions", {}).values():
+                        price_usd = float(dim.get("pricePerUnit", {}).get("USD", "0"))
+                        if price_usd == 0:
+                            continue
+                        desc = dim.get("description", "").lower()
+                        group = dim.get("group", "").lower()
+                        unit = dim.get("unit", "").lower()
+                        if "1k" in unit or "1,000" in unit:
+                            price_per_1m = price_usd * 1000
+                        elif "1m" in unit or "1,000,000" in unit:
+                            price_per_1m = price_usd
+                        else:
+                            price_per_1m = price_usd * 1_000_000
+                        if "input" in desc or "input" in group:
+                            input_price = price_per_1m
+                        elif "output" in desc or "output" in group:
+                            output_price = price_per_1m
+            next_token = response.get("NextToken")
+            if not next_token:
+                break
+            kwargs["NextToken"] = next_token
 
         if input_price is not None and output_price is not None:
             result = {

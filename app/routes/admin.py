@@ -121,11 +121,11 @@ def _get_bedrock_pricing() -> dict | None:
         output_price = None
 
         price_list = response.get("PriceList", [])
-        _log.info("AWS Pricing API: %d produtos retornados para AmazonBedrock/%s",
-                  len(price_list), settings.aws_region)
+        _log.warning("AWS Pricing API: %d produtos retornados para AmazonBedrock/%s",
+                     len(price_list), settings.aws_region)
         if price_list:
             sample = _json.loads(price_list[0]) if isinstance(price_list[0], str) else price_list[0]
-            _log.info("Amostra de atributos: %s", sample.get("product", {}).get("attributes", {}))
+            _log.warning("Amostra de atributos: %s", sample.get("product", {}).get("attributes", {}))
 
         for item_json in price_list:
             item = _json.loads(item_json) if isinstance(item_json, str) else item_json

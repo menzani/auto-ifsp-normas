@@ -121,18 +121,13 @@ def _get_bedrock_pricing() -> dict | None:
         output_price = None
 
         price_list = response.get("PriceList", [])
-        _log.warning("AWS Pricing API: %d produtos retornados para AmazonBedrock/%s",
-                     len(price_list), settings.aws_region)
-        if price_list:
-            sample = _json.loads(price_list[0]) if isinstance(price_list[0], str) else price_list[0]
-            _log.warning("Amostra de atributos: %s", sample.get("product", {}).get("attributes", {}))
-
         for item_json in price_list:
             item = _json.loads(item_json) if isinstance(item_json, str) else item_json
-            # Verifica se o item é do modelo desejado (busca em todos os atributos)
+            # O campo usagetype contém o model_id no formato da API
+            # ex: "USE1-anthropic.claude-sonnet-4-6-input-tokens"
             attrs = item.get("product", {}).get("attributes", {})
-            attr_values = " ".join(str(v).lower() for v in attrs.values())
-            if model_id.lower() not in attr_values:
+            usagetype = attrs.get("usagetype", "").lower()
+            if model_id.lower() not in usagetype:
                 continue
             # Navega até os termos OnDemand
             on_demand = item.get("terms", {}).get("OnDemand", {})

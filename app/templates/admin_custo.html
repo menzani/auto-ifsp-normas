@@ -265,7 +265,13 @@
             <div class="d-flex flex-wrap" style="gap:.5rem;">
               {% if yr.actual_usd is not none %}
                 <span class="br-tag success text">AWS cobrou ${{ fmt_usd(yr.actual_usd) }}</span>
-                <span class="br-tag text" style="background:#888; color:#fff; font-size:.8em;" title="Estimativa calculada por tokens × preço/1M">Estimativa ${{ fmt_usd(yr.total_est_usd) }}</span>
+                {% if yr.actual_usd < yr.total_est_usd and yr.total_est_usd > 0 %}
+                  {% set savings_pct = ((yr.total_est_usd - yr.actual_usd) / yr.total_est_usd * 100) | round(1) %}
+                  <span class="br-tag info text" style="font-size:.8em;"
+                        title="Estimativa por tokens: ${{ fmt_usd(yr.total_est_usd) }}">
+                    {{ savings_pct }}% abaixo da estimativa
+                  </span>
+                {% endif %}
               {% else %}
                 <span class="br-tag success text">Estimativa ${{ fmt_usd(yr.total_est_usd) }}</span>
               {% endif %}
@@ -372,7 +378,7 @@
                   <th scope="col" class="text-right">Revogações</th>
                   <th scope="col" class="text-right">Estimativa</th>
                   {% if ce_has_permission %}<th scope="col" class="text-right">Cobrado AWS</th>{% endif %}
-                  {% if exchange %}<th scope="col" class="text-right">BRL</th>{% endif %}
+                  {% if exchange %}<th scope="col" class="text-right" title="Valor cobrado pela AWS convertido para reais; estimativa quando não há dado real">Em R$</th>{% endif %}
                 </tr>
               </thead>
               <tbody>
@@ -479,7 +485,13 @@
               <div class="d-flex flex-wrap" style="gap:.5rem;">
                 {% if grand.actual_usd is not none %}
                   <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">AWS cobrou ${{ "%.2f"|format(grand.actual_usd) }}</span>
-                  <span class="br-tag info text text-up-01" style="padding:.5rem 1rem;">Estimativa ${{ "%.2f"|format(grand.total_est_usd) }}</span>
+                  {% if grand.actual_usd < grand.total_est_usd and grand.total_est_usd > 0 %}
+                    {% set grand_savings_pct = ((grand.total_est_usd - grand.actual_usd) / grand.total_est_usd * 100) | round(1) %}
+                    <span class="br-tag info text text-up-01" style="padding:.5rem 1rem;"
+                          title="Estimativa por tokens: ${{ '%.2f'|format(grand.total_est_usd) }}">
+                      {{ grand_savings_pct }}% abaixo da estimativa
+                    </span>
+                  {% endif %}
                 {% else %}
                   <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">Estimativa ${{ "%.2f"|format(grand.total_est_usd) }}</span>
                 {% endif %}

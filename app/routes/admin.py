@@ -121,14 +121,19 @@ def _get_bedrock_pricing() -> dict | None:
         output_price = None
 
         price_list = response.get("PriceList", [])
+        anthropic_usagetypes = []
         for item_json in price_list:
             item = _json.loads(item_json) if isinstance(item_json, str) else item_json
             # O campo usagetype contém o model_id no formato da API
             # ex: "USE1-anthropic.claude-sonnet-4-6-input-tokens"
             attrs = item.get("product", {}).get("attributes", {})
-            usagetype = attrs.get("usagetype", "").lower()
-            if model_id.lower() not in usagetype:
+            usagetype = attrs.get("usagetype", "")
+            if "anthropic" in usagetype.lower() or "claude" in usagetype.lower():
+                anthropic_usagetypes.append(usagetype)
+            if model_id.lower() not in usagetype.lower():
                 continue
+        if not input_price and not output_price:
+            _log.warning("usagetypes Anthropic/Claude disponíveis: %s", anthropic_usagetypes)
             # Navega até os termos OnDemand
             on_demand = item.get("terms", {}).get("OnDemand", {})
             for term in on_demand.values():

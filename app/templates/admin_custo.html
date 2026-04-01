@@ -65,7 +65,7 @@
                 </span>
               {% else %}
                 <span class="br-tag warning text" style="font-size:.75em;">
-                  <i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i> Padrão
+                  <i class="fas fa-tag mr-1" aria-hidden="true"></i> Padrão
                 </span>
               {% endif %}
             </div>
@@ -74,7 +74,7 @@
             <div class="br-message info mb-3" role="alert">
               <div class="icon"><i class="fas fa-info-circle" aria-hidden="true"></i></div>
               <div class="content">
-                Os preços atualizados do modelo podem ser consultados no
+                Os preços atualizados do modelo <strong>{{ model_id }}</strong> podem ser consultados no
                 <a href="{{ pricing_url }}" target="_blank" rel="noopener">
                   <i class="fas fa-external-link-alt mr-1" aria-hidden="true"></i>site da AWS sobre Bedrock
                 </a>

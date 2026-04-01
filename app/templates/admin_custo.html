@@ -264,10 +264,10 @@
             </div>
             <div class="d-flex flex-wrap" style="gap:.5rem;">
               {% if yr.actual_usd is not none %}
-                <span class="br-tag success text">Real USD {{ fmt_usd(yr.actual_usd) }}</span>
-                <span class="br-tag text" style="background:#888; color:#fff; font-size:.8em;">Est. {{ fmt_usd(yr.total_est_usd) }}</span>
+                <span class="br-tag success text">AWS cobrou ${{ fmt_usd(yr.actual_usd) }}</span>
+                <span class="br-tag text" style="background:#888; color:#fff; font-size:.8em;" title="Estimativa calculada por tokens × preço/1M">Estimativa ${{ fmt_usd(yr.total_est_usd) }}</span>
               {% else %}
-                <span class="br-tag success text">Est. USD {{ fmt_usd(yr.total_est_usd) }}</span>
+                <span class="br-tag success text">Estimativa ${{ fmt_usd(yr.total_est_usd) }}</span>
               {% endif %}
               {% if exchange %}
                 <span class="br-tag text" style="background:#145a32; color:#fff;">
@@ -370,8 +370,8 @@
                   <th scope="col">Mês</th>
                   <th scope="col" class="text-right">Uploads</th>
                   <th scope="col" class="text-right">Revogações</th>
-                  <th scope="col" class="text-right">Estimativa USD</th>
-                  {% if ce_has_permission %}<th scope="col" class="text-right">Real USD</th>{% endif %}
+                  <th scope="col" class="text-right">Estimativa</th>
+                  {% if ce_has_permission %}<th scope="col" class="text-right">Cobrado AWS</th>{% endif %}
                   {% if exchange %}<th scope="col" class="text-right">BRL</th>{% endif %}
                 </tr>
               </thead>
@@ -478,11 +478,11 @@
               </div>
               <div class="d-flex flex-wrap" style="gap:.5rem;">
                 {% if grand.actual_usd is not none %}
-                  <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">Real USD {{ "%.2f"|format(grand.actual_usd) }}</span>
+                  <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">AWS cobrou ${{ "%.2f"|format(grand.actual_usd) }}</span>
+                  <span class="br-tag info text text-up-01" style="padding:.5rem 1rem;">Estimativa ${{ "%.2f"|format(grand.total_est_usd) }}</span>
+                {% else %}
+                  <span class="br-tag success text text-up-01" style="padding:.5rem 1rem;">Estimativa ${{ "%.2f"|format(grand.total_est_usd) }}</span>
                 {% endif %}
-                <span class="br-tag {% if grand.actual_usd is not none %}info{% else %}success{% endif %} text text-up-01" style="padding:.5rem 1rem;">
-                  {% if grand.actual_usd is not none %}Est. {% endif %}USD {{ "%.2f"|format(grand.total_est_usd) }}
-                </span>
                 {% if exchange %}
                 <span class="br-tag text text-up-01" style="background:#145a32; color:#fff; padding:.5rem 1rem;">
                   {{ fmt_brl(grand_display_usd, exchange.rate) }}

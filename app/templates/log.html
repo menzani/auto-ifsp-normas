@@ -136,6 +136,14 @@
                       <span class="br-tag warning text">
                         <i class="fas fa-user-edit mr-1" aria-hidden="true"></i> Papel alterado
                       </span>
+                    {% elif entry.action == "alterar_preco_bedrock" %}
+                      <span class="br-tag info text">
+                        <i class="fas fa-tags mr-1" aria-hidden="true"></i> Preço Bedrock alterado
+                      </span>
+                    {% elif entry.action == "alterar_cotacao" %}
+                      <span class="br-tag info text">
+                        <i class="fas fa-dollar-sign mr-1" aria-hidden="true"></i> Cotação USD/BRL alterada
+                      </span>
                     {% elif entry.action == "session_anomaly" %}
                       <span class="br-tag danger text">
                         <i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i> Anomalia de sessão

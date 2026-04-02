@@ -9,11 +9,15 @@ from app.templates import templates
 router = APIRouter(prefix="/status", tags=["status"])
 
 _INTERNAL_FIELDS = {"pdf_key", "owner"}
+_INTERNAL_RESULT_FIELDS = {"bedrock_usage"}
 
 
 def _public_job(job: dict) -> dict:
     """Remove campos internos que não devem ser expostos ao cliente via template."""
-    return {k: v for k, v in job.items() if k not in _INTERNAL_FIELDS}
+    filtered = {k: v for k, v in job.items() if k not in _INTERNAL_FIELDS}
+    if "result" in filtered and isinstance(filtered["result"], dict):
+        filtered["result"] = {k: v for k, v in filtered["result"].items() if k not in _INTERNAL_RESULT_FIELDS}
+    return filtered
 
 
 def _load_and_authorize_job(job_id: str, user: dict) -> dict:

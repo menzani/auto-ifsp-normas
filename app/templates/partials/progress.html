@@ -132,12 +132,6 @@
     {% set t = job.result.processing_time_seconds %}
     {% if t < 60 %}{{ t }}s{% else %}{{ (t // 60)|int }}min {{ (t % 60)|int }}s{% endif %}
     {% endif %}
-    {% if job.result.bedrock_usage %}
-    &nbsp;·&nbsp;
-    <i class="fas fa-robot mr-1" aria-hidden="true"></i>
-    {{ job.result.bedrock_usage.total_input_tokens }} tokens entrada · {{ job.result.bedrock_usage.total_output_tokens }} tokens saída
-    <span title="Extração: {{ job.result.bedrock_usage.structure_input_tokens }}↑ {{ job.result.bedrock_usage.structure_output_tokens }}↓ · FAQ: {{ job.result.bedrock_usage.faq_input_tokens }}↑ {{ job.result.bedrock_usage.faq_output_tokens }}↓"
-          style="cursor:help; border-bottom:1px dotted #aaa;">({{ job.result.bedrock_usage.model }})</span>
     {% endif %}
   </p>
   <div class="mt-3">

@@ -279,6 +279,8 @@ def _build_custo_context(request: Request, user: dict, extra: dict | None = None
         "ce_has_permission": ce_result.get("has_permission", False) if ce_result else False,
         "pricing_url": _PRICING_URL,
         "exchange_url": _EXCHANGE_URL,
+        "budget": storage.load_budget(),
+        "budget_status": audit.daily_budget_status(),
     }
     if extra:
         ctx.update(extra)
@@ -329,6 +331,23 @@ def update_exchange(
     return templates.TemplateResponse(
         "admin_custo.html",
         _build_custo_context(request, user, {"exchange_saved": True}),
+    )
+
+
+@router.post("/custo/budget", response_class=HTMLResponse)
+def update_budget(
+    request: Request,
+    user=Depends(require_admin),
+    daily_limit: int = Form(..., ge=0),
+    csrf_token: str = Form(""),
+):
+    check_csrf_form(request, csrf_token)
+    storage.save_budget(daily_limit, user["email"])
+    audit.log(user["email"], "alterar_limite_diario",
+              f"limite={daily_limit} tokens" if daily_limit > 0 else "limite=ilimitado")
+    return templates.TemplateResponse(
+        "admin_custo.html",
+        _build_custo_context(request, user, {"budget_saved": True}),
     )
 
 

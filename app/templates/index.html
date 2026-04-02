@@ -145,6 +145,36 @@
       </div>
     </div>
 
+    {% if budget.active %}
+    <div class="br-card mt-3">
+      <div class="card-header">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-tachometer-alt mr-2" style="color:#1351B4;" aria-hidden="true"></i>
+          <span class="text-medium-weight">Consumo diário de tokens</span>
+        </div>
+      </div>
+      <div class="card-content">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-down-01">{{ "{:,}".format(budget.usage).replace(",", ".") }} / {{ "{:,}".format(budget.limit).replace(",", ".") }}</span>
+          <span class="text-medium-weight" style="color:{% if budget.pct >= 90 %}#E52207{% elif budget.pct >= 70 %}#b3860a{% else %}#168821{% endif %};">
+            {{ "%.1f"|format(budget.pct) }}%
+          </span>
+        </div>
+        <div style="background:#e0e0e0; border-radius:4px; height:8px; overflow:hidden;">
+          <div style="width:{{ budget.pct }}%; height:100%; border-radius:4px;
+                      background:{% if budget.pct >= 90 %}#E52207{% elif budget.pct >= 70 %}#FFCD07{% else %}#168821{% endif %};
+                      transition:width .3s;"></div>
+        </div>
+        {% if budget.exhausted %}
+        <div class="br-message danger mt-3" role="alert" style="margin-bottom:0;">
+          <div class="icon"><i class="fas fa-times-circle" aria-hidden="true"></i></div>
+          <div class="content">Limite diário atingido. Envios bloqueados até a meia-noite.</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
   </div>
 </div>
 {% endblock %}

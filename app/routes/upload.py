@@ -31,6 +31,7 @@ def dashboard(request: Request, user=Depends(get_current_user)):
         "user": user,
         "max_size_mb": settings.max_upload_size_mb,
         "bookstack_url": settings.bookstack_base_url,
+        "budget": audit.daily_budget_status(),
     })
 
 
@@ -47,6 +48,18 @@ async def upload_pdf(
 
     # ── Rate limit simples por usuário ───────────────────────────────────
     _check_rate_limit(user["sub"])
+
+    # ── Limite diário de tokens Bedrock ──────────────────────────────────
+    budget_status = audit.daily_budget_status()
+    if budget_status["exhausted"]:
+        return HTMLResponse(
+            '<div class="br-message danger" role="alert">'
+            '<div class="icon"><i class="fas fa-times-circle" aria-hidden="true"></i></div>'
+            '<div class="content">O limite diário de tokens Bedrock foi atingido. '
+            'Tente novamente amanhã ou solicite ao administrador que aumente o limite.</div>'
+            '</div>',
+            status_code=200,
+        )
 
     # ── Lê o arquivo em memória com limite de tamanho ────────────────────
     content = await pdf_file.read(MAX_BYTES + 1)

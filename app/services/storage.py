@@ -311,6 +311,35 @@ def save_pricing(input_per_1m: float, output_per_1m: float, updated_by: str) -> 
         _save_json(_PRICING_KEY, data)
 
 
+# ── Orçamento diário de tokens ────────────────────────────────────────────────
+
+_BUDGET_KEY = "meta/token_budget.json"
+_budget_lock = threading.Lock()
+
+_DEFAULT_BUDGET: dict = {"daily_limit": 0}
+
+
+def load_budget() -> dict:
+    """Carrega limite diário de tokens. Retorna defaults se não configurado."""
+    try:
+        result = _load_json(_BUDGET_KEY)
+        return result if result is not None else dict(_DEFAULT_BUDGET)
+    except Exception:
+        return dict(_DEFAULT_BUDGET)
+
+
+def save_budget(daily_limit: int, updated_by: str) -> None:
+    """Persiste configuração de limite diário de tokens."""
+    from datetime import datetime, timezone
+    data = {
+        "daily_limit": daily_limit,
+        "updated_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
+        "updated_by": updated_by,
+    }
+    with _budget_lock:
+        _save_json(_BUDGET_KEY, data)
+
+
 # ── Registro de revogações ───────────────────────────────────────────────────
 
 _REVOKED_REGISTRY_KEY = "registry/revoked_books.json"

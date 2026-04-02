@@ -219,6 +219,74 @@
     </div><!-- /card preços+câmbio -->
 
     {# ═══════════════════════════════════════════════════════════════════════ #}
+    {# LIMITE DIÁRIO DE TOKENS                                                 #}
+    {# ═══════════════════════════════════════════════════════════════════════ #}
+    <div class="br-card mb-4">
+      <div class="card-header">
+        <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:.5rem;">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-tachometer-alt mr-2" style="color:#1351B4;" aria-hidden="true"></i>
+            <span class="text-medium-weight">Limite diário de tokens</span>
+          </div>
+          {% if budget.get("daily_limit", 0) > 0 %}
+            <span class="br-tag info text" style="font-size:.75em;">
+              Ativo &middot; {{ "{:,}".format(budget.daily_limit).replace(",", ".") }} tokens/dia
+            </span>
+          {% else %}
+            <span class="br-tag text" style="font-size:.75em;">Desativado (ilimitado)</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-content">
+        <p class="text-down-01 mb-3" style="color:#555;">
+          Limite global de tokens Bedrock por dia. Valor 0 = sem limite.
+          Quando atingido, novos envios e revogações são bloqueados até a meia-noite (horário de Brasília).
+        </p>
+
+        {% if budget_status.active %}
+        <div class="mb-3">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <span class="text-down-01">Consumo hoje:
+              <strong>{{ "{:,}".format(budget_status.usage).replace(",", ".") }}</strong> /
+              {{ "{:,}".format(budget_status.limit).replace(",", ".") }}
+            </span>
+            <span class="text-medium-weight" style="color:{% if budget_status.pct >= 90 %}#E52207{% elif budget_status.pct >= 70 %}#b3860a{% else %}#168821{% endif %};">
+              {{ "%.1f"|format(budget_status.pct) }}%
+            </span>
+          </div>
+          <div style="background:#e0e0e0; border-radius:4px; height:8px; overflow:hidden;">
+            <div style="width:{{ budget_status.pct }}%; height:100%; border-radius:4px;
+                        background:{% if budget_status.pct >= 90 %}#E52207{% elif budget_status.pct >= 70 %}#FFCD07{% else %}#168821{% endif %};
+                        transition:width .3s;"></div>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if budget_saved is defined %}
+        <div class="br-message success mb-3" role="alert">
+          <div class="icon"><i class="fas fa-check-circle" aria-hidden="true"></i></div>
+          <div class="content">Limite diário atualizado com sucesso.</div>
+        </div>
+        {% endif %}
+
+        <form method="post" action="/admin/custo/budget">
+          <input type="hidden" name="csrf_token" value="{{ request.session.get('_csrf_token', '') }}" />
+          <div class="d-flex align-items-end" style="gap:1rem;">
+            <div>
+              <label for="daily_limit" class="text-down-01" style="color:#666;">Tokens por dia (0 = ilimitado)</label>
+              <input id="daily_limit" name="daily_limit" type="number"
+                     min="0" step="1000" value="{{ budget.get('daily_limit', 0) }}"
+                     class="custo-price-input" style="width:180px;" />
+            </div>
+            <button type="submit" class="br-button primary small">
+              <i class="fas fa-save mr-1" aria-hidden="true"></i> Salvar limite
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {# ═══════════════════════════════════════════════════════════════════════ #}
     {# COMO USAR                                                               #}
     {# ═══════════════════════════════════════════════════════════════════════ #}
     <div class="br-card mb-4">

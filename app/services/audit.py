@@ -160,6 +160,79 @@ def list_available_months() -> list[tuple[int, int]]:
     return sorted(result)
 
 
+_BRT = timezone(timedelta(hours=-3))
+
+
+def _sum_tokens_from_extra(extra: dict) -> int:
+    """Soma tokens (entrada + saída) de um dict extra, suportando os 3 formatos."""
+    if "extraction_input_tokens" in extra:
+        return (
+            extra.get("extraction_input_tokens", 0)
+            + extra.get("extraction_output_tokens", 0)
+            + extra.get("faq_input_tokens", 0)
+            + extra.get("faq_output_tokens", 0)
+        )
+    if extra.get("input_tokens") or extra.get("output_tokens"):
+        return extra.get("input_tokens", 0) + extra.get("output_tokens", 0)
+    return extra.get("tokens", 0)
+
+
+def today_token_usage() -> int:
+    """Retorna total de tokens (entrada + saída) consumidos hoje (horário de Brasília)."""
+    now_brt = datetime.now(_BRT)
+    today_date = now_brt.date()
+
+    # Lê o mês corrente (UTC) e, se o dia BRT cair na virada, também o mês anterior
+    now_utc = datetime.now(timezone.utc)
+    lines = _read_lines_for_month(now_utc)
+    # No início do mês UTC, logs de ontem BRT podem estar no mês UTC anterior
+    if now_utc.day <= 1:
+        prev = now_utc.replace(day=1) - timedelta(days=1)
+        lines = lines + _read_lines_for_month(prev)
+
+    total = 0
+    seen: set[str] = set()
+    for line in lines:
+        line = line.strip()
+        if not line or line in seen:
+            continue
+        seen.add(line)
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        action = entry.get("action", "")
+        if action not in ("processar", "revogar"):
+            continue
+        ts = entry.get("ts", "")
+        try:
+            entry_brt = datetime.fromisoformat(ts).astimezone(_BRT)
+            if entry_brt.date() != today_date:
+                continue
+        except Exception:
+            continue
+        total += _sum_tokens_from_extra(entry.get("extra") or {})
+    return total
+
+
+def daily_budget_status() -> dict:
+    """Retorna status do orçamento diário: usage, limit, pct, exhausted, active."""
+    from app.services import storage
+    budget = storage.load_budget()
+    limit = budget.get("daily_limit", 0)
+    if limit <= 0:
+        return {"usage": 0, "limit": 0, "pct": 0.0, "exhausted": False, "active": False}
+    usage = today_token_usage()
+    pct = min(usage / limit * 100, 100.0)
+    return {
+        "usage": usage,
+        "limit": limit,
+        "pct": round(pct, 1),
+        "exhausted": usage >= limit,
+        "active": True,
+    }
+
+
 def bedrock_usage_by_month() -> list[dict]:
     """
     Agrega uso de tokens Bedrock por mês lendo todos os arquivos de audit.

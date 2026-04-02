@@ -186,6 +186,21 @@ def invalidate_book_route(book_id: int, request: Request, user=Depends(get_curre
     if user.get("role") not in ("revisor", "admin"):
         raise HTTPException(403, "Acesso restrito a revisores.")
 
+    budget_status = audit.daily_budget_status()
+    if budget_status["exhausted"]:
+        bid = html.escape(str(book_id))
+        return HTMLResponse(
+            f'<tbody id="pub-rows-{bid}"></tbody>'
+            '<div id="action-toast" hx-swap-oob="true">'
+            '<div class="br-message danger action-toast" role="status">'
+            '<div class="icon"><i class="fas fa-times-circle" aria-hidden="true"></i></div>'
+            '<div class="content">'
+            '<p class="text-medium-weight mb-1">Limite diário atingido.</p>'
+            '<p class="text-down-01 mb-0">O limite diário de tokens Bedrock foi atingido. '
+            'Tente novamente amanhã.</p>'
+            '</div></div></div>'
+        )
+
     job_id = f"rev_{secrets.token_urlsafe(12)}"
     initial_status = {
         "id": job_id,

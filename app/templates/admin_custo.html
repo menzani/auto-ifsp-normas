@@ -4,7 +4,7 @@
 {# ── Macros de formatação ─────────────────────────────────────────────────── #}
 {% macro fmt_tok(n) %}{{ "{:,}".format(n).replace(",", ".") }}{% endmacro %}
 {% macro fmt_usd(v) %}{{ "%.4f"|format(v) }}{% endmacro %}
-{% macro fmt_brl(v, rate) %}R$ {{ "%.2f"|format(v * rate) }}{% endmacro %}
+{% macro fmt_brl(v, rate) %}R$ {{ "%.2f"|format(v * rate)|replace(".", ",") }}{% endmacro %}
 
 {# Linha de fórmula: "150.000 entrada × $3,0000/1M + 50.000 saída × $15,0000/1M = $0,9000" #}
 {% macro formula_line(f, pi, po) %}
@@ -161,7 +161,7 @@
               <div class="text-down-01 mb-1" style="color:#888; font-size:.85em;">1 USD equivale a</div>
               <div style="font-size:2rem; font-weight:700; line-height:1.1;
                           color:{% if exchange.is_stale %}#b3860a{% else %}#145a32{% endif %};">
-                R$ {{ "%.4f"|format(exchange.rate) }}
+                R$ {{ "%.4f"|format(exchange.rate)|replace(".", ",") }}
               </div>
               <div class="text-down-02 mt-2" style="color:{% if exchange.is_stale %}#b3860a{% else %}#aaa{% endif %}; font-size:.8em;">
                 {% if exchange.is_stale %}

@@ -281,10 +281,35 @@ def _build_custo_context(request: Request, user: dict, extra: dict | None = None
         "exchange_url": _EXCHANGE_URL,
         "budget": storage.load_budget(),
         "budget_status": audit.daily_budget_status(),
+        "usage_months": list(reversed(available)),
+        "usage_by_user": _get_usage_by_user(available),
+        "usage_selected": _format_month(available),
     }
     if extra:
         ctx.update(extra)
     return ctx
+
+
+_MONTH_NAMES_PT = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+]
+
+
+def _format_month(available: list[tuple[int, int]]) -> str:
+    if not available:
+        now = datetime.now(timezone.utc)
+        return f"{_MONTH_NAMES_PT[now.month - 1]} {now.year}"
+    y, m = available[-1]
+    return f"{_MONTH_NAMES_PT[m - 1]} {y}"
+
+
+def _get_usage_by_user(available: list[tuple[int, int]]) -> list[dict]:
+    if not available:
+        now = datetime.now(timezone.utc)
+        return audit.token_usage_by_user(now.year, now.month)
+    y, m = available[-1]
+    return audit.token_usage_by_user(y, m)
 
 
 # ── Rotas ──────────────────────────────────────────────────────────────────────
@@ -292,6 +317,25 @@ def _build_custo_context(request: Request, user: dict, extra: dict | None = None
 @router.get("/custo", response_class=HTMLResponse)
 def admin_custo(request: Request, user=Depends(require_admin)):
     return templates.TemplateResponse("admin_custo.html", _build_custo_context(request, user))
+
+
+@router.get("/custo/usage-by-user", response_class=HTMLResponse)
+def usage_by_user_partial(
+    request: Request,
+    year: int = 0,
+    month: int = 0,
+    user=Depends(require_admin),
+):
+    now = datetime.now(timezone.utc)
+    if year == 0 or month == 0:
+        year, month = now.year, now.month
+    data = audit.token_usage_by_user(year, month)
+    label = f"{_MONTH_NAMES_PT[month - 1]} {year}"
+    return templates.TemplateResponse("partials/usage_by_user.html", {
+        "request": request,
+        "usage_by_user": data,
+        "usage_selected": label,
+    })
 
 
 @router.post("/custo/pricing", response_class=HTMLResponse)

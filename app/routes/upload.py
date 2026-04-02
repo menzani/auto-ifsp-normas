@@ -31,7 +31,7 @@ def dashboard(request: Request, user=Depends(get_current_user)):
         "user": user,
         "max_size_mb": settings.max_upload_size_mb,
         "bookstack_url": settings.bookstack_base_url,
-        "budget": audit.daily_budget_status(),
+        "budget": audit.daily_budget_status() if user.get("role") == "admin" else {},
     })
 
 

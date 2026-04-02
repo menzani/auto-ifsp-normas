@@ -233,6 +233,32 @@ def daily_budget_status() -> dict:
     }
 
 
+def token_usage_by_user(year: int, month: int) -> list[dict]:
+    """
+    Agrega consumo de tokens por usuário em um mês específico.
+    Retorna lista ordenada por total de tokens (decrescente).
+    """
+    entries = read_month(year, month)
+    user_map: dict[str, dict] = {}
+    for e in entries:
+        action = e.get("action", "")
+        if action not in ("processar", "revogar"):
+            continue
+        email = e.get("user", "desconhecido")
+        extra = e.get("extra") or {}
+        tokens = _sum_tokens_from_extra(extra)
+        if email not in user_map:
+            user_map[email] = {"email": email, "tokens": 0, "uploads": 0, "revocations": 0}
+        user_map[email]["tokens"] += tokens
+        if action == "processar":
+            user_map[email]["uploads"] += 1
+        else:
+            user_map[email]["revocations"] += 1
+
+    result = sorted(user_map.values(), key=lambda u: u["tokens"], reverse=True)
+    return result
+
+
 def bedrock_usage_by_month() -> list[dict]:
     """
     Agrega uso de tokens Bedrock por mês lendo todos os arquivos de audit.

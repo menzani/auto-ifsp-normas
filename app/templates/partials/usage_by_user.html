@@ -1,0 +1,36 @@
+<div id="usage-by-user-content">
+  <p class="text-down-01 mb-2" style="color:#555;">
+    <i class="fas fa-calendar-alt mr-1" aria-hidden="true"></i> {{ usage_selected }}
+  </p>
+  {% if usage_by_user %}
+  <table class="responsive-cards" style="width:100%; border-collapse:collapse; font-size:.9rem;">
+    <thead>
+      <tr style="border-bottom:2px solid #1351B4;">
+        <th style="text-align:left; padding:.5rem;">#</th>
+        <th style="text-align:left; padding:.5rem;">Usuário</th>
+        <th style="text-align:right; padding:.5rem;">Tokens</th>
+        <th style="text-align:right; padding:.5rem;">Envios</th>
+        <th style="text-align:right; padding:.5rem;">Revogações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in usage_by_user %}
+      <tr style="border-bottom:1px solid #e6e6e6;">
+        <td data-label="#" style="padding:.5rem; color:#888;">{{ loop.index }}</td>
+        <td data-label="Usuário" style="padding:.5rem;">
+          <i class="fas fa-user mr-1" style="color:#1351B4;" aria-hidden="true"></i>
+          {{ u.email }}
+        </td>
+        <td data-label="Tokens" style="text-align:right; padding:.5rem;">
+          <strong>{{ "{:,}".format(u.tokens).replace(",", ".") }}</strong>
+        </td>
+        <td data-label="Envios" style="text-align:right; padding:.5rem;">{{ u.uploads }}</td>
+        <td data-label="Revogações" style="text-align:right; padding:.5rem;">{{ u.revocations }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-down-01" style="color:#888;">Nenhum consumo de tokens registrado neste período.</p>
+  {% endif %}
+</div>

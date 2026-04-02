@@ -287,6 +287,43 @@
     </div>
 
     {# ═══════════════════════════════════════════════════════════════════════ #}
+    {# CONSUMO POR USUÁRIO                                                     #}
+    {# ═══════════════════════════════════════════════════════════════════════ #}
+    <div class="br-card mb-4">
+      <div class="card-header">
+        <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:.5rem;">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-users mr-2" style="color:#1351B4;" aria-hidden="true"></i>
+            <span class="text-medium-weight">Consumo por usuário</span>
+          </div>
+          <div>
+            <select id="usage-month-select"
+                    class="custo-price-input" style="width:auto; min-width:160px; padding:.25rem .5rem;"
+                    hx-get="/admin/custo/usage-by-user"
+                    hx-target="#usage-by-user-content"
+                    hx-swap="outerHTML"
+                    hx-trigger="change"
+                    onchange="this.setAttribute('hx-vals', JSON.stringify({year: this.selectedOptions[0].dataset.year, month: this.value})); htmx.trigger(this, 'change');">
+              {% for ym in usage_months %}
+              <option value="{{ ym[1] }}"
+                      data-year="{{ ym[0] }}"
+                      {% if loop.first %}selected{% endif %}>
+                {{ ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][ym[1]-1] }} {{ ym[0] }}
+              </option>
+              {% endfor %}
+              {% if not usage_months %}
+              <option selected>Nenhum dado</option>
+              {% endif %}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card-content">
+        {% include "partials/usage_by_user.html" %}
+      </div>
+    </div>
+
+    {# ═══════════════════════════════════════════════════════════════════════ #}
     {# COMO USAR                                                               #}
     {# ═══════════════════════════════════════════════════════════════════════ #}
     <div class="br-card mb-4">

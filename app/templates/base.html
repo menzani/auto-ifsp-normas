@@ -287,6 +287,25 @@
       {% endfor %}
     {% endwith %}
 
+    {% set _ba = get_budget_alert(request) %}
+    {% if _ba %}
+    <div class="br-message {% if _ba.pct >= 90 %}danger{% else %}warning{% endif %} mb-3" role="alert">
+      <div class="icon">
+        <i class="fas fa-{% if _ba.pct >= 90 %}exclamation-circle{% else %}exclamation-triangle{% endif %}" aria-hidden="true"></i>
+      </div>
+      <div class="content">
+        {% if _ba.exhausted %}
+          Limite diário de tokens Bedrock <strong>atingido</strong> ({{ "{:,}".format(_ba.usage).replace(",", ".") }} / {{ "{:,}".format(_ba.limit).replace(",", ".") }}).
+          Novos envios e revogações estão bloqueados até a meia-noite.
+        {% elif _ba.pct >= 90 %}
+          Consumo diário de tokens em <strong>{{ "%.0f"|format(_ba.pct) }}%</strong> ({{ "{:,}".format(_ba.usage).replace(",", ".") }} / {{ "{:,}".format(_ba.limit).replace(",", ".") }}).
+        {% else %}
+          Consumo diário de tokens em <strong>{{ "%.0f"|format(_ba.pct) }}%</strong> do limite ({{ "{:,}".format(_ba.usage).replace(",", ".") }} / {{ "{:,}".format(_ba.limit).replace(",", ".") }}).
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     {% block content %}{% endblock %}
 
   </main>

@@ -207,7 +207,7 @@
           </div>
         </div>
         <nav aria-label="Menu principal" id="header-navigation">
-          <ul class="nav-menu list-unstyled mb-0" style="list-style:none; padding:0;">
+          <ul class="nav-menu d-flex list-unstyled mb-0" style="list-style:none; padding:0;">
             {% if request.session.user.role in ('operador', 'revisor', 'admin') %}
             <li>
               <a href="/"

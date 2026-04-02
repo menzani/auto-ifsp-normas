@@ -327,7 +327,7 @@ def usage_by_user_partial(
     user=Depends(require_admin),
 ):
     now = datetime.now(timezone.utc)
-    if year == 0 or month == 0:
+    if year == 0 or month == 0 or not (1 <= month <= 12) or not (2000 <= year <= 2100):
         year, month = now.year, now.month
     data = audit.token_usage_by_user(year, month)
     label = f"{_MONTH_NAMES_PT[month - 1]} {year}"
@@ -382,7 +382,7 @@ def update_exchange(
 def update_budget(
     request: Request,
     user=Depends(require_admin),
-    daily_limit: int = Form(..., ge=0),
+    daily_limit: int = Form(..., ge=0, le=10_000_000_000),
     csrf_token: str = Form(""),
 ):
     check_csrf_form(request, csrf_token)

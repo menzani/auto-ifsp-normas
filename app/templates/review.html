@@ -122,7 +122,7 @@
         {% else %}
           <div style="overflow-x: auto;">
           <div class="br-table">
-            <table>
+            <table class="responsive-cards">
               <thead>
                 <tr>
                   <th scope="col">Normativo</th>
@@ -135,19 +135,19 @@
               {% for draft in drafts %}
               <tbody class="draft-item" data-title="{{ draft.title | lower }}" id="draft-rows-{{ draft.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
                 <tr>
-                  <td>
+                  <td data-label="Normativo">
                     <div class="d-flex align-items-center">
                       <i class="fas fa-book mr-2" style="color:#1351B4;" aria-hidden="true"></i>
                       <strong>{{ draft.title }}</strong>
                     </div>
                   </td>
-                  <td><span class="br-tag info text">{{ draft.shelf_name }}</span></td>
-                  <td>
+                  <td data-label="Prateleira"><span class="br-tag info text">{{ draft.shelf_name }}</span></td>
+                  <td data-label="Enviado por">
                     <i class="fas fa-user mr-1" style="color:#888;" aria-hidden="true"></i>
                     {{ draft.uploaded_by }}
                   </td>
-                  <td class="text-down-01">{{ draft.created_at }}</td>
-                  <td class="text-center">
+                  <td data-label="Data" class="text-down-01">{{ draft.created_at }}</td>
+                  <td data-label="Ações">
                     <div class="action-btns">
                       <a href="{{ draft.bookstack_url }}"
                          target="_blank" rel="noopener noreferrer"
@@ -293,7 +293,7 @@
       <div class="card-content">
         <div style="overflow-x: auto;">
         <div class="br-table">
-          <table>
+          <table class="responsive-cards">
             <thead>
               <tr>
                 <th scope="col">Normativo</th>
@@ -305,18 +305,18 @@
             {% for book in published_books %}
             <tbody class="pub-item" data-filter="{{ book.shelf_name }}" data-title="{{ book.title | lower }}" id="pub-rows-{{ book.book_id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
               <tr id="pub-row-{{ book.book_id }}">
-                <td>
+                <td data-label="Normativo">
                   <div class="d-flex align-items-center">
                     <i class="fas fa-book-open mr-2" style="color:#168821;" aria-hidden="true"></i>
                     <strong>{{ book.title }}</strong>
                   </div>
                 </td>
-                <td><span class="br-tag success text">{{ book.shelf_name }}</span></td>
-                <td>
+                <td data-label="Prateleira"><span class="br-tag success text">{{ book.shelf_name }}</span></td>
+                <td data-label="Enviado por">
                   <i class="fas fa-user mr-1" style="color:#888;" aria-hidden="true"></i>
                   {{ book.uploaded_by }}
                 </td>
-                <td class="text-center">
+                <td data-label="Ações">
                   <div class="action-btns">
                     <a href="{{ book.bookstack_url }}"
                        target="_blank" rel="noopener noreferrer"
@@ -465,7 +465,7 @@
       <div class="card-content">
         <div style="overflow-x: auto;">
         <div class="br-table">
-          <table>
+          <table class="responsive-cards">
             <thead>
               <tr>
                 <th scope="col">Normativo</th>
@@ -479,20 +479,20 @@
             {% for entry in revoked_books %}
             <tbody class="rev-item" data-title="{{ entry.title | lower }}" id="rev-rows-{{ entry.id }}"{% if loop.index > 5 %} style="display:none"{% endif %}>
               <tr style="background:repeating-linear-gradient(45deg,#fafafa,#fafafa 10px,#f0f0f0 10px,#f0f0f0 20px); opacity:.75;">
-                <td>
+                <td data-label="Normativo">
                   <div class="d-flex align-items-center">
                     <i class="fas fa-ban mr-2" style="color:#aaa;" aria-hidden="true"></i>
                     <strong style="text-decoration:line-through; color:#888;">{{ entry.title }}</strong>
                   </div>
                 </td>
-                <td style="color:#aaa;">
+                <td data-label="Enviado por" style="color:#aaa;">
                   <i class="fas fa-user mr-1" aria-hidden="true"></i> {{ entry.uploaded_by }}
                 </td>
-                <td style="color:#aaa;">
+                <td data-label="Revogado por" style="color:#aaa;">
                   <i class="fas fa-user-shield mr-1" aria-hidden="true"></i> {{ entry.revoked_by }}
                 </td>
-                <td class="text-down-01" style="color:#aaa;">{{ entry.revoked_at }}</td>
-                <td class="text-center">
+                <td data-label="Data" class="text-down-01" style="color:#aaa;">{{ entry.revoked_at }}</td>
+                <td data-label="Download">
                   {% if entry.pdf_url %}
                   <button class="br-button secondary" type="button"
                           data-url="{{ entry.pdf_url }}" onclick="copyUrl(this)"
@@ -504,7 +504,7 @@
                   {% endif %}
                 </td>
                 {% if is_admin %}
-                <td class="text-center">
+                <td data-label="Ações">
                   <button class="br-button secondary"
                           id="remove-btn-{{ entry.id }}"
                           type="button"

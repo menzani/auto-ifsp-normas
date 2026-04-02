@@ -57,7 +57,7 @@
 
           <div style="overflow-x: auto;">
           <div class="br-table">
-            <table>
+            <table class="responsive-cards">
               <thead>
                 <tr>
                   <th scope="col">Data/Hora</th>
@@ -69,7 +69,7 @@
               <tbody>
                 {% for entry in entries %}
                 <tr{% if entry.level == "warn" %} style="background:#fffbe6;"{% endif %}>
-                  <td class="text-down-01" style="white-space:nowrap;">
+                  <td data-label="Data/Hora" class="text-down-01" style="white-space:nowrap;">
                     {{ entry.ts_display }}
                     {% if entry.extra %}
                     <br><span class="text-down-02" style="color:#888;">
@@ -90,12 +90,12 @@
                     </span>
                     {% endif %}
                   </td>
-                  <td>
+                  <td data-label="Usuário">
                     <i class="fas fa-user mr-1" style="color:#888;" aria-hidden="true"></i>
                     {{ entry.user }}
                   </td>
-                  <td>{{ entry.details }}</td>
-                  <td>
+                  <td data-label="Normativo">{{ entry.details }}</td>
+                  <td data-label="Ação">
                     {% if entry.action == "upload" %}
                       <span class="br-tag info text">
                         <i class="fas fa-upload mr-1" aria-hidden="true"></i> Upload

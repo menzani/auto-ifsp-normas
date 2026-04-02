@@ -43,7 +43,7 @@
 
           <div style="overflow-x: auto;">
           <div class="br-table">
-            <table>
+            <table class="responsive-cards">
               <thead>
                 <tr>
                   <th scope="col">Usuário</th>
@@ -55,14 +55,14 @@
               <tbody>
                 {% for u in all_users %}
                 <tr id="user-row-{{ loop.index }}">
-                  <td>
+                  <td data-label="Usuário">
                     <div>
                       <div class="text-medium-weight">{{ u.name or '—' }}</div>
                       <div class="text-down-01" style="color:#555;">{{ u.email }}</div>
                     </div>
                   </td>
-                  <td class="text-down-01">{{ u.last_login or '—' }}</td>
-                  <td>
+                  <td data-label="Último acesso" class="text-down-01">{{ u.last_login or '—' }}</td>
+                  <td data-label="Papel">
                     {% if u.role == 'admin' %}
                       <span class="br-tag warning text">Admin</span>
                     {% elif u.role == 'revisor' %}
@@ -71,9 +71,9 @@
                       <span class="br-tag info text">Servidor</span>
                     {% endif %}
                   </td>
-                  <td class="text-center">
+                  <td data-label="Alterar papel">
                     <form method="post" action="/admin/users/{{ u.email }}/role"
-                          class="d-flex align-items-center justify-content-center" style="gap:.5rem;">
+                          class="d-flex align-items-center" style="gap:.5rem;">
                       <input type="hidden" name="csrf_token" value="{{ request.session.get('_csrf_token', '') }}" />
                       <div class="br-select" style="min-width:130px;">
                         <div class="br-input">

@@ -111,9 +111,23 @@ def pdf_to_markdown_multimodal(pdf_bytes: bytes, on_progress=None) -> tuple[str,
         )
     batch_size = settings.multimodal_batch_pages
 
+    # Limite de pixels por página para prevenir PDF bomb (páginas com dimensões absurdas).
+    # 4000×4000 px ≈ 33" × 33" a 120 DPI — cobre A0+ com folga.
+    max_pixels = 4000 * 4000
+    dpi = settings.multimodal_dpi
+
     page_images: list[bytes] = []
     for page in doc:
-        pix = page.get_pixmap(dpi=settings.multimodal_dpi)
+        # Calcula dimensões que o pixmap teria no DPI configurado
+        w = int(page.rect.width * dpi / 72)
+        h = int(page.rect.height * dpi / 72)
+        if w * h > max_pixels:
+            # Reduz DPI proporcionalmente para caber no limite
+            scale = (max_pixels / (w * h)) ** 0.5
+            safe_dpi = max(int(dpi * scale), 36)
+            pix = page.get_pixmap(dpi=safe_dpi)
+        else:
+            pix = page.get_pixmap(dpi=dpi)
         page_images.append(pix.tobytes("png"))
     doc.close()
 

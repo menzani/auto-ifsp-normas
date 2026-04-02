@@ -16,6 +16,13 @@ from app.templates import templates
 settings = get_settings()
 router = APIRouter(prefix="/review", tags=["review"])
 
+_REVOKED_INTERNAL_FIELDS = {"pdf_key", "bookstack_book_id"}
+
+
+def _public_revoked(registry: list[dict]) -> list[dict]:
+    """Remove campos internos do registro de revogados antes de enviar ao template."""
+    return [{k: v for k, v in entry.items() if k not in _REVOKED_INTERNAL_FIELDS} for entry in registry]
+
 
 @router.get("", response_class=HTMLResponse)
 def review_page(request: Request, user=Depends(get_current_user)):
@@ -28,7 +35,7 @@ def review_page(request: Request, user=Depends(get_current_user)):
         "user": user,
         "drafts": overview["drafts"],
         "published_books": overview["published"],
-        "revoked_books": storage.get_revoked_registry(),
+        "revoked_books": _public_revoked(storage.get_revoked_registry()),
         "shelves": shelves,
         "is_reviewer": role in ("revisor", "admin"),
         "is_admin": role == "admin",

@@ -314,6 +314,7 @@ def save_pricing(input_per_1m: float, output_per_1m: float, updated_by: str) -> 
 # ── Registro de revogações ───────────────────────────────────────────────────
 
 _REVOKED_REGISTRY_KEY = "registry/revoked_books.json"
+_revoked_registry_lock = threading.Lock()
 
 
 def get_revoked_registry() -> list[dict]:
@@ -323,18 +324,20 @@ def get_revoked_registry() -> list[dict]:
 
 def add_to_revoked_registry(entry: dict) -> None:
     """Adiciona uma entrada ao registro de revogados."""
-    registry = get_revoked_registry()
-    registry.append(entry)
-    _save_json(_REVOKED_REGISTRY_KEY, registry)
+    with _revoked_registry_lock:
+        registry = _load_json(_REVOKED_REGISTRY_KEY, list)
+        registry.append(entry)
+        _save_json(_REVOKED_REGISTRY_KEY, registry)
 
 
 def remove_from_revoked_registry(revocation_id: str) -> dict | None:
     """
     Remove uma entrada pelo id. Retorna a entrada completa removida, ou None se não encontrada.
     """
-    registry = get_revoked_registry()
-    entry = next((e for e in registry if e["id"] == revocation_id), None)
-    if entry is None:
-        return None
-    _save_json(_REVOKED_REGISTRY_KEY, [e for e in registry if e["id"] != revocation_id])
-    return entry
+    with _revoked_registry_lock:
+        registry = _load_json(_REVOKED_REGISTRY_KEY, list)
+        entry = next((e for e in registry if e["id"] == revocation_id), None)
+        if entry is None:
+            return None
+        _save_json(_REVOKED_REGISTRY_KEY, [e for e in registry if e["id"] != revocation_id])
+        return entry

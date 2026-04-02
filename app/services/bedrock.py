@@ -54,6 +54,15 @@ def _with_retry(fn: Callable[[], _T]) -> _T:
 # 80 000 caracteres ≈ 20 000 tokens — bem abaixo do limite do Haiku (200k tokens).
 _MAX_INPUT_CHARS = 80_000
 
+# Regex para tags XML que poderiam fechar/abrir o delimitador <documento> no prompt.
+_XML_TAG_RE = re.compile(r"<(/?)documento\b", re.IGNORECASE)
+
+
+def _sanitize_for_prompt(text: str) -> str:
+    """Escapa ocorrências de <documento> e </documento> no texto do usuário,
+    impedindo que conteúdo do PDF feche o delimitador e injete instruções."""
+    return _XML_TAG_RE.sub(r"<\1_documento", text)
+
 _bedrock_client = None
 _bedrock_multimodal_client = None
 _bedrock_client_lock = threading.Lock()
@@ -112,7 +121,7 @@ def generate_faq(markdown_text: str, title: str) -> tuple[str, dict]:
     if len(markdown_text) > _MAX_INPUT_CHARS:
         text += "\n\n*[Texto truncado — documento excede o limite de processamento.]*"
     try:
-        return _invoke_bedrock_model(_build_prompt(title, text), 2048)
+        return _invoke_bedrock_model(_build_prompt(_sanitize_for_prompt(title), _sanitize_for_prompt(text)), 2048)
     except Exception:
         logging.getLogger(__name__).exception("Erro ao gerar FAQ via Bedrock")
         raise RuntimeError("Não foi possível gerar o FAQ. Verifique as permissões do Bedrock e tente novamente.")
@@ -127,7 +136,7 @@ def generate_revocation_summary(markdown_text: str, title: str) -> tuple[str, di
     if len(markdown_text) > _MAX_INPUT_CHARS:
         text += "\n\n*[Texto truncado — documento excede o limite de processamento.]*"
     try:
-        raw, usage = _invoke_bedrock_model(_build_revocation_prompt(title, text), 512)
+        raw, usage = _invoke_bedrock_model(_build_revocation_prompt(_sanitize_for_prompt(title), _sanitize_for_prompt(text)), 512)
     except Exception:
         logging.getLogger(__name__).exception("Erro ao gerar resumo de revogação via Bedrock")
         raise RuntimeError("Não foi possível gerar o resumo. Verifique as permissões do Bedrock e tente novamente.")

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse
 
 from app.constants import JOB_ID_PATTERN
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, check_csrf_header
 from app.services import storage
 from app.templates import templates
 
@@ -45,6 +45,7 @@ def cancel_job(
     request: Request,
     job_id: str = Path(..., pattern=JOB_ID_PATTERN),
     user=Depends(get_current_user),
+    _csrf=Depends(check_csrf_header),
 ):
     job = _load_and_authorize_job(job_id, user)
     if job.get("status") == "processing":

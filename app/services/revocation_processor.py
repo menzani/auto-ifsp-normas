@@ -17,18 +17,11 @@ from secrets import token_urlsafe
 from app.config import get_settings
 from app.services import audit, bookstack as bs, storage
 from app.services.bedrock import generate_revocation_summary
+from app.services.pipeline import (
+    JobCancelled, raise_if_cancelled, set_step, set_done, set_error,
+)
 
 _log = logging.getLogger(__name__)
-
-class _JobCancelled(Exception):
-    pass
-
-
-def _raise_if_cancelled(job_id: str) -> None:
-    status = storage.load_status(job_id) or {}
-    if status.get("status") == "cancelled":
-        raise _JobCancelled()
-
 
 STEPS = [
     (1, "Buscando normativo no Bookstack"),
@@ -38,46 +31,6 @@ STEPS = [
     (5, "Concluído"),
 ]
 TOTAL_STEPS = len(STEPS)
-
-
-def _set_step(job_id: str, step: int, extra: dict | None = None) -> None:
-    label = STEPS[step - 1][1]
-    pct = int((step - 1) / TOTAL_STEPS * 100)
-    data = {
-        "id": job_id,
-        "status": "processing",
-        "current_step": step,
-        "total_steps": TOTAL_STEPS,
-        "current_step_label": label,
-        "progress_pct": pct,
-    }
-    if extra:
-        data.update(extra)
-    storage.save_status(job_id, data)
-
-
-def _set_done(job_id: str, result: dict) -> None:
-    storage.save_status(job_id, {
-        "id": job_id,
-        "status": "done",
-        "current_step": TOTAL_STEPS,
-        "total_steps": TOTAL_STEPS,
-        "current_step_label": "Concluído",
-        "progress_pct": 100,
-        "result": result,
-    })
-
-
-def _set_error(job_id: str, message: str) -> None:
-    storage.save_status(job_id, {
-        "id": job_id,
-        "status": "error",
-        "error": message,
-        "current_step": 0,
-        "total_steps": TOTAL_STEPS,
-        "current_step_label": "Erro",
-        "progress_pct": 0,
-    })
 
 
 def _extract_field(text: str, field: str) -> str:
@@ -94,8 +47,8 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
     _private = {"owner": revoked_by}
     try:
         # ── Etapa 1: Buscar normativo ─────────────────────────────────────
-        _raise_if_cancelled(job_id)
-        _set_step(job_id, 1, _private)
+        raise_if_cancelled(job_id)
+        set_step(job_id, 1, STEPS, _private)
         info = bs.get_book_for_revocation(book_id)
         title = info["title"]
         pdf_key = info["pdf_key"]
@@ -104,8 +57,8 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         pdf_url = storage.get_download_url(pdf_key) if pdf_key else ""
 
         # ── Etapa 2: Resumo com IA ────────────────────────────────────────
-        _raise_if_cancelled(job_id)
-        _set_step(job_id, 2, _private)
+        raise_if_cancelled(job_id)
+        set_step(job_id, 2, STEPS, _private)
         summary_markdown, summary_usage = generate_revocation_summary(page_markdown, title)
 
         # Compõe o título com dados extraídos pela IA: "Tipo nº X/YYYY, de DD/MM/YYYY"
@@ -124,8 +77,8 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         revoked_book_title = f"Revogada - {base}, de {data}" if data else f"Revogada - {base}"
 
         # ── Etapa 3: Criar entrada em Revogadas ───────────────────────────
-        _raise_if_cancelled(job_id)
-        _set_step(job_id, 3, _private)
+        raise_if_cancelled(job_id)
+        set_step(job_id, 3, STEPS, _private)
         revoked_book_url, revoked_book_id = bs.create_revoked_book_entry(
             title=revoked_book_title,
             summary_markdown=summary_markdown,
@@ -135,8 +88,8 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
         )
 
         # ── Etapa 4: Remover normativo original ───────────────────────────
-        _raise_if_cancelled(job_id)
-        _set_step(job_id, 4, _private)
+        raise_if_cancelled(job_id)
+        set_step(job_id, 4, STEPS, _private)
         bs.delete_book_from_bookstack(book_id)
 
         # ── Concluído: persistir no registro ──────────────────────────────
@@ -157,7 +110,7 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
             "output_tokens": summary_usage["output_tokens"],
         })
 
-        _set_done(job_id, {
+        set_done(job_id, {
             "title": title,
             "revoked_book_url": revoked_book_url,
             "pdf_url": pdf_url,
@@ -166,15 +119,15 @@ def run(job_id: str, book_id: int, revoked_by: str) -> None:
                 "total_input_tokens": summary_usage["input_tokens"],
                 "total_output_tokens": summary_usage["output_tokens"],
             },
-        })
+        }, TOTAL_STEPS)
 
-    except _JobCancelled:
+    except JobCancelled:
         if revoked_book_id:
             bs.delete_book_from_bookstack(revoked_book_id)
         audit.log(revoked_by, "cancelar_revogacao", title or f"book_id={book_id}")
     except Exception as exc:
         _log.exception("Erro no pipeline de revogação job=%s", job_id)
-        _set_error(job_id, "Erro interno na revogação. Tente novamente ou contate o administrador.")
+        set_error(job_id, "Erro interno na revogação. Tente novamente ou contate o administrador.", TOTAL_STEPS)
         audit.log(revoked_by, "erro_pipeline", f"Falha interna na revogação de '{title or f'book_id={book_id}'}' (job {job_id})", level="warn")
         raise
 

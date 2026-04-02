@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
 from app.constants import REVOCATION_ID_PATTERN, REVOKE_JOB_ID_PATTERN
-from app.routes.status import _public_job
+from app.routes.status import _public_job, _load_and_authorize_job
 from app.services.auth import get_current_user, check_csrf_header
 from app.services import bookstack as bs
 from app.services import audit, storage
@@ -148,15 +148,6 @@ def _render_revoke_progress(request, job: dict):
     )
 
 
-def _load_and_authorize_revoke_job(job_id: str, user: dict) -> dict:
-    """Carrega o job de revogação e verifica acesso (owner ou revisor/admin)."""
-    job = storage.load_status(job_id)
-    if job is None:
-        raise HTTPException(404, "Job não encontrado.")
-    owner = job.get("owner")
-    if user.get("role") not in ("revisor", "admin") and (not owner or owner != user["email"]):
-        raise HTTPException(403, "Acesso negado.")
-    return job
 
 
 @router.get("/revoke-status/{job_id}", response_class=HTMLResponse)
@@ -165,7 +156,7 @@ def revoke_status(
     job_id: str = Path(..., pattern=REVOKE_JOB_ID_PATTERN),
     user=Depends(get_current_user),
 ):
-    job = _load_and_authorize_revoke_job(job_id, user)
+    job = _load_and_authorize_job(job_id, user)
     return _render_revoke_progress(request, job)
 
 
@@ -176,7 +167,7 @@ def cancel_revoke_job(
     user=Depends(get_current_user),
     _csrf=Depends(check_csrf_header),
 ):
-    job = _load_and_authorize_revoke_job(job_id, user)
+    job = _load_and_authorize_job(job_id, user)
     if job.get("status") == "processing":
         job = {**job, "status": "cancelled"}
         storage.save_status(job_id, job)

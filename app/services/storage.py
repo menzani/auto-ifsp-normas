@@ -38,6 +38,48 @@ def _local_path(key: str) -> Path:
     return p
 
 
+# ── Helpers genéricos JSON (mock/S3) ────────────────────────────────────────
+
+
+def _load_json(key: str, default=None):
+    """Lê um JSON do armazenamento. Retorna *default* se a chave não existir."""
+    if settings.mock_s3:
+        p = _local_path(key)
+        if not p.exists():
+            return default() if callable(default) else default
+        try:
+            return json.loads(p.read_text())
+        except Exception:
+            return default() if callable(default) else default
+
+    from botocore.exceptions import ClientError
+    try:
+        obj = _get_s3_client().get_object(Bucket=settings.s3_bucket_name, Key=key)
+        return json.loads(obj["Body"].read())
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            return default() if callable(default) else default
+        raise
+
+
+def _save_json(key: str, data) -> None:
+    """Grava um objeto como JSON no armazenamento."""
+    content = json.dumps(data, ensure_ascii=False, indent=2).encode()
+    if settings.mock_s3:
+        _local_path(key).write_bytes(content)
+        return
+
+    _get_s3_client().put_object(
+        Bucket=settings.s3_bucket_name,
+        Key=key,
+        Body=content,
+        ContentType="application/json",
+    )
+
+
+# ── PDF ──────────────────────────────────────────────────────────────────────
+
+
 def save_pdf(job_id: str, content: bytes) -> str:
     """Salva o PDF e retorna a chave de armazenamento."""
     key = f"pdfs/{job_id}.pdf"
@@ -77,41 +119,17 @@ def delete_pdf(key: str) -> None:
     s3.delete_object(Bucket=settings.s3_bucket_name, Key=key)
 
 
+# ── Status de jobs ───────────────────────────────────────────────────────────
+
+
 def save_status(job_id: str, status_data: dict) -> None:
     """Persiste o status do job como JSON."""
-    key = f"status/{job_id}.json"
-    content = json.dumps(status_data, ensure_ascii=False, indent=2).encode()
-    if settings.mock_s3:
-        _local_path(key).write_bytes(content)
-        return
-
-    s3 = _get_s3_client()
-    s3.put_object(
-        Bucket=settings.s3_bucket_name,
-        Key=key,
-        Body=content,
-        ContentType="application/json",
-    )
+    _save_json(f"status/{job_id}.json", status_data)
 
 
 def load_status(job_id: str) -> dict | None:
     """Lê o status do job. Retorna None se não encontrado."""
-    key = f"status/{job_id}.json"
-    if settings.mock_s3:
-        p = _local_path(key)
-        if not p.exists():
-            return None
-        return json.loads(p.read_text())
-
-    from botocore.exceptions import ClientError
-    s3 = _get_s3_client()
-    try:
-        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=key)
-        return json.loads(obj["Body"].read())
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "NoSuchKey":
-            return None
-        raise
+    return _load_json(f"status/{job_id}.json")
 
 
 def list_processing_jobs() -> list[dict]:
@@ -148,6 +166,9 @@ def list_processing_jobs() -> list[dict]:
     return jobs
 
 
+# ── URLs ─────────────────────────────────────────────────────────────────────
+
+
 def get_presigned_url(key: str) -> str:
     """Gera URL presigned do S3 com expiração configurável (padrão: 1 hora)."""
     return _get_s3_client().generate_presigned_url(
@@ -171,6 +192,8 @@ def get_download_url(key: str) -> str:
     return f"{settings.app_base_url}/pdf/{job_id}"
 
 
+# ── Registro de checksums ───────────────────────────────────────────────────
+
 _CHECKSUMS_KEY = "registry/pdf_checksums.json"
 _checksums_lock = threading.Lock()
 
@@ -178,70 +201,36 @@ _checksums_lock = threading.Lock()
 def find_pdf_by_checksum(checksum: str) -> dict | None:
     """Retorna os metadados do upload anterior com o mesmo checksum, ou None."""
     with _checksums_lock:
-        return _load_checksum_registry().get(checksum)
+        return _load_json(_CHECKSUMS_KEY, dict).get(checksum)
 
 
 def register_pdf_checksum(checksum: str, job_id: str, title: str, uploaded_by: str) -> None:
     """Registra o checksum SHA-256 de um PDF recém-enviado."""
     from datetime import datetime, timezone
     with _checksums_lock:
-        registry = _load_checksum_registry()
+        registry = _load_json(_CHECKSUMS_KEY, dict)
         registry[checksum] = {
             "job_id": job_id,
             "title": title,
             "uploaded_by": uploaded_by,
             "uploaded_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
         }
-        _save_checksum_registry(registry)
+        _save_json(_CHECKSUMS_KEY, registry)
 
 
 def unregister_pdf_checksum_by_job_id(job_id: str) -> None:
     """Remove do registro o checksum associado ao job_id (cancelamento, erro ou exclusão)."""
     with _checksums_lock:
-        registry = _load_checksum_registry()
+        registry = _load_json(_CHECKSUMS_KEY, dict)
         to_remove = [k for k, v in registry.items() if v.get("job_id") == job_id]
         if not to_remove:
             return
         for k in to_remove:
             del registry[k]
-        _save_checksum_registry(registry)
+        _save_json(_CHECKSUMS_KEY, registry)
 
 
-def _load_checksum_registry() -> dict:
-    if settings.mock_s3:
-        p = _local_path(_CHECKSUMS_KEY)
-        if not p.exists():
-            return {}
-        try:
-            return json.loads(p.read_text())
-        except Exception:
-            return {}
-
-    from botocore.exceptions import ClientError
-    s3 = _get_s3_client()
-    try:
-        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_CHECKSUMS_KEY)
-        return json.loads(obj["Body"].read())
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "NoSuchKey":
-            return {}
-        raise
-
-
-def _save_checksum_registry(registry: dict) -> None:
-    content = json.dumps(registry, ensure_ascii=False, indent=2).encode()
-    if settings.mock_s3:
-        _local_path(_CHECKSUMS_KEY).write_bytes(content)
-        return
-
-    s3 = _get_s3_client()
-    s3.put_object(
-        Bucket=settings.s3_bucket_name,
-        Key=_CHECKSUMS_KEY,
-        Body=content,
-        ContentType="application/json",
-    )
-
+# ── Metadados de livros Bookstack ────────────────────────────────────────────
 
 _BOOK_META_KEY = "registry/book_meta.json"
 _book_meta_lock = threading.Lock()
@@ -249,59 +238,29 @@ _book_meta_lock = threading.Lock()
 
 def get_book_meta_registry() -> dict:
     """Retorna {str(book_id): {"uploaded_by": email}} para livros conhecidos pelo sistema."""
-    if settings.mock_s3:
-        p = _local_path(_BOOK_META_KEY)
-        if not p.exists():
-            return {}
-        try:
-            return json.loads(p.read_text())
-        except Exception:
-            return {}
-
-    from botocore.exceptions import ClientError
-    s3 = _get_s3_client()
-    try:
-        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_BOOK_META_KEY)
-        return json.loads(obj["Body"].read())
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "NoSuchKey":
-            return {}
-        raise
+    return _load_json(_BOOK_META_KEY, dict)
 
 
 def register_book_meta(book_id: int, uploaded_by: str) -> None:
     """Registra metadados locais de um livro Bookstack recém-criado."""
     with _book_meta_lock:
-        registry = get_book_meta_registry()
+        registry = _load_json(_BOOK_META_KEY, dict)
         registry[str(book_id)] = {"uploaded_by": uploaded_by}
-        _save_book_meta_registry(registry)
+        _save_json(_BOOK_META_KEY, registry)
 
 
 def unregister_book_meta(book_id: int) -> None:
     """Remove metadados locais de um livro deletado."""
     with _book_meta_lock:
-        registry = get_book_meta_registry()
+        registry = _load_json(_BOOK_META_KEY, dict)
         key = str(book_id)
         if key not in registry:
             return
         del registry[key]
-        _save_book_meta_registry(registry)
+        _save_json(_BOOK_META_KEY, registry)
 
 
-def _save_book_meta_registry(registry: dict) -> None:
-    content = json.dumps(registry, ensure_ascii=False, indent=2).encode()
-    if settings.mock_s3:
-        _local_path(_BOOK_META_KEY).write_bytes(content)
-        return
-
-    s3 = _get_s3_client()
-    s3.put_object(
-        Bucket=settings.s3_bucket_name,
-        Key=_BOOK_META_KEY,
-        Body=content,
-        ContentType="application/json",
-    )
-
+# ── Cotação USD/BRL ──────────────────────────────────────────────────────────
 
 _EXCHANGE_RATE_KEY = "meta/exchange_rate.json"
 
@@ -309,36 +268,17 @@ _EXCHANGE_RATE_KEY = "meta/exchange_rate.json"
 def load_exchange_rate() -> dict | None:
     """Carrega a última cotação USD/BRL persistida. Retorna None se nunca registrada."""
     try:
-        if settings.mock_s3:
-            p = _local_path(_EXCHANGE_RATE_KEY)
-            return json.loads(p.read_text()) if p.exists() else None
-        from botocore.exceptions import ClientError
-        s3 = _get_s3_client()
-        try:
-            obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_EXCHANGE_RATE_KEY)
-            return json.loads(obj["Body"].read())
-        except ClientError as e:
-            if e.response["Error"]["Code"] == "NoSuchKey":
-                return None
-            raise
+        return _load_json(_EXCHANGE_RATE_KEY)
     except Exception:
         return None
 
 
 def save_exchange_rate(rate: float, fetched_at: str) -> None:
     """Persiste a cotação USD/BRL atual no S3."""
-    data = {"rate": rate, "fetched_at": fetched_at}
-    content = json.dumps(data).encode()
-    if settings.mock_s3:
-        _local_path(_EXCHANGE_RATE_KEY).write_bytes(content)
-        return
-    _get_s3_client().put_object(
-        Bucket=settings.s3_bucket_name,
-        Key=_EXCHANGE_RATE_KEY,
-        Body=content,
-        ContentType="application/json",
-    )
+    _save_json(_EXCHANGE_RATE_KEY, {"rate": rate, "fetched_at": fetched_at})
 
+
+# ── Preços Bedrock ───────────────────────────────────────────────────────────
 
 _PRICING_KEY = "meta/pricing.json"
 _pricing_lock = threading.Lock()
@@ -352,21 +292,8 @@ _DEFAULT_PRICING: dict = {
 def load_pricing() -> dict:
     """Carrega preços do Bedrock do S3. Retorna defaults se ainda não configurado."""
     try:
-        if settings.mock_s3:
-            p = _local_path(_PRICING_KEY)
-            if not p.exists():
-                return dict(_DEFAULT_PRICING)
-            return json.loads(p.read_text())
-
-        from botocore.exceptions import ClientError
-        s3 = _get_s3_client()
-        try:
-            obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_PRICING_KEY)
-            return json.loads(obj["Body"].read())
-        except ClientError as e:
-            if e.response["Error"]["Code"] == "NoSuchKey":
-                return dict(_DEFAULT_PRICING)
-            raise
+        result = _load_json(_PRICING_KEY)
+        return result if result is not None else dict(_DEFAULT_PRICING)
     except Exception:
         return dict(_DEFAULT_PRICING)
 
@@ -380,46 +307,25 @@ def save_pricing(input_per_1m: float, output_per_1m: float, updated_by: str) -> 
         "updated_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
         "updated_by": updated_by,
     }
-    content = json.dumps(data, ensure_ascii=False, indent=2).encode()
     with _pricing_lock:
-        if settings.mock_s3:
-            _local_path(_PRICING_KEY).write_bytes(content)
-            return
-        _get_s3_client().put_object(
-            Bucket=settings.s3_bucket_name,
-            Key=_PRICING_KEY,
-            Body=content,
-            ContentType="application/json",
-        )
+        _save_json(_PRICING_KEY, data)
 
+
+# ── Registro de revogações ───────────────────────────────────────────────────
 
 _REVOKED_REGISTRY_KEY = "registry/revoked_books.json"
 
 
 def get_revoked_registry() -> list[dict]:
     """Retorna a lista de normativos revogados do registro persistente."""
-    if settings.mock_s3:
-        p = _local_path(_REVOKED_REGISTRY_KEY)
-        if not p.exists():
-            return []
-        return json.loads(p.read_text())
-
-    from botocore.exceptions import ClientError
-    s3 = _get_s3_client()
-    try:
-        obj = s3.get_object(Bucket=settings.s3_bucket_name, Key=_REVOKED_REGISTRY_KEY)
-        return json.loads(obj["Body"].read())
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "NoSuchKey":
-            return []
-        raise
+    return _load_json(_REVOKED_REGISTRY_KEY, list)
 
 
 def add_to_revoked_registry(entry: dict) -> None:
     """Adiciona uma entrada ao registro de revogados."""
     registry = get_revoked_registry()
     registry.append(entry)
-    _save_revoked_registry(registry)
+    _save_json(_REVOKED_REGISTRY_KEY, registry)
 
 
 def remove_from_revoked_registry(revocation_id: str) -> dict | None:
@@ -430,20 +336,5 @@ def remove_from_revoked_registry(revocation_id: str) -> dict | None:
     entry = next((e for e in registry if e["id"] == revocation_id), None)
     if entry is None:
         return None
-    _save_revoked_registry([e for e in registry if e["id"] != revocation_id])
+    _save_json(_REVOKED_REGISTRY_KEY, [e for e in registry if e["id"] != revocation_id])
     return entry
-
-
-def _save_revoked_registry(registry: list[dict]) -> None:
-    content = json.dumps(registry, ensure_ascii=False, indent=2).encode()
-    if settings.mock_s3:
-        _local_path(_REVOKED_REGISTRY_KEY).write_bytes(content)
-        return
-
-    s3 = _get_s3_client()
-    s3.put_object(
-        Bucket=settings.s3_bucket_name,
-        Key=_REVOKED_REGISTRY_KEY,
-        Body=content,
-        ContentType="application/json",
-    )

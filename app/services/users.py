@@ -17,26 +17,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import get_settings
+from app.services.storage import _get_s3_client
 
 settings = get_settings()
 
 VALID_ROLES = ("servidor", "operador", "revisor", "admin")
-
-
-
-_s3_client = None
-_s3_client_lock = threading.Lock()
-
-
-def _get_s3_client():
-    global _s3_client
-    if _s3_client is not None:
-        return _s3_client
-    with _s3_client_lock:
-        if _s3_client is None:
-            import boto3
-            _s3_client = boto3.client("s3", region_name=settings.aws_region)
-    return _s3_client
 
 _LOCAL_STORE = Path("data/users.json")
 _S3_KEY = "meta/users.json"

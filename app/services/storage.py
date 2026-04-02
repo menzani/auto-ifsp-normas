@@ -331,12 +331,12 @@ def load_budget() -> dict:
 def save_budget(daily_limit: int, updated_by: str) -> None:
     """Persiste configuração de limite diário de tokens."""
     from datetime import datetime, timezone
-    data = {
-        "daily_limit": daily_limit,
-        "updated_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
-        "updated_by": updated_by,
-    }
     with _budget_lock:
+        data = {
+            "daily_limit": daily_limit,
+            "updated_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
+            "updated_by": updated_by,
+        }
         _save_json(_BUDGET_KEY, data)
 
 

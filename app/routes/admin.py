@@ -387,6 +387,7 @@ def update_budget(
 ):
     check_csrf_form(request, csrf_token)
     storage.save_budget(daily_limit, user["email"])
+    audit.invalidate_budget_status_cache()
     audit.log(user["email"], "alterar_limite_diario",
               f"limite={daily_limit} tokens" if daily_limit > 0 else "limite=ilimitado")
     return templates.TemplateResponse(

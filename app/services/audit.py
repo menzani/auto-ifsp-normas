@@ -8,9 +8,12 @@ Arquivos são rotacionados mensalmente para evitar que reads + rewrites S3
 cresçam linearmente com o volume total do log.
 Leituras (`recent()`) consultam o mês atual e o anterior para cobrir a virada de mês.
 """
+import hashlib
+import hmac
 import json
 import re
 import threading
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -18,6 +21,25 @@ from app.config import get_settings
 from app.services.storage import _get_s3_client
 
 settings = get_settings()
+
+
+def _compute_hmac(payload: str) -> str:
+    """Calcula HMAC-SHA256 do payload usando SESSION_SECRET_KEY."""
+    return hmac.new(
+        settings.session_secret_key.encode(),
+        payload.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _verify_hmac(entry: dict) -> bool:
+    """Verifica integridade de uma entrada de audit via HMAC."""
+    expected = entry.get("_hmac")
+    if not expected:
+        return False  # entrada legada (sem HMAC)
+    clean = {k: v for k, v in entry.items() if k != "_hmac"}
+    payload = json.dumps(clean, ensure_ascii=False, sort_keys=True)
+    return hmac.compare_digest(expected, _compute_hmac(payload))
 
 _lock = threading.Lock()
 
@@ -87,6 +109,8 @@ def log(user_email: str, action: str, details: str, level: str = "info", extra: 
         entry["level"] = level  # omitido quando "info" para manter o JSON conciso
     if extra:
         entry["extra"] = extra
+    payload = json.dumps(entry, ensure_ascii=False, sort_keys=True)
+    entry["_hmac"] = _compute_hmac(payload)
     _append_line(json.dumps(entry, ensure_ascii=False))
 
 
@@ -97,7 +121,7 @@ _MONTH_NAMES_PT = [
 
 
 def _parse_lines(lines: list[str]) -> list[dict]:
-    """Parsa linhas NDJSON, deduplica e retorna lista ordenada por timestamp decrescente."""
+    """Parsa linhas NDJSON, deduplica, verifica HMAC e retorna lista ordenada por timestamp decrescente."""
     entries = []
     seen: set[str] = set()
     for line in lines:
@@ -107,6 +131,9 @@ def _parse_lines(lines: list[str]) -> list[dict]:
         seen.add(line)
         try:
             entry = json.loads(line)
+            # Verificar HMAC antes de adicionar campos derivados
+            if "_hmac" in entry:
+                entry["_verified"] = _verify_hmac(entry)
             try:
                 dt = datetime.fromisoformat(entry["ts"])
                 entry["ts_display"] = dt.strftime("%d/%m/%Y %H:%M")
@@ -215,22 +242,46 @@ def today_token_usage() -> int:
     return total
 
 
+_budget_status_cache: dict = {}
+_budget_status_cache_lock = threading.Lock()
+_BUDGET_STATUS_TTL = 60.0  # segundos
+
+
 def daily_budget_status() -> dict:
-    """Retorna status do orçamento diário: usage, limit, pct, exhausted, active."""
+    """Retorna status do orçamento diário: usage, limit, pct, exhausted, active.
+    Resultado cacheado por 60 s para evitar leitura de S3/audit a cada page view."""
+    now = time.monotonic()
+    with _budget_status_cache_lock:
+        if _budget_status_cache and (now - _budget_status_cache.get("_ts", 0)) < _BUDGET_STATUS_TTL:
+            return {k: v for k, v in _budget_status_cache.items() if k != "_ts"}
+
     from app.services import storage
     budget = storage.load_budget()
     limit = budget.get("daily_limit", 0)
     if limit <= 0:
-        return {"usage": 0, "limit": 0, "pct": 0.0, "exhausted": False, "active": False}
-    usage = today_token_usage()
-    pct = min(usage / limit * 100, 100.0)
-    return {
-        "usage": usage,
-        "limit": limit,
-        "pct": round(pct, 1),
-        "exhausted": usage >= limit,
-        "active": True,
-    }
+        result = {"usage": 0, "limit": 0, "pct": 0.0, "exhausted": False, "active": False}
+    else:
+        usage = today_token_usage()
+        pct = min(usage / limit * 100, 100.0)
+        result = {
+            "usage": usage,
+            "limit": limit,
+            "pct": round(pct, 1),
+            "exhausted": usage >= limit,
+            "active": True,
+        }
+
+    with _budget_status_cache_lock:
+        _budget_status_cache.clear()
+        _budget_status_cache.update(result)
+        _budget_status_cache["_ts"] = now
+    return result
+
+
+def invalidate_budget_status_cache() -> None:
+    """Invalida o cache de budget status (chamar após alterar o limite)."""
+    with _budget_status_cache_lock:
+        _budget_status_cache.clear()
 
 
 def token_usage_by_user(year: int, month: int) -> list[dict]:

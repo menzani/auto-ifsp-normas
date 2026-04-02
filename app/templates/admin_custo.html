@@ -41,7 +41,7 @@
         <div class="row">
 
           {# ── Preços do modelo ──────────────────────────────────────── #}
-          <div class="col-12 col-md-6 mb-4 mb-md-0" style="border-right:1px solid #e6e6e6;">
+          <div class="col-12 col-md-6 mb-4 mb-md-0" style="border-right:none;" id="pricing-col">
             <div class="d-flex align-items-center justify-content-between mb-3">
               <span class="text-medium-weight">
                 <i class="fas fa-tags mr-1" style="color:#1351B4;" aria-hidden="true"></i>
@@ -602,6 +602,10 @@
 
 {% block extra_scripts %}
 <style>
+/* Responsividade: border separador só em md+ */
+@media (min-width: 768px) {
+  #pricing-col { border-right: 1px solid #e6e6e6 !important; }
+}
 /* Ano colapsável */
 .custo-year {
   border: 1px solid #dce1ef;
@@ -628,7 +632,7 @@
 /* Grid de detalhamento */
 .custo-breakdown-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: .75rem;
 }
 .custo-breakdown-card {

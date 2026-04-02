@@ -77,7 +77,7 @@
             {% set complete = is_done or job.current_step > step_n %}
             {% set active = not is_done and job.current_step == step_n %}
             <div class="text-center flex-fill">
-              <div style="
+              <div class="step-circle" style="
                 width:36px; height:36px; border-radius:50%; margin:0 auto 4px;
                 display:flex; align-items:center; justify-content:center;
                 background: {% if complete %}#168821{% elif active %}#1351B4{% else %}#DAE3F0{% endif %};

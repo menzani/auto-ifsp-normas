@@ -24,8 +24,9 @@
     line-height: 1.5;
     height: 2rem;
     box-sizing: border-box;
-    width: 200px;
+    width: 12rem;
     max-width: 100%;
+    min-width: 0;
     margin: 0;
     align-self: center;
   }
@@ -227,7 +228,7 @@
                              onkeydown="removeInputKeydown(event, {{ draft.book_id }})"
                              autocomplete="off"
                              placeholder="REMOVER"
-                             style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:110px; letter-spacing:.05em;" />
+                             style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:7em; letter-spacing:.05em;" />
                       <button class="br-button secondary small"
                               id="remove-confirm-btn-{{ draft.book_id }}"
                               hx-delete="/review/{{ draft.book_id }}"
@@ -278,7 +279,7 @@
             {% if pub_shelf_groups | length > 1 %}
             <select id="pub-shelf-filter"
                     onchange="sections.pub.setFilter(this.value)"
-                    style="border:1px solid #ccc; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; line-height:1.5; height:2rem; box-sizing:border-box; margin:0; align-self:center;">
+                    style="border:1px solid #ccc; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; line-height:1.5; height:2rem; box-sizing:border-box; margin:0; align-self:center; max-width:100%;">
               <option value="">Todas as prateleiras</option>
               {% for shelf_name, _ in pub_shelf_groups %}
               <option value="{{ shelf_name }}">{{ shelf_name }}</option>
@@ -408,7 +409,7 @@
                            onkeydown="removeInputKeydown(event, {{ book.book_id }})"
                            autocomplete="off"
                            placeholder="REMOVER"
-                           style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:110px; letter-spacing:.05em;" />
+                           style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:7em; letter-spacing:.05em;" />
                     <button class="br-button secondary small"
                             id="remove-confirm-btn-{{ book.book_id }}"
                             hx-delete="/review/{{ book.book_id }}"
@@ -529,7 +530,7 @@
                            onkeydown="removeInputKeydown(event, '{{ entry.id }}')"
                            autocomplete="off"
                            placeholder="REMOVER"
-                           style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:110px; letter-spacing:.05em;" />
+                           style="border:1px solid #E52207; border-radius:4px; padding:.25rem .5rem; font-size:.875rem; width:7em; letter-spacing:.05em;" />
                     <button class="br-button secondary small"
                             id="remove-confirm-btn-{{ entry.id }}"
                             hx-delete="/review/revoked/{{ entry.id }}"
@@ -569,7 +570,7 @@
 <!-- Container para toasts de ação (publicar/revogar) — preenchido via HTMX OOB -->
 <div id="action-toast"
      aria-live="polite"
-     style="position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999; max-width:360px;"></div>
+     style="position:fixed; bottom:1rem; right:1rem; left:1rem; z-index:9999; max-width:360px; margin-left:auto;"></div>
 {% endblock %}
 
 {% block extra_scripts %}

@@ -27,6 +27,24 @@
           integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq"
           crossorigin="anonymous"></script>
 
+  <!-- Mobile: tap targets e ajustes responsivos -->
+  <style>
+    @media (max-width: 575.98px) {
+      select, input[type="text"], input[type="number"], input[type="search"] {
+        min-height: 2.75rem;
+        font-size: 1rem;
+      }
+      .br-select .br-input select {
+        min-height: 2.75rem;
+      }
+      .step-circle {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: .75rem !important;
+      }
+    }
+  </style>
+
   {% block extra_head %}{% endblock %}
 </head>
 <body>

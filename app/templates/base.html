@@ -27,9 +27,75 @@
           integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq"
           crossorigin="anonymous"></script>
 
-  <!-- Mobile: tap targets, step circles e tabelas responsivas -->
+  <!-- Mobile: menu, tap targets, step circles e tabelas responsivas -->
   <style>
+    /* ── Menu de navegação ── */
+    /* Desktop: flex em linha, labels completos */
+    .nav-menu {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .nav-label, .nav-label-full { display: inline; }
+    .nav-label-short { display: none; }
+
+    /* Tablet (<768px): labels curtos para "Enviar Normativo" */
+    @media (max-width: 767.98px) {
+      .nav-label-full { display: none; }
+      .nav-label-short { display: inline; }
+    }
+
+    /* Mobile (<576px): barra fixa no rodapé, labels sempre visíveis */
     @media (max-width: 575.98px) {
+      .header-bottom .header-menu { display: none; }
+      #header-navigation {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: #fff;
+        border-top: 1px solid #dce1ef;
+        box-shadow: 0 -2px 8px rgba(0,0,0,.08);
+        padding: .35rem 0;
+      }
+      .nav-menu {
+        display: flex;
+        justify-content: space-around;
+        gap: 0;
+        margin: 0;
+      }
+      .nav-menu li { flex: 1; text-align: center; }
+      .nav-menu .br-button {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        width: 100%;
+        padding: .35rem .25rem;
+        font-size: .65rem;
+        border: none;
+        border-radius: 0;
+        min-height: 0;
+        background: transparent;
+        color: #555;
+      }
+      .nav-menu .br-button.primary {
+        color: #1351B4;
+        background: transparent;
+      }
+      .nav-menu .br-button i {
+        font-size: 1.1rem;
+        margin: 0 !important;
+      }
+      .nav-menu .br-button .nav-label,
+      .nav-menu .br-button .nav-label-short {
+        margin: 0 !important;
+        font-size: .65rem;
+        white-space: nowrap;
+      }
+      /* Espaço no body para não cobrir conteúdo */
+      body { padding-bottom: 3.5rem; }
+
       /* Tap targets mínimos */
       select, input[type="text"], input[type="number"], input[type="search"] {
         min-height: 2.75rem;
@@ -141,14 +207,15 @@
           </div>
         </div>
         <nav aria-label="Menu principal" id="header-navigation">
-          <ul class="d-flex list-unstyled mb-0" style="gap:0.5rem; list-style:none; padding:0;">
+          <ul class="nav-menu list-unstyled mb-0" style="list-style:none; padding:0;">
             {% if request.session.user.role in ('operador', 'revisor', 'admin') %}
             <li>
               <a href="/"
                  class="br-button {% if request.url.path == '/' %}primary{% else %}secondary{% endif %} small"
                  title="Enviar Normativo">
                 <i class="fas fa-upload" aria-hidden="true"></i>
-                <span class="d-none d-md-inline ml-1">Enviar Normativo</span>
+                <span class="nav-label-full ml-1">Enviar Normativo</span>
+                <span class="nav-label-short ml-1">Enviar</span>
               </a>
             </li>
             {% endif %}
@@ -157,7 +224,7 @@
                  class="br-button {% if '/review' in request.url.path %}primary{% else %}secondary{% endif %} small"
                  title="Revisão">
                 <i class="fas fa-tasks" aria-hidden="true"></i>
-                <span class="d-none d-md-inline ml-1">Revisão</span>
+                <span class="nav-label ml-1">Revisão</span>
               </a>
             </li>
             <li>
@@ -165,7 +232,7 @@
                  class="br-button {% if request.url.path == '/log' %}primary{% else %}secondary{% endif %} small"
                  title="Log de auditoria">
                 <i class="fas fa-history" aria-hidden="true"></i>
-                <span class="d-none d-md-inline ml-1">Log</span>
+                <span class="nav-label ml-1">Log</span>
               </a>
             </li>
             {% if request.session.user.role == 'admin' %}
@@ -174,7 +241,7 @@
                  class="br-button {% if request.url.path == '/admin/users' %}primary{% else %}secondary{% endif %} small"
                  title="Gestão de usuários">
                 <i class="fas fa-users-cog" aria-hidden="true"></i>
-                <span class="d-none d-md-inline ml-1">Usuários</span>
+                <span class="nav-label ml-1">Usuários</span>
               </a>
             </li>
             <li>
@@ -182,7 +249,7 @@
                  class="br-button {% if request.url.path == '/admin/custo' %}primary{% else %}secondary{% endif %} small"
                  title="Custo Bedrock">
                 <i class="fas fa-dollar-sign" aria-hidden="true"></i>
-                <span class="d-none d-md-inline ml-1">Custo</span>
+                <span class="nav-label ml-1">Custo</span>
               </a>
             </li>
             {% endif %}

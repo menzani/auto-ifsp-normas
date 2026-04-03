@@ -16,10 +16,13 @@ settings = get_settings()
 
 _log = logging.getLogger(__name__)
 
-# ── Filtro de insistência — loga quando mesmo IP/usuário acumula 5+ erros ────
-_denial_counts: dict[str, list[float]] = {}
+# ── Filtro de insistência — loga quando mesmo IP/usuário acumula 5+ erros,
+#    ou quando mesmo usuário tenta de 3+ IPs distintos na janela ──────────────
+_denial_counts: dict[str, list[float]] = {}  # "ip:email" → timestamps
+_denial_ips: dict[str, dict[str, float]] = {}  # email → {ip: last_ts}
 _denial_lock = threading.Lock()
 _DENIAL_THRESHOLD = 5
+_DENIAL_IP_THRESHOLD = 3
 _DENIAL_WINDOW = 300.0  # 5 minutos
 
 
@@ -32,6 +35,7 @@ def _track_denial(request: Request, status_code: int) -> None:
 
     now = time.monotonic()
     with _denial_lock:
+        # ── Insistência por IP:usuário (5+ tentativas do mesmo par) ──────
         timestamps = _denial_counts.get(key, [])
         timestamps = [t for t in timestamps if now - t < _DENIAL_WINDOW]
         timestamps.append(now)
@@ -47,12 +51,34 @@ def _track_denial(request: Request, status_code: int) -> None:
             )
             _log.warning("Insistência detectada: %s (%d× em %s)", key, len(timestamps), request.url.path)
 
+        # ── Rotação de IP (mesmo usuário de 3+ IPs distintos) ────────────
+        if email != "anon":
+            ip_map = _denial_ips.get(email, {})
+            # Limpar IPs fora da janela
+            ip_map = {i: t for i, t in ip_map.items() if now - t < _DENIAL_WINDOW}
+            ip_map[ip] = now
+            _denial_ips[email] = ip_map
+
+            if len(ip_map) == _DENIAL_IP_THRESHOLD:
+                from app.services import audit
+                ips = ", ".join(sorted(ip_map.keys()))
+                audit.log(
+                    email,
+                    "rotacao_ip",
+                    f"Tentativas negadas de {len(ip_map)} IPs distintos em {int(_DENIAL_WINDOW)}s: {ips}",
+                    level="warn",
+                )
+                _log.warning("Rotação de IP detectada: %s de %d IPs", email, len(ip_map))
+
     # Limpeza periódica de chaves expiradas
-    if len(_denial_counts) > 1000:
+    if len(_denial_counts) + len(_denial_ips) > 1000:
         with _denial_lock:
             stale = [k for k, ts in _denial_counts.items() if not ts or now - ts[-1] > _DENIAL_WINDOW]
             for k in stale:
                 del _denial_counts[k]
+            stale_ips = [e for e, m in _denial_ips.items() if not m or max(m.values()) < now - _DENIAL_WINDOW]
+            for e in stale_ips:
+                del _denial_ips[e]
 
 
 @asynccontextmanager

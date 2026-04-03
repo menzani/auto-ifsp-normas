@@ -5,6 +5,7 @@ MOCK_S3=false → usa AWS S3.
 """
 import json
 import threading
+import time
 from pathlib import Path
 
 from app.config import get_settings
@@ -238,11 +239,25 @@ def unregister_pdf_checksum_by_job_id(job_id: str) -> None:
 
 _BOOK_META_KEY = "registry/book_meta.json"
 _book_meta_lock = threading.Lock()
+_book_meta_cache: dict = {}
+_REGISTRY_CACHE_TTL = 120.0  # 2 minutos
 
 
 def get_book_meta_registry() -> dict:
-    """Retorna {str(book_id): {"uploaded_by": email}} para livros conhecidos pelo sistema."""
-    return _load_json(_BOOK_META_KEY, dict)
+    """Retorna {str(book_id): {"uploaded_by": email}} para livros conhecidos pelo sistema.
+    Cacheado por 2 min para evitar leitura de S3 a cada page view."""
+    now = time.monotonic()
+    cached = _book_meta_cache.get("data")
+    if cached is not None and (now - _book_meta_cache.get("_ts", 0)) < _REGISTRY_CACHE_TTL:
+        return cached
+    data = _load_json(_BOOK_META_KEY, dict)
+    _book_meta_cache["data"] = data
+    _book_meta_cache["_ts"] = now
+    return data
+
+
+def _invalidate_book_meta_cache() -> None:
+    _book_meta_cache.clear()
 
 
 def register_book_meta(book_id: int, uploaded_by: str) -> None:
@@ -251,6 +266,7 @@ def register_book_meta(book_id: int, uploaded_by: str) -> None:
         registry = _load_json(_BOOK_META_KEY, dict)
         registry[str(book_id)] = {"uploaded_by": uploaded_by}
         _save_json(_BOOK_META_KEY, registry)
+    _invalidate_book_meta_cache()
 
 
 def unregister_book_meta(book_id: int) -> None:
@@ -262,6 +278,7 @@ def unregister_book_meta(book_id: int) -> None:
             return
         del registry[key]
         _save_json(_BOOK_META_KEY, registry)
+    _invalidate_book_meta_cache()
 
 
 # ── Cotação USD/BRL ──────────────────────────────────────────────────────────
@@ -348,11 +365,24 @@ def save_budget(daily_limit: int, updated_by: str) -> None:
 
 _REVOKED_REGISTRY_KEY = "registry/revoked_books.json"
 _revoked_registry_lock = threading.Lock()
+_revoked_registry_cache: dict = {}
 
 
 def get_revoked_registry() -> list[dict]:
-    """Retorna a lista de normativos revogados do registro persistente."""
-    return _load_json(_REVOKED_REGISTRY_KEY, list)
+    """Retorna a lista de normativos revogados do registro persistente.
+    Cacheado por 2 min para evitar leitura de S3 a cada page view."""
+    now = time.monotonic()
+    cached = _revoked_registry_cache.get("data")
+    if cached is not None and (now - _revoked_registry_cache.get("_ts", 0)) < _REGISTRY_CACHE_TTL:
+        return cached
+    data = _load_json(_REVOKED_REGISTRY_KEY, list)
+    _revoked_registry_cache["data"] = data
+    _revoked_registry_cache["_ts"] = now
+    return data
+
+
+def _invalidate_revoked_cache() -> None:
+    _revoked_registry_cache.clear()
 
 
 def add_to_revoked_registry(entry: dict) -> None:
@@ -361,6 +391,7 @@ def add_to_revoked_registry(entry: dict) -> None:
         registry = _load_json(_REVOKED_REGISTRY_KEY, list)
         registry.append(entry)
         _save_json(_REVOKED_REGISTRY_KEY, registry)
+    _invalidate_revoked_cache()
 
 
 def remove_from_revoked_registry(revocation_id: str) -> dict | None:
@@ -373,4 +404,5 @@ def remove_from_revoked_registry(revocation_id: str) -> dict | None:
         if entry is None:
             return None
         _save_json(_REVOKED_REGISTRY_KEY, [e for e in registry if e["id"] != revocation_id])
-        return entry
+    _invalidate_revoked_cache()
+    return entry

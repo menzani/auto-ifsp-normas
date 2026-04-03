@@ -43,10 +43,12 @@ MOCK_DRAFTS = [
 
 _CACHE_TTL = 300        # segundos — rascunhos; cache invalidado em toda mutação, então TTL alto é seguro
 _SHELF_MAP_TTL = 300    # segundos — mapa de prateleiras (muda raramente)
+_CACHE_REFRESH_AT = 0.8 # fração do TTL após a qual dispara refresh em background
 
 _drafts_cache: dict = {}    # {"data": [...], "ts": float}
 _shelf_map_cache: dict = {} # {"data": {...}, "ts": float}
 _overview_cache: dict = {}  # {"data": {...}, "ts": float}
+_overview_refreshing = False # flag para evitar múltiplos refreshes simultâneos
 
 _UNSET = object()
 _public_role_id = _UNSET   # cache: _UNSET = não buscado, None = não encontrado, int = ID
@@ -64,6 +66,76 @@ def _invalidate_shelf_map_cache() -> None:
     with _cache_lock:
         _shelf_map_cache.clear()
         _overview_cache.clear()
+
+
+def _schedule_background_refresh() -> None:
+    """Dispara refresh do overview em background se não houver outro em andamento."""
+    global _overview_refreshing
+    with _cache_lock:
+        if _overview_refreshing:
+            return
+        _overview_refreshing = True
+
+    def _refresh():
+        global _overview_refreshing
+        try:
+            # Força invalidação do cache interno para que get_all_books_overview recalcule.
+            # Porém, o cache atual ainda é válido e servido a outros requests.
+            _log.debug("Background refresh do overview iniciado")
+            _build_overview_fresh()
+        except Exception:
+            _log.exception("Erro no background refresh do overview")
+        finally:
+            with _cache_lock:
+                _overview_refreshing = False
+
+    threading.Thread(target=_refresh, daemon=True).start()
+
+
+def _build_overview_fresh() -> dict:
+    """Reconstrói o overview completo e atualiza o cache."""
+    from concurrent.futures import ThreadPoolExecutor
+    from app.services import storage as _storage
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_books = executor.submit(_api_get_all, "/books")
+        f_shelf = executor.submit(_build_shelf_data)
+        all_books_list = f_books.result()
+        shelf_map, all_shelves, staging_book_ids, revoked_shelf_book_ids = f_shelf.result()
+
+    all_books = {b["id"]: b for b in all_books_list}
+    _book_meta = _storage.get_book_meta_registry()
+    uploaded_by_map: dict[int, str] = {
+        bid: _book_meta.get(str(bid), {}).get("uploaded_by", "—")
+        for bid in all_books
+    }
+
+    drafts = []
+    published = []
+    for bid, book in all_books.items():
+        if bid in revoked_shelf_book_ids:
+            continue
+        bookstack_url = f"{settings.bookstack_base_url}/books/{book['slug']}"
+        created_at = _format_datetime(book.get("created_at", ""))
+        if bid in staging_book_ids:
+            drafts.append({
+                "book_id": bid, "title": book["name"], "shelf_name": "—",
+                "uploaded_by": uploaded_by_map.get(bid, "—"),
+                "created_at": created_at, "bookstack_url": bookstack_url,
+            })
+        else:
+            published.append({
+                "book_id": bid, "title": book["name"],
+                "shelf_name": shelf_map.get(bid, "—"),
+                "uploaded_by": uploaded_by_map.get(bid, "—"),
+                "bookstack_url": bookstack_url,
+            })
+
+    result = {"drafts": drafts, "published": published, "invalid": [], "shelves": all_shelves}
+    with _cache_lock:
+        _overview_cache["data"] = result
+        _overview_cache["ts"] = time.monotonic()
+    return result
 
 
 def _get_public_role_id() -> int | None:
@@ -252,68 +324,21 @@ def get_all_books_overview() -> dict:
     A fonte da verdade para rascunhos é a prateleira de staging:
     livros que ainda estão nela não foram aprovados e são tratados como draft.
     Livros fora da staging com tag status:invalido são inválidos; os demais, publicados.
+
+    Cache de 5 minutos com refresh antecipado em background a 80% do TTL.
     """
     if settings.mock_bookstack:
         return {"drafts": MOCK_DRAFTS, "published": [], "invalid": [], "shelves": MOCK_SHELVES}
 
     with _cache_lock:
-        if _overview_cache and (time.monotonic() - _overview_cache.get("ts", 0) < _CACHE_TTL):
-            return _overview_cache["data"]
+        if _overview_cache and "ts" in _overview_cache:
+            age = time.monotonic() - _overview_cache["ts"]
+            if age < _CACHE_TTL:
+                if age > _CACHE_TTL * _CACHE_REFRESH_AT:
+                    _schedule_background_refresh()
+                return _overview_cache["data"]
 
-    from concurrent.futures import ThreadPoolExecutor
-
-    # Busca lista de livros e dados de prateleiras em paralelo.
-    # _build_shelf_data() retorna tudo que precisamos sobre prateleiras numa chamada cacheada.
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        f_books = executor.submit(_api_get_all, "/books")
-        f_shelf = executor.submit(_build_shelf_data)
-        all_books_list = f_books.result()
-        shelf_map, all_shelves, staging_book_ids, revoked_shelf_book_ids = f_shelf.result()
-
-    all_books = {b["id"]: b for b in all_books_list}
-
-    # A listagem /books não inclui tags — uploaded_by vem do registro local (S3/data),
-    # gravado no momento do upload. Isso elimina N+1 chamadas individuais à API do Bookstack.
-    from app.services import storage as _storage
-    _book_meta = _storage.get_book_meta_registry()
-    uploaded_by_map: dict[int, str] = {
-        bid: _book_meta.get(str(bid), {}).get("uploaded_by", "—")
-        for bid in all_books
-    }
-
-    drafts = []
-    published = []
-
-    for bid, book in all_books.items():
-        if bid in revoked_shelf_book_ids:
-            continue  # gerenciado pela prateleira Revogadas, não aparece em publicados
-
-        bookstack_url = f"{settings.bookstack_base_url}/books/{book['slug']}"
-        created_at = _format_datetime(book.get("created_at", ""))
-
-        if bid in staging_book_ids:
-            drafts.append({
-                "book_id": bid,
-                "title": book["name"],
-                "shelf_name": "—",  # escolhida pelo revisor na hora da publicação
-                "uploaded_by": uploaded_by_map.get(bid, "—"),
-                "created_at": created_at,
-                "bookstack_url": bookstack_url,
-            })
-        else:
-            published.append({
-                "book_id": bid,
-                "title": book["name"],
-                "shelf_name": shelf_map.get(bid, "—"),
-                "uploaded_by": uploaded_by_map.get(bid, "—"),
-                "bookstack_url": bookstack_url,
-            })
-
-    result = {"drafts": drafts, "published": published, "invalid": [], "shelves": all_shelves}
-    with _cache_lock:
-        _overview_cache["data"] = result
-        _overview_cache["ts"] = time.monotonic()
-    return result
+    return _build_overview_fresh()
 
 
 def get_book_for_revocation(book_id: int) -> dict:
@@ -676,16 +701,29 @@ _http_client = httpx.Client(
 
 
 def _api_get_all(path: str, extra_params: dict | None = None) -> list:
-    """Percorre todas as páginas de um endpoint paginado e retorna a lista completa."""
+    """Percorre todas as páginas de um endpoint paginado e retorna a lista completa.
+    A primeira página é buscada para obter o total; as demais são buscadas em paralelo."""
     page_size = 100
-    params: dict = {"count": page_size, "offset": 0, **(extra_params or {})}
-    results: list = []
-    while True:
-        batch = _api_get(path, params=params)["data"]
-        results.extend(batch)
-        if len(batch) < page_size:
-            break
-        params = {**params, "offset": params["offset"] + len(batch)}
+    base_params: dict = {"count": page_size, "offset": 0, **(extra_params or {})}
+
+    # Primeira página: obtém total para calcular páginas restantes
+    first_response = _api_get(path, params=base_params)
+    results: list = list(first_response["data"])
+    total = first_response.get("total", len(results))
+
+    if len(results) >= total:
+        return results
+
+    # Páginas restantes em paralelo
+    offsets = list(range(page_size, total, page_size))
+
+    def _fetch_page(offset: int) -> list:
+        return _api_get(path, params={**base_params, "offset": offset})["data"]
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(6, len(offsets))) as executor:
+        for batch in executor.map(_fetch_page, offsets):
+            results.extend(batch)
     return results
 
 

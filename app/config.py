@@ -16,11 +16,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_secrets(self) -> "Settings":
+        all_mocks = all([self.mock_auth, self.mock_bookstack, self.mock_s3])
+        if self.session_secret_key == _INSECURE_SECRET and not all_mocks:
+            raise ValueError(
+                "SESSION_SECRET_KEY deve ser definida no .env com um valor seguro. "
+                "O valor padrão só é permitido quando TODOS os mocks estão ativados."
+            )
         if not any([self.mock_auth, self.mock_bookstack, self.mock_s3]):
-            if self.session_secret_key == _INSECURE_SECRET:
-                raise ValueError(
-                    "SESSION_SECRET_KEY deve ser definida no .env com um valor seguro antes de rodar em modo produção."
-                )
             if not self.https_only:
                 raise ValueError(
                     "HTTPS_ONLY deve ser true no .env em modo produção para garantir a flag Secure no cookie de sessão."

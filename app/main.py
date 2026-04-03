@@ -1,4 +1,6 @@
 import logging
+import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,6 +15,44 @@ from app.routes import auth, upload, status, review, log, admin, pdf
 settings = get_settings()
 
 _log = logging.getLogger(__name__)
+
+# ── Filtro de insistência — loga quando mesmo IP/usuário acumula 5+ erros ────
+_denial_counts: dict[str, list[float]] = {}
+_denial_lock = threading.Lock()
+_DENIAL_THRESHOLD = 5
+_DENIAL_WINDOW = 300.0  # 5 minutos
+
+
+def _track_denial(request: Request, status_code: int) -> None:
+    """Registra tentativa negada e loga se atingir limiar de insistência."""
+    ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
+    user = request.session.get("user", {})
+    email = user.get("email", "anon")
+    key = f"{ip}:{email}"
+
+    now = time.monotonic()
+    with _denial_lock:
+        timestamps = _denial_counts.get(key, [])
+        timestamps = [t for t in timestamps if now - t < _DENIAL_WINDOW]
+        timestamps.append(now)
+        _denial_counts[key] = timestamps
+
+        if len(timestamps) == _DENIAL_THRESHOLD:
+            from app.services import audit
+            audit.log(
+                email,
+                "acesso_insistente",
+                f"{_DENIAL_THRESHOLD}+ tentativas negadas ({status_code}) de {ip} em {request.url.path}",
+                level="warn",
+            )
+            _log.warning("Insistência detectada: %s (%d× em %s)", key, len(timestamps), request.url.path)
+
+    # Limpeza periódica de chaves expiradas
+    if len(_denial_counts) > 1000:
+        with _denial_lock:
+            stale = [k for k, ts in _denial_counts.items() if not ts or now - ts[-1] > _DENIAL_WINDOW]
+            for k in stale:
+                del _denial_counts[k]
 
 
 @asynccontextmanager
@@ -50,6 +90,8 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     """Redireciona para login em vez de retornar JSON para erros de auth."""
     if exc.status_code == 401:
         return RedirectResponse(url="/auth/login", status_code=302)
+    if exc.status_code in (403, 429):
+        _track_denial(request, exc.status_code)
     if exc.status_code == 403:
         from app.templates import templates
         return templates.TemplateResponse(

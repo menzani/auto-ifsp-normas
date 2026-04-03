@@ -420,6 +420,8 @@ def update_role(
         raise HTTPException(400, "Email deve pertencer ao domínio institucional.")
     if role not in user_store.VALID_ROLES:
         raise HTTPException(400, "Papel inválido.")
+    if email == user["email"]:
+        raise HTTPException(400, "Não é permitido alterar o próprio papel.")
     check_csrf_form(request, csrf_token)
     user_store.set_role(email, role)
     audit.log(user["email"], "alterar_papel", f"{email} → {role}")

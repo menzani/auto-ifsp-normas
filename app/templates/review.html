@@ -473,8 +473,8 @@
             <thead>
               <tr>
                 <th scope="col">Normativo</th>
-                <th scope="col">Enviado por</th>
-                <th scope="col">Revogado por</th>
+                {% if is_admin %}<th scope="col">Enviado por</th>{% endif %}
+                {% if is_admin %}<th scope="col">Revogado por</th>{% endif %}
                 <th scope="col">Data</th>
                 <th scope="col" class="text-center">Download</th>
                 {% if is_admin %}<th scope="col" class="text-center">Ações</th>{% endif %}
@@ -489,12 +489,16 @@
                     <strong style="text-decoration:line-through; color:#888;">{{ entry.title }}</strong>
                   </div>
                 </td>
+                {% if entry.uploaded_by is defined %}
                 <td data-label="Enviado por" style="color:#aaa;">
                   <i class="fas fa-user mr-1" aria-hidden="true"></i> {{ entry.uploaded_by }}
                 </td>
+                {% endif %}
+                {% if entry.revoked_by is defined %}
                 <td data-label="Revogado por" style="color:#aaa;">
                   <i class="fas fa-user-shield mr-1" aria-hidden="true"></i> {{ entry.revoked_by }}
                 </td>
+                {% endif %}
                 <td data-label="Data" class="text-down-01" style="color:#aaa;">{{ entry.revoked_at }}</td>
                 <td data-label="Download">
                   {% if entry.pdf_url %}

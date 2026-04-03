@@ -99,6 +99,19 @@ async def _lifespan(application: FastAPI):
     except Exception:
         _log.exception("Erro ao verificar jobs órfãos no startup")
 
+    # ── Startup: aquece cache do overview Bookstack ─────────────────────
+    # A primeira consulta à /review seria lenta sem cache. Ao aquecer em
+    # background no startup, o primeiro usuário já recebe resposta rápida.
+    if not settings.mock_bookstack:
+        def _warm_cache():
+            try:
+                from app.services.bookstack import _build_overview_fresh
+                _build_overview_fresh()
+                _log.info("Cache do overview Bookstack aquecido no startup")
+            except Exception:
+                _log.warning("Falha ao aquecer cache do overview (Bookstack pode estar indisponível)")
+        threading.Thread(target=_warm_cache, daemon=True).start()
+
     yield
     # Shutdown: nenhuma ação necessária
 

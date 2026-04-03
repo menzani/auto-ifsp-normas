@@ -152,6 +152,18 @@
                       <span class="br-tag danger text" style="background:#7a3800; color:#fff;">
                         <i class="fas fa-bug mr-1" aria-hidden="true"></i> Erro de processamento
                       </span>
+                    {% elif entry.action == "alterar_limite_diario" %}
+                      <span class="br-tag info text">
+                        <i class="fas fa-tachometer-alt mr-1" aria-hidden="true"></i> Limite diário alterado
+                      </span>
+                    {% elif entry.action == "acesso_insistente" %}
+                      <span class="br-tag danger text">
+                        <i class="fas fa-shield-alt mr-1" aria-hidden="true"></i> Acesso insistente
+                      </span>
+                    {% elif entry.action == "rotacao_ip" %}
+                      <span class="br-tag danger text" style="background:#7a3800; color:#fff;">
+                        <i class="fas fa-network-wired mr-1" aria-hidden="true"></i> Rotação de IP
+                      </span>
                     {% else %}
                       <span class="br-tag text">{{ entry.action }}</span>
                     {% endif %}

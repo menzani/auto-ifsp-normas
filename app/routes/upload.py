@@ -83,9 +83,10 @@ async def upload_pdf(
             status_code=200,
         )
 
-    # ── Checksum e detecção de duplicado ─────────────────────────────────
+    # ── Checksum e detecção de duplicado (atômico) ─────────────────────────
     checksum = hashlib.sha256(content).hexdigest()
-    existing = storage.find_pdf_by_checksum(checksum)
+    job_id = secrets.token_urlsafe(16)
+    existing = storage.register_pdf_checksum(checksum, job_id, title.strip(), user["email"])
     if existing:
         return HTMLResponse(
             f'<div class="br-message warning" role="alert">'
@@ -98,9 +99,7 @@ async def upload_pdf(
         )
 
     # ── Armazena e dispara processamento ─────────────────────────────────
-    job_id = secrets.token_urlsafe(16)
     pdf_key = storage.save_pdf(job_id, content)
-    storage.register_pdf_checksum(checksum, job_id, title.strip(), user["email"])
     initial_status = {
         "id": job_id,
         "status": "processing",

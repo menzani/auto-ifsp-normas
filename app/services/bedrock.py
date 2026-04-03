@@ -74,7 +74,11 @@ def _get_bedrock_client():
         return _bedrock_client
     with _bedrock_client_lock:
         if _bedrock_client is None:
-            _bedrock_client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+            _bedrock_client = boto3.client(
+                "bedrock-runtime",
+                region_name=settings.aws_region,
+                config=Config(read_timeout=60, connect_timeout=10),
+            )
     return _bedrock_client
 
 
@@ -122,9 +126,9 @@ def generate_faq(markdown_text: str, title: str) -> tuple[str, dict]:
         text += "\n\n*[Texto truncado — documento excede o limite de processamento.]*"
     try:
         return _invoke_bedrock_model(_build_prompt(_sanitize_for_prompt(title), _sanitize_for_prompt(text)), 2048)
-    except Exception:
+    except Exception as exc:
         logging.getLogger(__name__).exception("Erro ao gerar FAQ via Bedrock")
-        raise RuntimeError("Não foi possível gerar o FAQ. Verifique as permissões do Bedrock e tente novamente.")
+        raise RuntimeError("Não foi possível gerar o FAQ. Verifique as permissões do Bedrock e tente novamente.") from exc
 
 
 def generate_revocation_summary(markdown_text: str, title: str) -> tuple[str, dict]:
@@ -137,9 +141,9 @@ def generate_revocation_summary(markdown_text: str, title: str) -> tuple[str, di
         text += "\n\n*[Texto truncado — documento excede o limite de processamento.]*"
     try:
         raw, usage = _invoke_bedrock_model(_build_revocation_prompt(_sanitize_for_prompt(title), _sanitize_for_prompt(text)), 512)
-    except Exception:
+    except Exception as exc:
         logging.getLogger(__name__).exception("Erro ao gerar resumo de revogação via Bedrock")
-        raise RuntimeError("Não foi possível gerar o resumo. Verifique as permissões do Bedrock e tente novamente.")
+        raise RuntimeError("Não foi possível gerar o resumo. Verifique as permissões do Bedrock e tente novamente.") from exc
     # Garante linha em branco entre campos **Field:** para renderização correta em Markdown
     raw = re.sub(r'(\*\*[^:\n]+:\*\*[^\n]+)\n(\*\*)', r'\1\n\n\2', raw)
     return raw, usage
@@ -275,11 +279,11 @@ def extract_pages_multimodal(
             contentType="application/json",
             accept="application/json",
         ))
-    except Exception:
+    except Exception as exc:
         logging.getLogger(__name__).exception(
             "Erro na extração multimodal via Bedrock (lote começando na página %d)", start_page
         )
-        raise RuntimeError("Falha na extração multimodal. Verifique as permissões do Bedrock e o modelo configurado.")
+        raise RuntimeError("Falha na extração multimodal. Verifique as permissões do Bedrock e o modelo configurado.") from exc
     result = json.loads(response["body"].read())
     usage = result.get("usage", {"input_tokens": 0, "output_tokens": 0})
     return result["content"][0]["text"], usage

@@ -185,6 +185,8 @@ def run_in_background(job_id: str, pdf_key: str, title: str, uploaded_by: str, c
     def _target():
         try:
             run(job_id, pdf_key, title, uploaded_by, checksum)
+        except Exception:
+            _log.exception("Exceção não tratada na thread de upload job=%s", job_id)
         finally:
             _semaphore.release()
 

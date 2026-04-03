@@ -143,6 +143,8 @@ def run_in_background(job_id: str, book_id: int, revoked_by: str) -> bool:
     def _target():
         try:
             run(job_id, book_id, revoked_by)
+        except Exception:
+            _log.exception("Exceção não tratada na thread de revogação job=%s", job_id)
         finally:
             _semaphore.release()
 

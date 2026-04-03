@@ -44,6 +44,9 @@ def set_done(
     result: dict,
     total_steps: int,
 ) -> None:
+    current = storage.load_status(job_id) or {}
+    if current.get("status") == "cancelled":
+        return
     storage.save_status(job_id, {
         "id": job_id,
         "status": "done",
@@ -60,6 +63,9 @@ def set_error(
     message: str,
     total_steps: int,
 ) -> None:
+    current = storage.load_status(job_id) or {}
+    if current.get("status") == "cancelled":
+        return
     storage.save_status(job_id, {
         "id": job_id,
         "status": "error",

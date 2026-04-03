@@ -310,9 +310,15 @@ def token_usage_by_user(year: int, month: int) -> list[dict]:
     return result
 
 
+_monthly_usage_cache: dict = {}
+_monthly_usage_cache_lock = threading.Lock()
+_MONTHLY_USAGE_TTL = 3600.0  # 1 hora
+
+
 def bedrock_usage_by_month() -> list[dict]:
     """
     Agrega uso de tokens Bedrock por mês lendo todos os arquivos de audit.
+    Resultado cacheado por 1h (dados históricos mudam pouco).
     Retorna lista ordenada por (ano, mês).
 
     Suporta três formatos de extra em entradas "processar":
@@ -322,6 +328,12 @@ def bedrock_usage_by_month() -> list[dict]:
 
     Entradas "revogar" usam input_tokens + output_tokens (ou tokens legado).
     """
+    now = time.monotonic()
+    with _monthly_usage_cache_lock:
+        cached = _monthly_usage_cache.get("data")
+        if cached is not None and (now - _monthly_usage_cache.get("_ts", 0)) < _MONTHLY_USAGE_TTL:
+            return cached
+
     result = []
     for year, month in list_available_months():
         entries = read_month(year, month)
@@ -375,4 +387,8 @@ def bedrock_usage_by_month() -> list[dict]:
             "legacy_tokens": legacy_tokens,     # formato antigo sem split entrada/saída
             "has_split": extraction_input + extraction_output + faq_input + faq_output > 0,
         })
+
+    with _monthly_usage_cache_lock:
+        _monthly_usage_cache["data"] = result
+        _monthly_usage_cache["_ts"] = time.monotonic()
     return result

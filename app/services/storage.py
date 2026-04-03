@@ -200,15 +200,18 @@ _checksums_lock = threading.Lock()
 
 def find_pdf_by_checksum(checksum: str) -> dict | None:
     """Retorna os metadados do upload anterior com o mesmo checksum, ou None."""
-    with _checksums_lock:
-        return _load_json(_CHECKSUMS_KEY, dict).get(checksum)
+    return _load_json(_CHECKSUMS_KEY, dict).get(checksum)
 
 
-def register_pdf_checksum(checksum: str, job_id: str, title: str, uploaded_by: str) -> None:
-    """Registra o checksum SHA-256 de um PDF recém-enviado."""
+def register_pdf_checksum(checksum: str, job_id: str, title: str, uploaded_by: str) -> dict | None:
+    """Registra o checksum SHA-256 de um PDF recém-enviado.
+    Retorna None em caso de sucesso, ou os metadados do upload existente se já registrado
+    (proteção contra uploads simultâneos do mesmo PDF)."""
     from datetime import datetime, timezone
     with _checksums_lock:
         registry = _load_json(_CHECKSUMS_KEY, dict)
+        if checksum in registry:
+            return registry[checksum]
         registry[checksum] = {
             "job_id": job_id,
             "title": title,
@@ -216,6 +219,7 @@ def register_pdf_checksum(checksum: str, job_id: str, title: str, uploaded_by: s
             "uploaded_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
         }
         _save_json(_CHECKSUMS_KEY, registry)
+        return None
 
 
 def unregister_pdf_checksum_by_job_id(job_id: str) -> None:

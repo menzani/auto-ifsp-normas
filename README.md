@@ -127,6 +127,17 @@ O acesso é restrito a contas `@ifsp.edu.br` via Google Workspace. O papel padr�
 
 ---
 
+### Papel: Administrador — Limite diário de tokens
+
+1. Acesse o menu **Custo**, seção **Limite diário de tokens**
+2. Informe o limite global de tokens por dia (entrada + saída combinados) — valor 0 = sem limite
+3. Clique em **Salvar limite**
+4. Quando o consumo diário atingir 70%, um banner de alerta aparece no topo de todas as páginas (visível apenas para administradores)
+5. Ao atingir 100%, novos uploads e revogações são bloqueados automaticamente até a meia-noite (horário de Brasília)
+6. Na seção **Consumo por usuário**, selecione o mês no filtro para ver o ranking de consumo de tokens por usuário, incluindo número de envios e revogações
+
+---
+
 ### Papel: Administrador — Excluir um registro de revogado
 
 1. Acesse o menu **Revisão**, seção **Normativos revogados**

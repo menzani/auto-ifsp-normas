@@ -132,7 +132,6 @@
     {% set t = job.result.processing_time_seconds %}
     {% if t < 60 %}{{ t }}s{% else %}{{ (t // 60)|int }}min {{ (t % 60)|int }}s{% endif %}
     {% endif %}
-    {% endif %}
   </p>
   <div class="mt-3">
     <a href="/" class="br-button primary">

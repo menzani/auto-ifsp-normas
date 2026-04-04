@@ -49,6 +49,7 @@ _drafts_cache: dict = {}    # {"data": [...], "ts": float}
 _shelf_map_cache: dict = {} # {"data": {...}, "ts": float}
 _overview_cache: dict = {}  # {"data": {...}, "ts": float}
 _overview_refreshing = False # flag para evitar múltiplos refreshes simultâneos
+_initial_cache_ready = threading.Event()  # sinaliza quando o primeiro build (warm-up) concluiu
 
 _UNSET = object()
 _public_role_id = _UNSET   # cache: _UNSET = não buscado, None = não encontrado, int = ID
@@ -93,49 +94,56 @@ def _schedule_background_refresh() -> None:
 
 
 def _build_overview_fresh() -> dict:
-    """Reconstrói o overview completo e atualiza o cache."""
+    """Reconstrói o overview completo e atualiza o cache.
+
+    Ao concluir (com sucesso ou erro), sinaliza _initial_cache_ready para
+    desbloquear requests que estejam esperando o warm-up do startup.
+    """
     from concurrent.futures import ThreadPoolExecutor
     from app.services import storage as _storage
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        f_books = executor.submit(_api_get_all, "/books")
-        f_shelf = executor.submit(_build_shelf_data)
-        all_books_list = f_books.result()
-        shelf_map, all_shelves, staging_book_ids, revoked_shelf_book_ids = f_shelf.result()
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            f_books = executor.submit(_api_get_all, "/books")
+            f_shelf = executor.submit(_build_shelf_data)
+            all_books_list = f_books.result()
+            shelf_map, all_shelves, staging_book_ids, revoked_shelf_book_ids = f_shelf.result()
 
-    all_books = {b["id"]: b for b in all_books_list}
-    _book_meta = _storage.get_book_meta_registry()
-    uploaded_by_map: dict[int, str] = {
-        bid: _book_meta.get(str(bid), {}).get("uploaded_by", "—")
-        for bid in all_books
-    }
+        all_books = {b["id"]: b for b in all_books_list}
+        _book_meta = _storage.get_book_meta_registry()
+        uploaded_by_map: dict[int, str] = {
+            bid: _book_meta.get(str(bid), {}).get("uploaded_by", "—")
+            for bid in all_books
+        }
 
-    drafts = []
-    published = []
-    for bid, book in all_books.items():
-        if bid in revoked_shelf_book_ids:
-            continue
-        bookstack_url = f"{settings.bookstack_base_url}/books/{book['slug']}"
-        created_at = _format_datetime(book.get("created_at", ""))
-        if bid in staging_book_ids:
-            drafts.append({
-                "book_id": bid, "title": book["name"], "shelf_name": "—",
-                "uploaded_by": uploaded_by_map.get(bid, "—"),
-                "created_at": created_at, "bookstack_url": bookstack_url,
-            })
-        else:
-            published.append({
-                "book_id": bid, "title": book["name"],
-                "shelf_name": shelf_map.get(bid, "—"),
-                "uploaded_by": uploaded_by_map.get(bid, "—"),
-                "bookstack_url": bookstack_url,
-            })
+        drafts = []
+        published = []
+        for bid, book in all_books.items():
+            if bid in revoked_shelf_book_ids:
+                continue
+            bookstack_url = f"{settings.bookstack_base_url}/books/{book['slug']}"
+            created_at = _format_datetime(book.get("created_at", ""))
+            if bid in staging_book_ids:
+                drafts.append({
+                    "book_id": bid, "title": book["name"], "shelf_name": "—",
+                    "uploaded_by": uploaded_by_map.get(bid, "—"),
+                    "created_at": created_at, "bookstack_url": bookstack_url,
+                })
+            else:
+                published.append({
+                    "book_id": bid, "title": book["name"],
+                    "shelf_name": shelf_map.get(bid, "—"),
+                    "uploaded_by": uploaded_by_map.get(bid, "—"),
+                    "bookstack_url": bookstack_url,
+                })
 
-    result = {"drafts": drafts, "published": published, "invalid": [], "shelves": all_shelves}
-    with _cache_lock:
-        _overview_cache["data"] = result
-        _overview_cache["ts"] = time.monotonic()
-    return result
+        result = {"drafts": drafts, "published": published, "invalid": [], "shelves": all_shelves}
+        with _cache_lock:
+            _overview_cache["data"] = result
+            _overview_cache["ts"] = time.monotonic()
+        return result
+    finally:
+        _initial_cache_ready.set()
 
 
 def _get_public_role_id() -> int | None:
@@ -336,6 +344,15 @@ def get_all_books_overview() -> dict:
             if age < _CACHE_TTL:
                 if age > _CACHE_TTL * _CACHE_REFRESH_AT:
                     _schedule_background_refresh()
+                return _overview_cache["data"]
+
+    # Se o warm-up do startup está em andamento, espera por ele em vez de
+    # disparar um build paralelo duplicado (que dobraria as chamadas à API).
+    if not _initial_cache_ready.is_set():
+        _log.info("Aguardando warm-up do cache do overview...")
+        _initial_cache_ready.wait(timeout=30)
+        with _cache_lock:
+            if _overview_cache and "data" in _overview_cache:
                 return _overview_cache["data"]
 
     return _build_overview_fresh()
